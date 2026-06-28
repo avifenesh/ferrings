@@ -304,6 +304,8 @@ console.log(batchInfo.port);
 npm install
 npm test
 npm run bench
+npm run check:npm-names
+npm run check:npm-new-names
 npm run bench:first-slice
 npm run bench:tcp
 npm run bench:high
@@ -390,6 +392,11 @@ artifacts under `artifacts/`, run `npm run artifacts` to copy them into
 `npm run check:native-packages` or
 `node scripts/check-native-packages.js --package linux-x64-gnu --require-binary`
 to dry-run pack the staged native package.
+Use `npm run check:npm-names` before publishing to verify that the root package
+and optional native package versions are not already present on the npm
+registry. For the initial claim of the package family, use
+`npm run check:npm-new-names` to require every package name to be completely
+unpublished.
 
 `test:zcrx` is skipped unless `ZCRX_INTERFACE` is set. On capable hardware it
 starts all three server types with `useZeroCopyReceive: true`, requires the
