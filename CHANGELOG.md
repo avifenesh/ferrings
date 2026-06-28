@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Reworked the README opening to present ferrings as a usable Linux transport,
+  with benchmark results in the first-screen flow instead of lower in the page.
+
 ## 0.2.9 - 2026-06-29
 
 - Added root package `cpu` and `libc` selectors so unsupported Linux targets
