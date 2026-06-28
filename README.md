@@ -406,10 +406,11 @@ GitHub-hosted runners, `id-token: write`, Node 24, public package access, and
 `publishConfig.provenance` on the root and native package manifests. Before a
 real publish, create a public GitHub repository, set
 `package.json.repository.url` to that exact repository, then configure each npm
-package's trusted publisher to that repository and workflow, or provide an
-`NPM_TOKEN` secret for token-based publishing. The release workflow blocks
-publishing when GitHub's `GITHUB_REPOSITORY` does not match the package
-repository metadata.
+package's trusted publisher to that repository and workflow. Tag pushes build
+and upload release artifacts but do not publish to npm; npm publish is an
+explicit manual `workflow_dispatch` run with `publish=true` after trusted
+publishing is configured. The release workflow blocks publishing when GitHub's
+`GITHUB_REPOSITORY` does not match the package repository metadata.
 After adding a GitHub `origin`, run `npm run configure:release-repository` to
 derive that metadata from the remote, or pass `--repo owner/name` explicitly.
 The helper only edits `package.json`; it does not create a repository, push, or

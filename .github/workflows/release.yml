@@ -73,9 +73,7 @@ jobs:
           fi
 
           should_publish="false"
-          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            should_publish="true"
-          elif [[ "${INPUT_PUBLISH:-false}" == "true" ]]; then
+          if [[ "${INPUT_PUBLISH:-false}" == "true" ]]; then
             should_publish="true"
           fi
 
@@ -220,7 +218,6 @@ jobs:
       - name: Publish to npm
         if: needs.validate.outputs.should_publish == 'true'
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_ACCESS: public
           NPM_CONFIG_PROVENANCE: true
           NPM_CONFIG_TAG: ${{ needs.validate.outputs.npm_tag }}
