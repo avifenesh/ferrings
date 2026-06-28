@@ -178,6 +178,18 @@ jobs:
         timeout-minutes: 5
         run: node scripts/install-zig.js --version 0.13.0
 
+      - name: Cache cargo-zigbuild
+        if: matrix.cross
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-zigbuild
+          key: cargo-zigbuild-0.23.0-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Install cargo-zigbuild
+        if: matrix.cross
+        timeout-minutes: 10
+        run: npm run install:cargo-zigbuild
+
       - name: Install dependencies
         run: npm ci --omit=optional
 
