@@ -25,6 +25,7 @@
   ],
   "files": [
     "README.md",
+    "SECURITY.md",
     "LICENSE-APACHE",
     "LICENSE-MIT",
     "index.js",
@@ -41,8 +42,9 @@
   "scripts": {
     "build": "napi build --platform --js native.js --dts native.d.ts --release",
     "build:debug": "napi build --platform --js native.js --dts native.d.ts",
-    "test": "npm run test:rust && npm run build:debug && node test/zcrx-hardware-smoke.js --self-test && node test/zcrx-gate.js && node test/cli-smoke.js && node test/smoke.js && node test/zero-copy-send.js && node test/http-registered-send-buffer.js && node test/recv-bundle.js && node test/tcp-registered-send-buffer.js && node test/tcp-command-queue.js && node test/tcp-event-queue.js && node test/tcp-send-queue.js && node test/connection-limit.js && node test/listen-backlog.js && node test/reuse-port.js && node test/tcp-defer-accept.js && node test/connection-idle-timeout.js && node test/transport-stats.js && node test/tcp-transport.js && node test/tcp-batch-transport.js && node test/tcp-transport-facade.js && node test/tcp-nodelay.js && node test/socket-buffer-size.js && node test/first-slice-benchmark.js && node test/package-install-smoke.js && node test/platform-package-install-smoke.js && node test/tcp-send-batch.js && node test/tcp-send-and-close.js && node test/tcp-half-close.js && node test/tcp-zero-copy-send.js && node test/tcp-zero-copy-send-heap.js && node test/tcp-native-echo-zero-copy-heap.js && node test/tcp-zero-copy-send-and-close.js && node test/tcp-zero-copy-shutdown.js && node test/tcp-native-echo.js && node test/idle-shutdown.js && node test/concurrency-regression.js",
+    "test": "npm run test:rust && npm run test:types && npm run build:debug && node test/zcrx-hardware-smoke.js --self-test && node test/zcrx-gate.js && node test/cli-smoke.js && node test/smoke.js && node test/zero-copy-send.js && node test/http-registered-send-buffer.js && node test/recv-bundle.js && node test/tcp-registered-send-buffer.js && node test/tcp-command-queue.js && node test/tcp-event-queue.js && node test/tcp-send-queue.js && node test/connection-limit.js && node test/listen-backlog.js && node test/reuse-port.js && node test/tcp-defer-accept.js && node test/connection-idle-timeout.js && node test/transport-stats.js && node test/tcp-transport.js && node test/tcp-batch-transport.js && node test/tcp-transport-facade.js && node test/tcp-nodelay.js && node test/socket-buffer-size.js && node test/first-slice-benchmark.js && node test/package-install-smoke.js && node test/platform-package-install-smoke.js && node test/tcp-send-batch.js && node test/tcp-send-and-close.js && node test/tcp-half-close.js && node test/tcp-zero-copy-send.js && node test/tcp-zero-copy-send-heap.js && node test/tcp-native-echo-zero-copy-heap.js && node test/tcp-zero-copy-send-and-close.js && node test/tcp-zero-copy-shutdown.js && node test/tcp-native-echo.js && node test/idle-shutdown.js && node test/concurrency-regression.js",
     "test:rust": "cargo test",
+    "test:types": "tsc -p tsconfig.types.json",
     "test:zcrx": "npm run build:debug && node test/zcrx-hardware-smoke.js",
     "artifacts": "napi artifacts --output-dir artifacts --npm-dir npm && node scripts/copy-native-package-assets.js",
     "prepublishOnly": "node scripts/prepublish.js",
@@ -55,7 +57,9 @@
     "check:release-ready": "node scripts/check-release-ready.js",
     "configure:release-repository": "node scripts/configure-release-repository.js",
     "check:platform-install": "node test/platform-package-install-smoke.js",
+    "check:pack": "npm pack --dry-run --json",
     "check:publish": "npm publish --dry-run --json",
+    "audit:deps": "npm audit --audit-level=moderate && cargo audit",
     "bench": "node benchmark/compare.js",
     "bench:first-slice": "node benchmark/first-slice.js",
     "bench:tcp": "node benchmark/tcp-echo.js",
@@ -65,7 +69,9 @@
     "example:tcp": "node examples/tcp-echo.js"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.7.2"
+    "@napi-rs/cli": "^3.7.2",
+    "@types/node": "^26.0.1",
+    "typescript": "^6.0.3"
   },
   "optionalDependencies": {
     "ferrings-linux-arm64-gnu": "0.2.2",
@@ -88,6 +94,10 @@
   "os": [
     "linux"
   ],
+  "homepage": "https://github.com/avifenesh/ferrings#readme",
+  "bugs": {
+    "url": "https://github.com/avifenesh/ferrings/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/avifenesh/ferrings.git"

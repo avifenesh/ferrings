@@ -33,6 +33,10 @@
   "libc": [
     "glibc"
   ],
+  "homepage": "https://github.com/avifenesh/ferrings#readme",
+  "bugs": {
+    "url": "https://github.com/avifenesh/ferrings/issues"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/avifenesh/ferrings.git"

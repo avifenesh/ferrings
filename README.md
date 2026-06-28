@@ -353,7 +353,7 @@ npm run check:release-ready -- --full --strict
 npm run check:release-ready -- --full --require-zcrx
 ```
 
-Tag pushes that match the package version build all native artifacts, run package checks, and publish to npm with the repository `NPM_TOKEN` secret. Manual `workflow_dispatch` runs can also publish when `publish=true`. For a new release, bump the package version first; npm versions are immutable after publication.
+Tag pushes that match the package version build all native artifacts, run package checks, and publish to npm with the repository `NPM_TOKEN` secret. Manual `workflow_dispatch` runs can also publish when `publish=true`. For a new release, bump the package version first; npm versions are immutable after publication, so `check:release-ready` is a release gate rather than a normal post-release main-branch check.
 
 ## Limitations And Tradeoffs
 
@@ -375,6 +375,8 @@ Tag pushes that match the package version build all native artifacts, run packag
 - CLI entrypoint: [`bin/ferrings.js`](bin/ferrings.js)
 - Release workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 - CI workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+- Security workflow: [`.github/workflows/security.yml`](.github/workflows/security.yml)
+- Security policy: [`SECURITY.md`](SECURITY.md)
 - Tests: [`test/`](test/)
 
 There is no separate docs site yet; the README, type definitions, examples, and tests are the current reference material.
@@ -386,15 +388,18 @@ Issues and pull requests are welcome. There is no standalone `CONTRIBUTING.md` y
 ```bash
 npm install
 npm test
-npm run check:release-ready -- --full --strict
+npm run audit:deps
+npm run check:pack
 ```
 
 For changes that touch native packaging, also run:
 
 ```bash
 npm run check:native-packages
-npm pack --dry-run --json
+npm run check:pack
 ```
+
+For type-surface changes, `npm test` runs `npm run test:types`, which compiles a consumer TypeScript smoke test against the published `.d.ts` entrypoints.
 
 For ZCRX changes, include `npm run test:zcrx` output when you have access to capable hardware. If you do not, include `node bin/ferrings.js zcrx-probe --all --active --json` output so reviewers can see the blocker.
 
