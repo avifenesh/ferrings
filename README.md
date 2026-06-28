@@ -2,23 +2,21 @@
 
 [![CI](https://github.com/avifenesh/ferrings/actions/workflows/ci.yml/badge.svg)](https://github.com/avifenesh/ferrings/actions/workflows/ci.yml)
 [![Release](https://github.com/avifenesh/ferrings/actions/workflows/release.yml/badge.svg)](https://github.com/avifenesh/ferrings/actions/workflows/release.yml)
+[![npm](https://img.shields.io/npm/v/ferrings)](https://www.npmjs.com/package/ferrings)
 ![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
 Linux `io_uring` TCP transport for Node.js, built with Rust and napi-rs for high-concurrency server outside libuv's networking loop.
 
-ferrings exposes Node-friendly TCP and fixed-response HTTP APIs backed by a native `io_uring` worker: multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, and an optional ZCRX path for capable NICs. The project is at the 0.1.0 release stage; tag pushes build native artifacts and publish to npm through the repository `NPM_TOKEN` secret.
+ferrings exposes Node-friendly TCP and fixed-response HTTP APIs backed by a native `io_uring` worker: multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, and an optional ZCRX path for capable NICs. It is published on npm as a root package plus target-specific optional native packages, so users install `ferrings` and npm resolves the matching Linux binding for their machine.
 
 ```bash
-git clone https://github.com/avifenesh/ferrings.git
-cd ferrings
-npm install
-npm run build
+npm install ferrings
 ```
 
 ```js
 const net = require('node:net');
-const { createTcpServer } = require('./');
+const { createTcpServer } = require('ferrings');
 
 const server = createTcpServer((connection) => {
   connection.on('data', (data) => connection.end(`ferrings:${data}`));
@@ -33,14 +31,14 @@ server.listen(0, '127.0.0.1', (info) => {
 });
 ```
 
-Run the example from the repository root with `node quickstart.js`; it prints `ferrings:ping`. After npm publishing, replace `require('./')` with `require('ferrings')`.
+Save the example as `quickstart.js` and run it with `node quickstart.js`; it prints `ferrings:ping`.
 
 ## Quick proof signals
 
-- Linux-only native addon for Node.js `>=20`, written in Rust with napi-rs.
+- Published on npm as [`ferrings`](https://www.npmjs.com/package/ferrings) for Node.js `>=20` on Linux.
 - CI builds and tests Node 20, 22, and 24 on Linux.
-- Release workflow builds native packages for `linux-x64-gnu`, `linux-x64-musl`, `linux-arm64-gnu`, and `linux-arm64-musl`.
-- `npm run check:release-ready -- --full --strict` reports `ready-with-optional-blockers`; the optional blocker is ZCRX hardware proof.
+- Uses the napi-rs root-package + optional-native-package pattern: one JS API package, target-specific native bindings underneath.
+- `npm run check:release-ready -- --full --strict` verifies the local release gates; ZCRX hardware proof is optional unless `--require-zcrx` is set.
 - Package install smoke tests pack the tarball, install it in a temporary app, start a TCP server through `require('ferrings')`, and run the installed CLI.
 
 ## Why this project
@@ -53,33 +51,30 @@ Run the example from the repository root with `node quickstart.js`; it prints `f
 
 ## Installation
 
-The npm package family is prepared but not published yet. Use the source checkout path for now:
-
-```bash
-git clone https://github.com/avifenesh/ferrings.git
-cd ferrings
-npm install
-npm run build
-npm test
-```
-
-When the npm packages are published, the intended install path is:
+Install the published package:
 
 ```bash
 npm install ferrings
 ```
 
-The base package is Linux-only and depends on optional native packages for glibc/musl and x64/arm64 targets.
+The base package is Linux-only. It depends on target-specific optional native packages, but a normal install picks the one package that matches the current machine. For source development:
+
+```bash
+git clone https://github.com/avifenesh/ferrings.git
+cd ferrings
+npm install
+npm test
+```
 
 ## Quick start
 
-Create `quickstart.js` in the repository root:
+After `npm install ferrings`, create `quickstart.js`:
 
 ```js
 'use strict';
 
 const net = require('node:net');
-const { createTcpServer, capabilities } = require('./');
+const { createTcpServer, capabilities } = require('ferrings');
 
 console.log(capabilities());
 
@@ -161,7 +156,7 @@ The broad core path is multishot accept + multishot recv + provided buffers. ZCR
 ### Node-style TCP
 
 ```js
-const { createTcpServer } = require('./');
+const { createTcpServer } = require('ferrings');
 
 const server = createTcpServer((connection) => {
   connection.on('data', (data) => connection.end(data));
@@ -177,7 +172,7 @@ Use this path when you want a familiar Node server shape over the native transpo
 ### Raw TCP events
 
 ```js
-const { UringTcpServer } = require('./');
+const { UringTcpServer } = require('ferrings');
 
 const server = new UringTcpServer({
   host: '127.0.0.1',
@@ -200,7 +195,7 @@ Use this path when you want direct event objects and explicit connection IDs.
 ### Batched TCP events and sends
 
 ```js
-const { UringTcpServer } = require('./');
+const { UringTcpServer } = require('ferrings');
 
 const server = new UringTcpServer({ host: '127.0.0.1', port: 0 });
 
@@ -224,7 +219,7 @@ Use this path when JS callback overhead matters and events can be processed in b
 ### Fixed-response HTTP
 
 ```js
-const { UringHttpServer } = require('./');
+const { UringHttpServer } = require('ferrings');
 
 const server = new UringHttpServer({
   host: '127.0.0.1',
@@ -242,7 +237,7 @@ console.log(`http://${info.host}:${info.port}`);
 ### Native echo benchmark server
 
 ```js
-const { UringTcpEchoServer } = require('./');
+const { UringTcpEchoServer } = require('ferrings');
 
 const server = new UringTcpEchoServer({
   host: '127.0.0.1',
@@ -259,7 +254,7 @@ Use this to isolate the native TCP echo path from JavaScript event delivery.
 ### Capability and ZCRX probes
 
 ```js
-const { capabilities, zcrxProbe } = require('./');
+const { capabilities, zcrxProbe } = require('ferrings');
 
 console.log(capabilities());
 console.log(zcrxProbe({ interfaceName: 'eth0' }));
@@ -270,15 +265,13 @@ console.log(zcrxProbe({
 }));
 ```
 
-The CLI exposes the same diagnostics from a source checkout:
+The installed CLI exposes the same diagnostics:
 
 ```bash
-node bin/ferrings.js capabilities --json
-node bin/ferrings.js doctor --interface eth0 --rx-queue 0 --active --json
-node bin/ferrings.js zcrx-probe --interface eth0 --rx-queue 0 --active --json
+npx ferrings capabilities --json
+npx ferrings doctor --interface eth0 --rx-queue 0 --active --json
+npx ferrings zcrx-probe --interface eth0 --rx-queue 0 --active --json
 ```
-
-After npm publishing, the same commands can be run as `npx ferrings ...`.
 
 ## Configuration
 
@@ -354,10 +347,10 @@ For a real NIC receive proof, avoid `127.0.0.1`; route packets through the selec
 
 ## Release and package layout
 
-The release flow follows napi-rs native package conventions:
+The release flow follows napi-rs native package conventions. Users install `ferrings`; npm picks one optional native package for the current machine.
 
 - Root package: `ferrings`
-- Optional native packages:
+- Published native packages:
   - `ferrings-linux-x64-gnu`
   - `ferrings-linux-x64-musl`
   - `ferrings-linux-arm64-gnu`
@@ -367,13 +360,13 @@ Useful release checks:
 
 ```bash
 npm run check:native-packages
-npm run check:npm-new-names
+npm run check:npm-names
 npm run check:release-repository
 npm run check:release-ready -- --full --strict
 npm run check:release-ready -- --full --require-zcrx
 ```
 
-Tag pushes that match the package version build all native artifacts, run package checks, and publish to npm with the repository `NPM_TOKEN` secret. Manual `workflow_dispatch` runs can also publish when `publish=true`.
+Tag pushes that match the package version build all native artifacts, run package checks, and publish to npm with the repository `NPM_TOKEN` secret. Manual `workflow_dispatch` runs can also publish when `publish=true`. For a new release, bump the package version first; `0.1.0` is already published.
 
 ## Limitations and tradeoffs
 
@@ -385,7 +378,7 @@ Tag pushes that match the package version build all native artifacts, run packag
 - TLS is not implemented.
 - ZCRX requires specific NIC hardware, kernel support, queue setup, permissions, and routed traffic through the selected RX queue.
 - Registered-buffer send can be unavailable even when the kernel supports other modern `io_uring` networking features; ferrings reports that through `capabilities().registeredSendBuffer`.
-- APIs and packaging are still at the 0.1 release-candidate stage.
+- APIs are still early and may change between 0.x releases.
 
 ## Docs, examples, and project health
 
