@@ -87,6 +87,15 @@ addCommandCheck({
 });
 
 addCommandCheck({
+  name: 'npm lockfile install plan',
+  scope: 'local',
+  command: 'npm',
+  args: ['ci', '--dry-run', '--omit=optional', '--ignore-scripts', '--no-audit', '--no-fund'],
+  success: 'lockfile can install without optional native packages',
+  next: 'npm install --package-lock-only --ignore-scripts --no-audit --no-fund --omit=optional && npm run check:lockfile'
+});
+
+addCommandCheck({
   name: 'native package metadata',
   scope: 'local',
   command: process.execPath,

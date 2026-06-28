@@ -59,7 +59,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends strace
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --omit=optional
 
       - name: Check Rust format
         run: cargo fmt -- --check
@@ -153,7 +153,7 @@ jobs:
           zig version
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --omit=optional
 
       - name: Build native target
         run: |

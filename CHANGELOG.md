@@ -6,7 +6,7 @@ This project follows semver for published npm package versions while it is in th
 `0.x` line: patch releases are intended to be safe updates, and minor releases
 may adjust APIs, defaults, or packaging.
 
-## Unreleased
+## 0.2.6 - 2026-06-28
 
 - Added a pinned `actionlint` workflow checker and CI job, and included it in
   release-readiness checks.
@@ -16,6 +16,11 @@ may adjust APIs, defaults, or packaging.
 - Made release-readiness checks registry-aware so an already-published version
   asks for a version bump instead of retagging or running noisy publish
   dry-runs.
+- Made CI, security, and release dependency installs omit optional native
+  packages so patch releases can validate before the new platform packages exist
+  on npm.
+- Added a lockfile install-plan gate to release readiness so future version
+  bumps catch optional-native package lock drift before tagging.
 - Rewrote the README to strengthen the usable Linux `io_uring` transport
   positioning and keep the full benchmark table before installation with an
   explicit Node 20 EOL support note.

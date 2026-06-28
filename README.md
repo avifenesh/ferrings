@@ -373,6 +373,7 @@ Useful checks before cutting a release:
 
 ```bash
 npm run check:workflows
+npm run check:lockfile
 npm run check:native-packages
 npm run check:npm-names
 npm run check:release-repository

@@ -1,6 +1,6 @@
 {
   "name": "ferrings",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Linux io_uring TCP transport for Node.js services",
   "main": "index.js",
   "types": "index.d.ts",
@@ -56,6 +56,7 @@
     "check:npm-names": "node scripts/check-npm-names.js",
     "check:npm-new-names": "node scripts/check-npm-names.js --require-new-names",
     "check:github-repository": "node scripts/check-github-repository.js",
+    "check:lockfile": "npm ci --dry-run --omit=optional --ignore-scripts --no-audit --no-fund",
     "check:metadata": "node scripts/check-package-metadata.js",
     "check:workflows": "node scripts/check-workflows.js",
     "check:published": "node scripts/check-published.js",
@@ -81,10 +82,10 @@
     "typescript": "^6.0.3"
   },
   "optionalDependencies": {
-    "ferrings-linux-arm64-gnu": "0.2.5",
-    "ferrings-linux-arm64-musl": "0.2.5",
-    "ferrings-linux-x64-gnu": "0.2.5",
-    "ferrings-linux-x64-musl": "0.2.5"
+    "ferrings-linux-arm64-gnu": "0.2.6",
+    "ferrings-linux-arm64-musl": "0.2.6",
+    "ferrings-linux-x64-gnu": "0.2.6",
+    "ferrings-linux-x64-musl": "0.2.6"
   },
   "napi": {
     "binaryName": "ferrings",
