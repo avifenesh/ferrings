@@ -5,7 +5,7 @@
 ![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Linux `io_uring` TCP transport for Node.js, built with Rust and napi-rs for high-concurrency server experiments outside libuv's networking loop.
+Linux `io_uring` TCP transport for Node.js, built with Rust and napi-rs for high-concurrency server outside libuv's networking loop.
 
 ferrings exposes Node-friendly TCP and fixed-response HTTP APIs backed by a native `io_uring` worker: multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, and an optional ZCRX path for capable NICs. The project is at the 0.1.0 source-release stage; npm publishing is intentionally still gated on trusted publishing setup.
 
