@@ -6,13 +6,14 @@ This project follows semver for published npm package versions while it is in th
 `0.x` line: patch releases are intended to be safe updates, and minor releases
 may adjust APIs, defaults, or packaging.
 
-## Unreleased
+## 0.2.4 - 2026-06-28
 
 - Added `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue templates, and a pull
   request template.
 - Added Dependabot coverage for npm, Cargo, and GitHub Actions.
 - Added package-content checks for contributor, conduct, changelog, and security
   documentation.
+- Updated the direct `io-uring` dependency to `0.7.13`.
 
 ## 0.2.3 - 2026-06-28
 

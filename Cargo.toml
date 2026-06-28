@@ -1,6 +1,6 @@
 [package]
 name = "ferrings"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 
@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 crate-type = ["cdylib"]
 
 [dependencies]
-io-uring = "0.7.12"
+io-uring = "0.7.13"
 libc = "0.2.177"
 napi = { version = "3.9.4", default-features = false, features = ["napi8"] }
 napi-derive = "3.5.7"
