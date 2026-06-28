@@ -175,11 +175,17 @@ jobs:
 
       - name: Install Zig for cross builds
         if: matrix.cross
+        timeout-minutes: 5
         run: |
           set -euo pipefail
           ZIG_VERSION="0.13.0"
           ZIG_ARCH="$(uname -m)"
-          curl -sSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz" | sudo tar -xJ -C /usr/local
+          ZIG_TARBALL="$(mktemp -t zig.XXXXXX.tar.xz)"
+          trap 'rm -f "$ZIG_TARBALL"' EXIT
+          curl --fail --show-error --location --retry 3 --retry-delay 2 --connect-timeout 10 --max-time 180 \
+            -o "$ZIG_TARBALL" \
+            "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz"
+          sudo tar -xJf "$ZIG_TARBALL" -C /usr/local
           sudo ln -sf "/usr/local/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}/zig" /usr/local/bin/zig
           zig version
 
