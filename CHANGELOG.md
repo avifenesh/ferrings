@@ -8,6 +8,8 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.10 - 2026-06-29
+
 - Reworked the README opening to present ferrings as a usable Linux transport,
   with benchmark results in the first-screen flow instead of lower in the page.
 
