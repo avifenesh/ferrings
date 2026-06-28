@@ -13,6 +13,7 @@ const readmePath = path.join(repoRoot, 'README.md');
 
 const clean = runMetadataCheck();
 assert.equal(clean.status, 0, `expected clean metadata\nstdout:\n${clean.stdout}\nstderr:\n${clean.stderr}`);
+assertNoLegacyFirstSlicePublicSurface();
 
 const originalPackage = fs.readFileSync(packagePath, 'utf8');
 try {
@@ -63,6 +64,25 @@ try {
 }
 
 console.log('package metadata state ok');
+
+function assertNoLegacyFirstSlicePublicSurface() {
+  const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  assert.equal(
+    Object.keys(packageJson.scripts || {}).includes('bench:first-slice'),
+    false,
+    'package scripts must not expose bench:first-slice'
+  );
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, 'benchmark', 'first-slice.js')),
+    false,
+    'benchmark/first-slice.js must not be shipped'
+  );
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, 'test', 'first-slice-benchmark.js')),
+    false,
+    'test/first-slice-benchmark.js must not be restored'
+  );
+}
 
 function runMetadataCheck() {
   return spawnSync(process.execPath, ['scripts/check-package-metadata.js'], {

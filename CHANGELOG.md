@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.13 - 2026-06-29
+
+- Renamed the packaged quick benchmark bundle to `quick-proof` and exposed it
+  as `npm run bench:quick`, removing early-experiment wording from the public
+  package surface.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.13` results on
+  Node 26.
+
 ## 0.2.12 - 2026-06-29
 
 - Rewrote the README to lead with the benchmark proof and present ferrings as a

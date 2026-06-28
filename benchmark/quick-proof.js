@@ -20,7 +20,7 @@ const SYSCALL_CASES =
 const REPORT_PATH = process.env.REPORT_PATH;
 
 const report = {
-  mode: 'first-slice',
+  mode: 'quick-proof',
   status: 'running',
   startedAt: new Date().toISOString(),
   finishedAt: null,
@@ -104,7 +104,7 @@ function runBenchmark(label, script, extraEnv) {
   console.log(`\n== ${label} ==`);
   const childReportPath = path.join(
     os.tmpdir(),
-    `ferrings-first-slice-${process.pid}-${path.basename(script, '.js')}-${Date.now()}.json`
+    `ferrings-quick-proof-${process.pid}-${path.basename(script, '.js')}-${Date.now()}.json`
   );
   const childResult = {
     label,
@@ -232,7 +232,7 @@ function writeReport(output) {
   if (REPORT_PATH) {
     fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true });
     fs.writeFileSync(REPORT_PATH, `${JSON.stringify(output, null, 2)}\n`);
-    console.log(`first-slice benchmark report written: ${REPORT_PATH}`);
+    console.log(`quick-proof benchmark report written: ${REPORT_PATH}`);
   } else {
     console.log(JSON.stringify(output.summary, null, 2));
   }

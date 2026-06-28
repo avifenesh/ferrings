@@ -171,7 +171,7 @@ fs.writeFileSync(
           'zcrx-smoke.js',
           'bin/ferrings.js',
           'benchmark/compare.js',
-          'benchmark/first-slice.js',
+          'benchmark/quick-proof.js',
           'benchmark/high-concurrency.js',
           'benchmark/syscalls.js',
           'benchmark/tcp-echo.js',
