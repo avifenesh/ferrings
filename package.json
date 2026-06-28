@@ -8,6 +8,11 @@
     "ferrings": "bin/ferrings.js"
   },
   "license": "MIT OR Apache-2.0",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "provenance": true
+  },
   "keywords": [
     "io_uring",
     "node",
@@ -45,6 +50,7 @@
     "check:native-packages": "node scripts/check-native-packages.js",
     "check:npm-names": "node scripts/check-npm-names.js",
     "check:npm-new-names": "node scripts/check-npm-names.js --require-new-names",
+    "check:release-repository": "node scripts/check-release-repository.js",
     "check:platform-install": "node test/platform-package-install-smoke.js",
     "check:publish": "npm publish --dry-run --json",
     "bench": "node benchmark/compare.js",

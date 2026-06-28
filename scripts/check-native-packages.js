@@ -57,6 +57,11 @@ assert.equal(rootPackage.libc, undefined);
 assert.deepEqual(rootPackage.napi.targets, TARGETS.map((target) => target.target));
 assert.equal(rootPackage.files.includes('ferrings.linux-x64-gnu.node'), true);
 assert.equal(rootPackage.files.some((entry) => entry.includes('*.node')), false);
+assert.deepEqual(rootPackage.publishConfig, {
+  registry: 'https://registry.npmjs.org/',
+  access: 'public',
+  provenance: true
+});
 
 for (const target of TARGETS) {
   assert.equal(
@@ -90,6 +95,7 @@ function checkPlatformPackage(target) {
   assert.deepEqual(packageJson.os, ['linux']);
   assert.deepEqual(packageJson.cpu, [target.cpu]);
   assert.deepEqual(packageJson.libc, [target.libc]);
+  assert.deepEqual(packageJson.publishConfig, rootPackage.publishConfig);
 
   const nativePath = path.join(packageDir, target.main);
   if (requireBinary) {

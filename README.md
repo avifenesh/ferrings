@@ -306,6 +306,7 @@ npm test
 npm run bench
 npm run check:npm-names
 npm run check:npm-new-names
+npm run check:release-repository
 npm run bench:first-slice
 npm run bench:tcp
 npm run bench:high
@@ -397,6 +398,14 @@ and optional native package versions are not already present on the npm
 registry. For the initial claim of the package family, use
 `npm run check:npm-new-names` to require every package name to be completely
 unpublished.
+The release workflow uses npm trusted-publishing/provenance-friendly defaults:
+GitHub-hosted runners, `id-token: write`, Node 24, public package access, and
+`publishConfig.provenance` on the root and native package manifests. Before a
+real publish, set `package.json.repository.url` to the exact GitHub repository
+that will run `.github/workflows/release.yml`, then configure each npm package's
+trusted publisher to that repository and workflow, or provide an `NPM_TOKEN`
+secret for token-based publishing. The release workflow blocks publishing when
+GitHub's `GITHUB_REPOSITORY` does not match the package repository metadata.
 
 `test:zcrx` is skipped unless `ZCRX_INTERFACE` is set. On capable hardware it
 starts all three server types with `useZeroCopyReceive: true`, requires the

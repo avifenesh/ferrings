@@ -34,13 +34,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           registry-url: "https://registry.npmjs.org"
+          package-manager-cache: false
 
       - name: Check npm package version availability
         run: npm run check:npm-names
@@ -83,6 +84,10 @@ jobs:
           echo "should_publish=${should_publish}" >> "${GITHUB_OUTPUT}"
           echo "Release ${version}, npm tag ${npm_tag}, publish ${should_publish}"
 
+      - name: Check provenance repository metadata
+        if: steps.release.outputs.should_publish == 'true'
+        run: npm run check:release-repository -- --require-github-match
+
   build-native:
     name: Build native / ${{ matrix.package }}
     needs: validate
@@ -106,13 +111,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
-          cache: npm
+          node-version: 24
+          package-manager-cache: false
 
       - name: Setup Rust target
         uses: dtolnay/rust-toolchain@stable
@@ -165,14 +170,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
           registry-url: "https://registry.npmjs.org"
-          cache: npm
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm ci
@@ -216,6 +221,7 @@ jobs:
         if: needs.validate.outputs.should_publish == 'true'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_ACCESS: public
           NPM_CONFIG_PROVENANCE: true
           NPM_CONFIG_TAG: ${{ needs.validate.outputs.npm_tag }}
-        run: npm publish --tag "${{ needs.validate.outputs.npm_tag }}" --provenance
+        run: npm publish --tag "${{ needs.validate.outputs.npm_tag }}" --access public --provenance
