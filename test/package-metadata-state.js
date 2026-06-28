@@ -8,6 +8,7 @@ const path = require('node:path');
 const repoRoot = path.resolve(__dirname, '..');
 const rootPackage = require(path.join(repoRoot, 'package.json'));
 const nativeLoaderPath = path.join(repoRoot, 'native.js');
+const readmePath = path.join(repoRoot, 'README.md');
 
 const clean = runMetadataCheck();
 assert.equal(clean.status, 0, `expected clean metadata\nstdout:\n${clean.stdout}\nstderr:\n${clean.stderr}`);
@@ -27,6 +28,25 @@ try {
   assert.match(stale.stderr, new RegExp(`native\\.js expected native package version ${staleVersion}`));
 } finally {
   fs.writeFileSync(nativeLoaderPath, original);
+}
+
+const originalReadme = fs.readFileSync(readmePath, 'utf8');
+const staleReadme = originalReadme.replace(
+  `ferrings@${rootPackage.version}`,
+  `ferrings@${staleVersion}`
+);
+assert.notEqual(staleReadme, originalReadme, 'README benchmark version mutation should apply');
+
+try {
+  fs.writeFileSync(readmePath, staleReadme);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for a stale README benchmark version');
+  assert.match(
+    stale.stderr,
+    new RegExp(`README benchmark version ${staleVersion} must match package version ${rootPackage.version}`)
+  );
+} finally {
+  fs.writeFileSync(readmePath, originalReadme);
 }
 
 console.log('package metadata state ok');

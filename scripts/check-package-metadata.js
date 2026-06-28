@@ -10,6 +10,8 @@ const lock = readJson(path.join(repoRoot, 'package-lock.json'));
 const cargoToml = fs.readFileSync(path.join(repoRoot, 'Cargo.toml'), 'utf8');
 const cargoLock = fs.readFileSync(path.join(repoRoot, 'Cargo.lock'), 'utf8');
 const nativeLoader = fs.readFileSync(path.join(repoRoot, 'native.js'), 'utf8');
+const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+const changelog = fs.readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
 
 const cargoVersion = matchVersion(cargoToml, /^version = "([^"]+)"/m, 'Cargo.toml package version');
 const cargoLockVersion = matchVersion(
@@ -30,6 +32,18 @@ assert.equal(rootPackage.files.includes('CHANGELOG.md'), true);
 assert.equal(rootPackage.files.includes('CONTRIBUTING.md'), true);
 assert.equal(rootPackage.files.includes('CODE_OF_CONDUCT.md'), true);
 assert.equal(rootPackage.files.includes('SECURITY.md'), true);
+assert.match(changelog, new RegExp(`^## ${escapeRegExp(rootPackage.version)} - `, 'm'));
+
+const readmeBenchmarkVersion = matchVersion(
+  readme,
+  /Measured on [^\n]+ with `ferrings@([^`]+)`/,
+  'README benchmark package version'
+);
+assert.equal(
+  readmeBenchmarkVersion,
+  rootPackage.version,
+  `README benchmark version ${readmeBenchmarkVersion} must match package version ${rootPackage.version}`
+);
 
 for (const [name, version] of Object.entries(rootPackage.optionalDependencies)) {
   assert.equal(version, rootPackage.version, `${name} must match root package version`);

@@ -8,6 +8,11 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Added a metadata gate that keeps the README benchmark provenance aligned with
+  the current package version.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.7` results on Node
+  26.
+
 ## 0.2.7 - 2026-06-29
 
 - Added a `check:main-health` gate for validating current `main` after a
@@ -17,7 +22,7 @@ may adjust APIs, defaults, or packaging.
 - Added published npm tarball-content verification for the root package and all
   native packages.
 - Rewrote the README opening and benchmark section to present ferrings as a
-  usable transport first and refresh the Node 26 benchmark table for `0.2.6`.
+  usable transport first and refresh the Node 26 benchmark table.
 - Added a registry install smoke check that installs the published package,
   forces the optional native platform package path, starts a TCP server, and
   runs the installed CLI.
