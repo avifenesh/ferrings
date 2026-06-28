@@ -6,6 +6,12 @@ This project follows semver for published npm package versions while it is in th
 `0.x` line: patch releases are intended to be safe updates, and minor releases
 may adjust APIs, defaults, or packaging.
 
+## Unreleased
+
+- Rewrote the README to present ferrings as a usable Linux `io_uring` transport,
+  with the full benchmark table before installation and an explicit Node 20 EOL
+  support note.
+
 ## 0.2.5 - 2026-06-28
 
 - Added a public `FerringsNativeLoadError` with code
