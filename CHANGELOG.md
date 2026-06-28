@@ -8,6 +8,12 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.11 - 2026-06-29
+
+- Fixed the Node-style TCP facade `listen(port, host)` parser so numeric-looking
+  string hosts are treated as hosts, matching Node's `net.Server.listen()`
+  signature instead of being reinterpreted as backlog values.
+
 ## 0.2.10 - 2026-06-29
 
 - Reworked the README opening to present ferrings as a usable Linux transport,

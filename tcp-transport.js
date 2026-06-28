@@ -259,7 +259,7 @@ function parseListenArgs(baseOptions, args) {
     options.port = normalizePort(values[0]);
   }
   if (values.length > 1 && values[1] !== undefined && values[1] !== null) {
-    if (typeof values[1] === 'string' && !isNumericString(values[1])) {
+    if (typeof values[1] === 'string') {
       options.host = values[1];
     } else if (values.length === 2) {
       options.backlog = normalizeBacklog(values[1]);
@@ -288,10 +288,6 @@ function normalizeBacklog(value) {
     return Number(value);
   }
   return value;
-}
-
-function isNumericString(value) {
-  return value.trim() !== '' && Number.isFinite(Number(value));
 }
 
 function normalizeBatchSends(sends) {

@@ -212,6 +212,14 @@ async function verifyFacadeKeepsProcessAlive() {
     nodeStyleServer.close();
   }
 
+  const numericHostServer = createTcpServer();
+  numericHostServer.listen(0, '0');
+  const numericHostAddress = numericHostServer.address();
+  assert.ok(numericHostAddress);
+  assert.equal(numericHostAddress.address, '0.0.0.0');
+  assert.equal(numericHostServer.info().backlog, 1024);
+  numericHostServer.close();
+
   const batchFacadeServer = createTcpServer();
   batchFacadeServer.on('data', (connection, data) => {
     const request = data.toString('utf8');
