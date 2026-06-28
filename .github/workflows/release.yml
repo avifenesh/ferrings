@@ -80,9 +80,11 @@ jobs:
             should_publish="true"
           fi
 
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
-          echo "npm_tag=${npm_tag}" >> "${GITHUB_OUTPUT}"
-          echo "should_publish=${should_publish}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "version=${version}"
+            echo "npm_tag=${npm_tag}"
+            echo "should_publish=${should_publish}"
+          } >> "${GITHUB_OUTPUT}"
           echo "Release ${version}, npm tag ${npm_tag}, publish ${should_publish}"
 
       - name: Resolve npm publication state
