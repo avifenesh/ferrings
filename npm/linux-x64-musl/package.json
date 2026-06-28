@@ -1,0 +1,31 @@
+{
+  "name": "ferrings-linux-x64-musl",
+  "version": "0.1.0",
+  "description": "Native ferrings binding for linux-x64-musl",
+  "main": "ferrings.linux-x64-musl.node",
+  "files": [
+    "ferrings.linux-x64-musl.node",
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "keywords": [
+    "io_uring",
+    "node",
+    "napi-rs",
+    "rust",
+    "tcp",
+    "zero-copy",
+    "linux",
+    "networking"
+  ],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "libc": [
+    "musl"
+  ]
+}

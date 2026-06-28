@@ -1,0 +1,261 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const repoRoot = path.resolve(__dirname, '..');
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ferrings-package-'));
+
+function run(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd || repoRoot,
+    encoding: 'utf8',
+    maxBuffer: 10 * 1024 * 1024,
+    ...options
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(
+      `${command} ${args.join(' ')} failed with status ${result.status}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+    );
+  }
+  return result;
+}
+
+try {
+  const packDir = path.join(tmpRoot, 'pack');
+  const appDir = path.join(tmpRoot, 'app');
+  fs.mkdirSync(packDir, { recursive: true });
+  fs.mkdirSync(appDir, { recursive: true });
+
+  const pack = run('npm', ['pack', '--pack-destination', packDir, '--json']);
+  const [packed] = JSON.parse(pack.stdout);
+  assert.ok(packed, 'npm pack should report one package');
+  const packedFiles = new Set(packed.files.map((file) => file.path));
+  assert.equal(packedFiles.has('ferrings.linux-x64-gnu.node'), true);
+  assert.equal(packedFiles.has('LICENSE-APACHE'), true);
+  assert.equal(packedFiles.has('LICENSE-MIT'), true);
+  assert.equal(packedFiles.has('index.js'), true);
+  assert.equal(packedFiles.has('index.d.ts'), true);
+  assert.equal(packedFiles.has('native.js'), true);
+  assert.equal(packedFiles.has('native.d.ts'), true);
+  assert.equal(packedFiles.has('tcp-transport.js'), true);
+  assert.equal(packedFiles.has('zcrx-smoke.js'), true);
+  assert.equal(packedFiles.has('bin/ferrings.js'), true);
+  assert.equal(packedFiles.has('benchmark/first-slice.js'), true);
+  assert.equal(packedFiles.has('src/uring.rs'), false);
+  assert.equal(packedFiles.has('test/smoke.js'), false);
+
+  const tarball = path.join(packDir, packed.filename);
+  fs.writeFileSync(
+    path.join(appDir, 'package.json'),
+    `${JSON.stringify({ private: true, type: 'commonjs' }, null, 2)}\n`
+  );
+  run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], {
+    cwd: appDir
+  });
+
+  const installedPackageDir = path.join(appDir, 'node_modules', 'ferrings');
+  const installedPackageJson = JSON.parse(
+    fs.readFileSync(path.join(installedPackageDir, 'package.json'), 'utf8')
+  );
+  assert.equal(installedPackageJson.private, undefined);
+  assert.equal(installedPackageJson.license, 'MIT OR Apache-2.0');
+  assert.deepEqual(installedPackageJson.os, ['linux']);
+  assert.equal(installedPackageJson.cpu, undefined);
+  assert.equal(installedPackageJson.libc, undefined);
+  assert.deepEqual(installedPackageJson.napi.targets, [
+    'x86_64-unknown-linux-gnu',
+    'aarch64-unknown-linux-gnu',
+    'x86_64-unknown-linux-musl',
+    'aarch64-unknown-linux-musl'
+  ]);
+  assert.deepEqual(installedPackageJson.optionalDependencies, {
+    'ferrings-linux-arm64-gnu': '0.1.0',
+    'ferrings-linux-arm64-musl': '0.1.0',
+    'ferrings-linux-x64-gnu': '0.1.0',
+    'ferrings-linux-x64-musl': '0.1.0'
+  });
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.js')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.d.ts')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'ferrings.linux-x64-gnu.node')), true);
+  assert.match(
+    fs.readFileSync(path.join(installedPackageDir, 'native.js'), 'utf8'),
+    /require\('\.\/ferrings\.linux-x64-gnu\.node'\)/
+  );
+
+  const smokeScript = `
+    const assert = require('node:assert/strict');
+    const net = require('node:net');
+    const ferrings = require('ferrings');
+    assert.equal(typeof ferrings.UringTcpServer, 'function');
+    assert.equal(typeof ferrings.createTcpServer, 'function');
+    assert.equal(typeof ferrings.capabilities, 'function');
+    const server = ferrings.createTcpServer((connection) => {
+      assert.equal(connection.remoteAddress, '127.0.0.1');
+      assert.equal(connection.remoteFamily, 'IPv4');
+      assert.equal(typeof connection.remotePort, 'number');
+      assert.ok(connection.remotePort > 0);
+      connection.on('data', (data) => {
+        connection.end('tarball:' + data.toString('utf8'));
+      });
+    });
+    assert.equal(typeof server.sendBatch, 'function');
+    assert.equal(typeof server.sendBatchAndClose, 'function');
+    assert.equal(typeof server.getConnections, 'function');
+    const info = server.listen(0, '127.0.0.1').info();
+    server.getConnections((error, count) => {
+      assert.ifError(error);
+      assert.equal(count, 0);
+    });
+    assert.equal(info.backend, 'io_uring');
+    assert.equal(info.tcpNoDelay, true);
+    assert.equal(info.reusePort, false);
+    assert.equal(info.tcpDeferAcceptSeconds, 0);
+    assert.equal(info.socketRecvBufferSize, 0);
+    assert.equal(info.socketSendBufferSize, 0);
+    assert.equal(info.eventBatchSize, 64);
+    assert.equal(info.sendBufferCount, 256);
+    assert.equal(info.sendBufferSize, 2048);
+    const socket = net.createConnection({ host: '127.0.0.1', port: info.port }, () => {
+      socket.write('ok');
+    });
+    let body = Buffer.alloc(0);
+    socket.on('data', (chunk) => {
+      body = Buffer.concat([body, chunk]);
+    });
+    socket.on('end', () => {
+      try {
+        assert.equal(body.toString('utf8'), 'tarball:ok');
+        server.close();
+      } catch (error) {
+        server.close();
+        throw error;
+      }
+    });
+    socket.on('error', (error) => {
+      server.close();
+      throw error;
+    });
+  `;
+  run(process.execPath, ['-e', smokeScript], {
+    cwd: appDir
+  });
+
+  const binPath = path.join(appDir, 'node_modules', '.bin', 'ferrings');
+  const cliCaps = run(binPath, ['capabilities', '--json'], {
+    cwd: appDir
+  });
+  const cliCapsReport = JSON.parse(cliCaps.stdout);
+  assert.equal(cliCapsReport.package, 'ferrings');
+  assert.equal(cliCapsReport.mode, 'capabilities');
+  assert.equal(typeof cliCapsReport.capabilities.ioUringAvailable, 'boolean');
+
+  const cliDoctor = run(binPath, ['doctor', '--interface', 'lo', '--json'], {
+    cwd: appDir
+  });
+  const cliDoctorReport = JSON.parse(cliDoctor.stdout);
+  assert.equal(cliDoctorReport.package, 'ferrings');
+  assert.equal(cliDoctorReport.mode, 'doctor');
+  assert.equal(cliDoctorReport.zcrx.interfaceName, 'lo');
+  assert.equal(typeof cliDoctorReport.transport.ready, 'boolean');
+  assert.equal(typeof cliDoctorReport.nextCommand, 'string');
+
+  const cliProbe = run(binPath, ['zcrx-probe', '--interface', 'lo', '--json'], {
+    cwd: appDir
+  });
+  const cliProbeReport = JSON.parse(cliProbe.stdout);
+  assert.equal(cliProbeReport.package, 'ferrings');
+  assert.equal(cliProbeReport.mode, 'zcrx-probe');
+  assert.equal(cliProbeReport.probe.interfaceName, 'lo');
+
+  const cliProbeShort = run(binPath, ['zcrx-probe', '-i', 'lo', '--json'], {
+    cwd: appDir
+  });
+  const cliProbeShortReport = JSON.parse(cliProbeShort.stdout);
+  assert.equal(cliProbeShortReport.probe.interfaceName, 'lo');
+
+  const cliSmoke = run(binPath, ['zcrx-smoke', '--json'], {
+    cwd: appDir
+  });
+  const cliSmokeReport = JSON.parse(cliSmoke.stdout);
+  assert.equal(cliSmokeReport.status, 'skipped');
+  assert.match(cliSmokeReport.skippedReason, /ZCRX_INTERFACE|--interface/);
+
+  const installedBenchmarkReportPath = path.join(tmpRoot, 'installed-first-slice.json');
+  run(process.execPath, [path.join(installedPackageDir, 'benchmark', 'first-slice.js')], {
+    cwd: appDir,
+    env: {
+      ...process.env,
+      DURATION_MS: '50',
+      CONCURRENCY: '2',
+      QUEUE_DEPTH: '32',
+      SYSCALL_REQUESTS: '8',
+      SYSCALL_CONCURRENCY: '2',
+      SYSCALL_CASES: 'node-http,ferrings-http,node-tcp,ferrings-native-tcp',
+      REPORT_PATH: installedBenchmarkReportPath
+    }
+  });
+  const installedBenchmarkReport = JSON.parse(
+    fs.readFileSync(installedBenchmarkReportPath, 'utf8')
+  );
+  assert.equal(installedBenchmarkReport.mode, 'first-slice');
+  assert.equal(installedBenchmarkReport.status, 'passed');
+  assert.equal(typeof installedBenchmarkReport.capabilities.ioUringAvailable, 'boolean');
+  assert.equal(installedBenchmarkReport.results.length, 3);
+
+  const installedHttp = installedBenchmarkReport.results.find(
+    (entry) => entry.script === 'compare.js'
+  );
+  assert.equal(installedHttp.status, 'passed');
+  assert.equal(installedHttp.report.mode, 'http-fixed-response');
+  const installedFerringsHttp = installedHttp.report.results.find(
+    (entry) => entry.caseName === 'ferrings'
+  );
+  assert.equal(installedFerringsHttp.result.serverInfo.recvCopyBytes, 0);
+  assert.equal(typeof installedFerringsHttp.result.serverInfo.fixedSendBufferMisses, 'number');
+
+  const installedTcp = installedBenchmarkReport.results.find(
+    (entry) => entry.script === 'tcp-echo.js'
+  );
+  assert.equal(installedTcp.status, 'passed');
+  assert.equal(installedTcp.report.mode, 'tcp-echo-matrix');
+  const installedFerringsNativeTcp = installedTcp.report.results.find(
+    (entry) => entry.caseName === 'ferrings native tcp echo'
+  );
+  assert.ok(installedFerringsNativeTcp.result.serverInfo.recvCopyBytes > 0);
+  assert.equal(
+    typeof installedFerringsNativeTcp.result.serverInfo.fixedSendBufferMisses,
+    'number'
+  );
+  const installedFerringsFacadeTcp = installedTcp.report.results.find(
+    (entry) => entry.caseName === 'ferrings tcp facade echo'
+  );
+  assert.ok(installedFerringsFacadeTcp.result.serverInfo.recvCopyBytes > 0);
+  assert.equal(
+    typeof installedFerringsFacadeTcp.result.serverInfo.fixedSendBufferMisses,
+    'number'
+  );
+  const installedFerringsFacadeBatchTcp = installedTcp.report.results.find(
+    (entry) => entry.caseName === 'ferrings tcp facade batch echo'
+  );
+  assert.ok(installedFerringsFacadeBatchTcp.result.serverInfo.recvCopyBytes > 0);
+  assert.equal(
+    typeof installedFerringsFacadeBatchTcp.result.serverInfo.fixedSendBufferMisses,
+    'number'
+  );
+
+  const installedSyscalls = installedBenchmarkReport.results.find(
+    (entry) => entry.script === 'syscalls.js'
+  );
+  assert.ok(['passed', 'skipped'].includes(installedSyscalls.status));
+
+  console.log('package install smoke ok');
+} finally {
+  fs.rmSync(tmpRoot, { recursive: true, force: true });
+}

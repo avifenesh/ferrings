@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  linux-native:
+    name: Linux native / Node ${{ matrix.node-version }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 20
+          - 22
+          - 24
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install Linux tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends strace
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Rust format
+        run: cargo fmt -- --check
+
+      - name: Check Rust lints
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run test suite
+        run: npm test
+
+      - name: Build release native binding
+        run: npm run build
+
+      - name: Check ZCRX hardware gate
+        run: npm run test:zcrx
+
+      - name: Restore release native binding
+        run: npm run build
+
+      - name: Check package contents
+        run: npm pack --dry-run --json
+
+      - name: Check native package metadata
+        run: npm run check:native-packages
+
+      - name: Check publish dry-run
+        run: npm run check:publish
+
+      - name: Smoke test installed tarball
+        run: node test/package-install-smoke.js
+
+      - name: Smoke test optional platform package fallback
+        run: npm run check:platform-install
+
+      - name: Collect generated native artifacts
+        run: |
+          mkdir -p dist/native
+          cp ferrings.*.node dist/native/
+          cp native.js native.d.ts dist/native/
+          cp index.js index.d.ts tcp-transport.js zcrx-smoke.js dist/native/
+          cp package.json README.md LICENSE-APACHE LICENSE-MIT dist/native/
+          find dist/native -maxdepth 1 -type f | sort
+
+      - name: Upload generated native artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ferrings-linux-x64-gnu-node-${{ matrix.node-version }}
+          path: dist/native/
+          if-no-files-found: error
+
+  linux-target-artifacts:
+    name: Linux target artifact / ${{ matrix.package }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            package: linux-x64-gnu
+            cross: false
+          - target: aarch64-unknown-linux-gnu
+            package: linux-arm64-gnu
+            cross: true
+          - target: x86_64-unknown-linux-musl
+            package: linux-x64-musl
+            cross: true
+          - target: aarch64-unknown-linux-musl
+            package: linux-arm64-musl
+            cross: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Zig for cross builds
+        if: matrix.cross
+        run: |
+          set -euo pipefail
+          ZIG_VERSION="0.13.0"
+          ZIG_ARCH="$(uname -m)"
+          curl -sSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz" | sudo tar -xJ -C /usr/local
+          sudo ln -sf "/usr/local/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}/zig" /usr/local/bin/zig
+          zig version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native target
+        run: |
+          set -euo pipefail
+          args=(--release --strip --platform --target "${{ matrix.target }}" --js native.js --dts native.d.ts)
+          if [[ "${{ matrix.cross }}" == "true" ]]; then
+            args+=(--cross-compile)
+          fi
+          npx napi build "${args[@]}"
+
+      - name: Check native artifact
+        run: |
+          set -euo pipefail
+          mkdir -p "artifacts/${{ matrix.package }}"
+          cp ferrings.*.node "artifacts/${{ matrix.package }}/"
+          npm run artifacts
+          node scripts/check-native-packages.js --package "${{ matrix.package }}" --require-binary
+          mkdir -p "dist/${{ matrix.package }}"
+          cp -r "npm/${{ matrix.package }}/"* "dist/${{ matrix.package }}/"
+          file "dist/${{ matrix.package }}"/*.node
+          find "dist/${{ matrix.package }}" -maxdepth 1 -type f | sort
+
+      - name: Upload target artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ferrings-${{ matrix.package }}
+          path: dist/${{ matrix.package }}/
+          if-no-files-found: error

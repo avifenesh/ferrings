@@ -1,0 +1,8 @@
+/node_modules/
+/target/
+/*.node
+/artifacts/
+/npm/*/*.node
+/npm/*/LICENSE-APACHE
+/npm/*/LICENSE-MIT
+/npm-debug.log*

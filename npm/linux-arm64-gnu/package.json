@@ -1,0 +1,31 @@
+{
+  "name": "ferrings-linux-arm64-gnu",
+  "version": "0.1.0",
+  "description": "Native ferrings binding for linux-arm64-gnu",
+  "main": "ferrings.linux-arm64-gnu.node",
+  "files": [
+    "ferrings.linux-arm64-gnu.node",
+    "LICENSE-APACHE",
+    "LICENSE-MIT"
+  ],
+  "license": "MIT OR Apache-2.0",
+  "keywords": [
+    "io_uring",
+    "node",
+    "napi-rs",
+    "rust",
+    "tcp",
+    "zero-copy",
+    "linux",
+    "networking"
+  ],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "libc": [
+    "glibc"
+  ]
+}
