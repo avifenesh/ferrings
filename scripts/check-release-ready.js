@@ -17,12 +17,14 @@ addCommandCheck({
   command: 'git',
   args: ['status', '--porcelain', '--untracked-files=normal'],
   pass: ({ stdout }) => stdout.trim().length === 0,
-  failure: ({ stdout }) => stdout.trim() || 'worktree has uncommitted changes'
+  failure: ({ stdout }) => stdout.trim() || 'worktree has uncommitted changes',
+  next: 'git status --short && git add <files> && git commit'
 });
 
 checks.push({
   name: `tag v${rootPackage.version} points at HEAD`,
   scope: 'local',
+  next: `git tag -f -a v${rootPackage.version} -m "${rootPackage.name} v${rootPackage.version}" HEAD`,
   run: () => {
     const expected = `v${rootPackage.version}`;
     const tag = run('git', ['rev-parse', '-q', '--verify', `refs/tags/${expected}`]);
@@ -46,7 +48,8 @@ addCommandCheck({
   scope: 'local',
   command: process.execPath,
   args: ['scripts/check-native-packages.js'],
-  success: 'metadata ok'
+  success: 'metadata ok',
+  next: 'npm run check:native-packages'
 });
 
 addCommandCheck({
@@ -54,7 +57,8 @@ addCommandCheck({
   scope: 'local',
   command: process.execPath,
   args: ['scripts/check-npm-names.js'],
-  success: 'all package versions available'
+  success: 'all package versions available',
+  next: 'pick a new version or package name, then rerun npm run check:npm-names'
 });
 
 addCommandCheck({
@@ -93,6 +97,7 @@ if (full) {
 checks.push({
   name: 'origin remote configured',
   scope: 'external',
+  next: 'git remote add origin git@github.com:<owner>/<repo>.git',
   run: () => {
     const result = run('git', ['config', '--get', 'remote.origin.url']);
     if (result.status !== 0 || result.stdout.trim().length === 0) {
@@ -106,12 +111,14 @@ addCommandCheck({
   name: 'release repository metadata',
   scope: 'external',
   command: process.execPath,
-  args: ['scripts/check-release-repository.js']
+  args: ['scripts/check-release-repository.js'],
+  next: 'npm run configure:release-repository -- --repo <owner>/<repo> && npm run check:release-repository'
 });
 
 checks.push({
   name: 'ZCRX hardware proof configured',
   scope: 'external',
+  next: 'ZCRX_INTERFACE=<ifname> ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx',
   run: () => {
     if (!process.env.ZCRX_INTERFACE) {
       return fail('ZCRX_INTERFACE is not set; hardware receive proof has not run');
@@ -120,7 +127,13 @@ checks.push({
   }
 });
 
-const results = checks.map((check) => ({ name: check.name, scope: check.scope, ...check.run() }));
+const results = checks.map((check) => {
+  const result = { name: check.name, scope: check.scope, ...check.run() };
+  if (!result.ok && check.next) {
+    result.next = check.next;
+  }
+  return result;
+});
 const localFailures = results.filter((result) => result.scope === 'local' && !result.ok);
 const externalFailures = results.filter((result) => result.scope === 'external' && !result.ok);
 const failed = localFailures.length > 0 || (strict && externalFailures.length > 0);
@@ -149,14 +162,19 @@ if (json) {
   if (externalFailures.length > 0 && !strict) {
     console.log('external blockers remain; rerun with --strict when remote, repository metadata, and ZCRX proof exist');
   }
+  const actionable = results.filter((result) => !result.ok && result.next);
+  for (const result of actionable) {
+    console.log(`next ${result.name}: ${result.next}`);
+  }
 }
 
 process.exitCode = failed ? 1 : 0;
 
-function addCommandCheck({ name, scope, command, args: commandArgs, pass: passFn, failure, success }) {
+function addCommandCheck({ name, scope, command, args: commandArgs, pass: passFn, failure, success, next }) {
   checks.push({
     name,
     scope,
+    next,
     run: () => {
       const result = run(command, commandArgs);
       const ok = passFn ? passFn(result) : result.status === 0;
