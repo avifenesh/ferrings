@@ -117,6 +117,32 @@ addCommandCheck({
   next: 'gh repo create <owner>/<repo> --public --source . --remote origin --push'
 });
 
+checks.push({
+  name: 'GitHub NPM_TOKEN secret configured',
+  scope: 'external',
+  next: 'gh secret set NPM_TOKEN --repo <owner>/<repo>',
+  run: () => {
+    const repository = githubRepositorySlugFromOrigin();
+    if (!repository) {
+      return fail('could not determine GitHub repository from origin');
+    }
+    const result = run('gh', ['secret', 'list', '--repo', repository, '--json', 'name']);
+    if (result.status !== 0) {
+      return fail(trimForDetail(result.stderr) || trimForDetail(result.stdout) || `gh secret list exited ${result.status}`);
+    }
+    let secrets;
+    try {
+      secrets = JSON.parse(result.stdout);
+    } catch (error) {
+      return fail(`could not parse gh secret list output: ${error.message}`);
+    }
+    if (!secrets.some((secret) => secret.name === 'NPM_TOKEN')) {
+      return fail('NPM_TOKEN secret is missing');
+    }
+    return pass(`${repository} has NPM_TOKEN`);
+  }
+});
+
 addCommandCheck({
   name: 'release repository metadata',
   scope: 'external',
@@ -253,4 +279,32 @@ function trimForDetail(value) {
 
 function oneLine(value) {
   return String(value).replace(/\s+/g, ' ').trim();
+}
+
+function githubRepositorySlugFromOrigin() {
+  const result = run('git', ['config', '--get', 'remote.origin.url']);
+  if (result.status !== 0) {
+    return '';
+  }
+  return githubRepositorySlug(result.stdout.trim());
+}
+
+function githubRepositorySlug(repositoryUrl) {
+  const normalized = repositoryUrl
+    .replace(/^git\+/, '')
+    .replace(/^ssh:\/\/git@github\.com\//, 'https://github.com/')
+    .replace(/^git@github\.com:/, 'https://github.com/')
+    .replace(/\.git$/, '');
+
+  let parsed;
+  try {
+    parsed = new URL(normalized);
+  } catch {
+    return '';
+  }
+  if (parsed.hostname.toLowerCase() !== 'github.com') {
+    return '';
+  }
+  const [owner, repo] = parsed.pathname.replace(/^\/+/, '').split('/');
+  return owner && repo ? `${owner}/${repo}` : '';
 }

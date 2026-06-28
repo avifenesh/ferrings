@@ -7,3 +7,6 @@
 /npm/*/LICENSE-APACHE
 /npm/*/LICENSE-MIT
 /npm-debug.log*
+.env
+.env.*
+!.env.example

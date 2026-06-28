@@ -7,7 +7,7 @@
 
 Linux `io_uring` TCP transport for Node.js, built with Rust and napi-rs for high-concurrency server outside libuv's networking loop.
 
-ferrings exposes Node-friendly TCP and fixed-response HTTP APIs backed by a native `io_uring` worker: multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, and an optional ZCRX path for capable NICs. The project is at the 0.1.0 source-release stage; npm publishing is intentionally still gated on trusted publishing setup.
+ferrings exposes Node-friendly TCP and fixed-response HTTP APIs backed by a native `io_uring` worker: multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, and an optional ZCRX path for capable NICs. The project is at the 0.1.0 release stage; tag pushes build native artifacts and publish to npm through the repository `NPM_TOKEN` secret.
 
 ```bash
 git clone https://github.com/avifenesh/ferrings.git
@@ -373,7 +373,7 @@ npm run check:release-ready -- --full --strict
 npm run check:release-ready -- --full --require-zcrx
 ```
 
-Tag pushes build and upload release artifacts but do not publish to npm. A real npm publish is an explicit manual `workflow_dispatch` run with `publish=true` after npm trusted publishing is configured for the root and native packages.
+Tag pushes that match the package version build all native artifacts, run package checks, and publish to npm with the repository `NPM_TOKEN` secret. Manual `workflow_dispatch` runs can also publish when `publish=true`.
 
 ## Limitations and tradeoffs
 
