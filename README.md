@@ -413,8 +413,8 @@ publishing is configured. The release workflow blocks publishing when GitHub's
 `GITHUB_REPOSITORY` does not match the package repository metadata.
 After adding a GitHub `origin`, run `npm run configure:release-repository` to
 derive that metadata from the remote, or pass `--repo owner/name` explicitly.
-The helper only edits `package.json`; it does not create a repository, push, or
-publish.
+The helper edits the root `package.json` and every `npm/linux-*` native package
+manifest; it does not create a repository, push, or publish.
 Run `npm run check:release-ready` for one aggregate local release verdict. By
 default it fails only local package/repository defects and prints external
 blockers separately; pass `-- --strict` after the GitHub remote, repository

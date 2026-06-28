@@ -7,9 +7,12 @@ const path = require('node:path');
 const repoRoot = path.resolve(__dirname, '..');
 const args = process.argv.slice(2);
 const packageArg = valueAfter('--package-json');
-const packagePath = packageArg
-  ? path.resolve(process.cwd(), packageArg)
-  : path.join(repoRoot, 'package.json');
+const packagePaths = packageArg
+  ? [path.resolve(process.cwd(), packageArg)]
+  : [
+      path.join(repoRoot, 'package.json'),
+      ...nativePackageJsonPaths()
+    ];
 const repoArg = valueAfter('--repo');
 const dryRun = args.includes('--dry-run');
 const repositorySlug = repoArg || githubRepositorySlugFromEnv() || githubRepositorySlugFromOrigin();
@@ -23,26 +26,46 @@ if (!/^[^/\s]+\/[^/\s]+$/.test(repositorySlug)) {
   fail(`expected --repo owner/name, got: ${repositorySlug}`);
 }
 
-const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const nextRepository = {
   type: 'git',
   url: `git+https://github.com/${repositorySlug}.git`
 };
-packageJson.repository = nextRepository;
 
-if (dryRun) {
-  console.log(JSON.stringify({ repository: nextRepository }, null, 2));
-} else {
-  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+for (const packagePath of packagePaths) {
+  const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  packageJson.repository = nextRepository;
+
+  if (dryRun) {
+    console.log(JSON.stringify({ packageJson: relative(packagePath), repository: nextRepository }, null, 2));
+  } else {
+    fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  }
+
+  console.log(
+    `${dryRun ? 'would set' : 'set'} ${relative(packagePath)} repository to ${nextRepository.url}`
+  );
 }
-
-console.log(
-  `${dryRun ? 'would set' : 'set'} package repository to ${nextRepository.url}`
-);
 
 function valueAfter(name) {
   const index = args.indexOf(name);
   return index === -1 ? '' : args[index + 1] || '';
+}
+
+function nativePackageJsonPaths() {
+  const npmRoot = path.join(repoRoot, 'npm');
+  if (!fs.existsSync(npmRoot)) {
+    return [];
+  }
+  return fs
+    .readdirSync(npmRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(npmRoot, entry.name, 'package.json'))
+    .filter((entryPath) => fs.existsSync(entryPath))
+    .sort();
+}
+
+function relative(filePath) {
+  return path.relative(repoRoot, filePath);
 }
 
 function githubRepositorySlugFromEnv() {

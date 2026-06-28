@@ -5,38 +5,48 @@ const path = require('node:path');
 
 const args = process.argv.slice(2);
 const packageArg = valueAfter('--package-json');
-const packagePath = packageArg
-  ? path.resolve(process.cwd(), packageArg)
-  : path.resolve(__dirname, '..', 'package.json');
-const rootPackage = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+const repoRoot = path.resolve(__dirname, '..');
+const packagePaths = packageArg
+  ? [path.resolve(process.cwd(), packageArg)]
+  : [
+      path.join(repoRoot, 'package.json'),
+      ...nativePackageJsonPaths()
+    ];
 const requireGithubMatch = process.argv.includes('--require-github-match');
-const repositoryUrl = normalizeRepositoryUrl(rootPackage.repository);
 const githubRepository = process.env.GITHUB_REPOSITORY || '';
 
-if (!repositoryUrl) {
-  fail('package.json repository.url is required for npm provenance publishing');
-}
+const checked = [];
+for (const packagePath of packagePaths) {
+  const packageJson = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
+  const repositoryUrl = normalizeRepositoryUrl(packageJson.repository);
 
-const repositorySlug = githubRepositorySlug(repositoryUrl);
-if (!repositorySlug) {
-  fail(`package.json repository.url must point at github.com, got: ${repositoryUrl}`);
-}
+  if (!repositoryUrl) {
+    fail(`${relative(packagePath)} repository.url is required for npm provenance publishing`);
+  }
 
-if (requireGithubMatch) {
-  if (!githubRepository) {
-    fail('GITHUB_REPOSITORY is required when --require-github-match is set');
+  const repositorySlug = githubRepositorySlug(repositoryUrl);
+  if (!repositorySlug) {
+    fail(`${relative(packagePath)} repository.url must point at github.com, got: ${repositoryUrl}`);
   }
-  if (repositorySlug.toLowerCase() !== githubRepository.toLowerCase()) {
-    fail(
-      `package.json repository.url (${repositorySlug}) must match GITHUB_REPOSITORY (${githubRepository})`
-    );
+
+  if (requireGithubMatch) {
+    if (!githubRepository) {
+      fail('GITHUB_REPOSITORY is required when --require-github-match is set');
+    }
+    if (repositorySlug.toLowerCase() !== githubRepository.toLowerCase()) {
+      fail(
+        `${relative(packagePath)} repository.url (${repositorySlug}) must match GITHUB_REPOSITORY (${githubRepository})`
+      );
+    }
   }
+
+  checked.push(`${relative(packagePath)}=${repositorySlug}`);
 }
 
 console.log(
   githubRepository
-    ? `release repository metadata ok (${repositorySlug}, workflow repo ${githubRepository})`
-    : `release repository metadata ok (${repositorySlug})`
+    ? `release repository metadata ok (${checked.join(', ')}, workflow repo ${githubRepository})`
+    : `release repository metadata ok (${checked.join(', ')})`
 );
 
 function normalizeRepositoryUrl(repository) {
@@ -52,6 +62,23 @@ function normalizeRepositoryUrl(repository) {
 function valueAfter(name) {
   const index = args.indexOf(name);
   return index === -1 ? '' : args[index + 1] || '';
+}
+
+function nativePackageJsonPaths() {
+  const npmRoot = path.join(repoRoot, 'npm');
+  if (!fs.existsSync(npmRoot)) {
+    return [];
+  }
+  return fs
+    .readdirSync(npmRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(npmRoot, entry.name, 'package.json'))
+    .filter((entryPath) => fs.existsSync(entryPath))
+    .sort();
+}
+
+function relative(filePath) {
+  return path.relative(repoRoot, filePath);
 }
 
 function githubRepositorySlug(repository) {
