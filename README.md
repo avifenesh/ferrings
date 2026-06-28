@@ -6,13 +6,17 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Usable Linux `io_uring` TCP transport for Node.js services, built in Rust with napi-rs and exposed through a familiar Node-style server API.
+Ready-to-use Linux `io_uring` TCP transport for Node.js services, built in Rust with napi-rs and exposed through a familiar Node-style server API.
 
-ferrings gives Node applications a native TCP path outside libuv's epoll networking loop. It owns the listening socket, drives accept/recv/send from a Rust `io_uring` worker, and ships as one npm package with per-platform native packages resolved by npm.
+ferrings gives Node applications a real native TCP path outside libuv's epoll networking loop. It owns the listening socket, drives accept/recv/send from a Rust `io_uring` worker, and ships as one npm package with per-platform native packages resolved by npm.
 
-## Performance
+```bash
+npm install ferrings
+```
 
-The benchmark scripts ship in this repo and in the npm package. This run was measured on 2026-06-28 on an Intel Core Ultra 9 275HX laptop, Linux `7.0.0-22-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, and the default 8 MiB locked-memory limit. It is a loopback benchmark under `strace -f -c`; absolute numbers are machine-specific, but the same-host comparison is the point.
+## Benchmarks
+
+Benchmarks ship with the package. This run was measured on 2026-06-28 on one machine: Intel Core Ultra 9 275HX, Linux `7.0.0-22-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, and the default 8 MiB locked-memory limit. It is a loopback run under `strace -f -c`; absolute numbers are machine-specific, but the same-host comparison shows the transport gap.
 
 | Case | req/s | p99 ms | server syscalls/conn | Path |
 | --- | ---: | ---: | ---: | --- |
@@ -23,13 +27,18 @@ The benchmark scripts ship in this repo and in the npm package. This run was mea
 | ferrings TCP facade | 7,565 | 24.311 | 6.935 | Node-style JS facade + batched native events |
 | ferrings TCP facade batch send | 6,694 | 25.849 | 6.890 | JS facade + batched native events/sends |
 
-In this run, ferrings HTTP delivered 1.54x Node HTTP throughput with 48% fewer server syscalls per completed connection. The native TCP echo path delivered 2.27x Node `net` throughput with 54% fewer server syscalls. The Node-style TCP facade still crosses into JavaScript, but it stayed ahead of the Node baseline while keeping the application API ergonomic.
+On this machine, ferrings HTTP delivered 1.54x Node HTTP throughput with 48% fewer server syscalls per completed connection. The native TCP echo path delivered 2.27x Node `net` throughput with 54% fewer server syscalls. The Node-style TCP facade still crosses into JavaScript, but it stayed ahead of the Node baseline while keeping the application API ergonomic.
 
-## Install
+Reproduce the table with [`benchmark/syscalls.js`](benchmark/syscalls.js):
 
 ```bash
-npm install ferrings
+REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
+CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-28.json \
+npm run bench:syscalls
 ```
+
+## Install
 
 Requirements:
 
@@ -38,6 +47,13 @@ Requirements:
 - A target supported by the published native packages: `linux-x64-gnu`, `linux-x64-musl`, `linux-arm64-gnu`, or `linux-arm64-musl`
 
 CI currently tests Node 22, 24, and 26 on Linux.
+
+The root package depends on target-specific optional native packages. npm installs the package matching the current Linux target:
+
+- `ferrings-linux-x64-gnu`
+- `ferrings-linux-x64-musl`
+- `ferrings-linux-arm64-gnu`
+- `ferrings-linux-arm64-musl`
 
 ## Quick Start
 
@@ -190,7 +206,7 @@ const info = server.start();
 console.log(`http://${info.host}:${info.port}`);
 ```
 
-`UringHttpServer` is for fixed-response endpoints and transport measurements. It is not an HTTP framework.
+`UringHttpServer` is for fixed-response endpoints, health-style responses, and benchmarkable transport checks. It is not an HTTP framework.
 
 ### Native TCP Echo
 
@@ -268,9 +284,9 @@ TCP queue options:
 
 All servers expose live counters through `ServerInfo`, including accepted/closed/rejected connections, bytes sent/received, queue drops, receive buffer starvations, recv-bundle counters, zero-copy send counters, fixed-send misses, and ZCRX packet counters.
 
-## Reproduce The Benchmarks
+## Full Benchmark Output
 
-Run the README table:
+The headline table above is the compact view. The full output from the same run includes p50 and p95:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
@@ -278,8 +294,6 @@ CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,f
 REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-28.json \
 npm run bench:syscalls
 ```
-
-Full table from that run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -306,7 +320,7 @@ Benchmark scripts:
 - `benchmark/tcp-echo.js` compares Node TCP, the ferrings TCP facade, raw TCP, native echo, recv-bundle, and zero-copy-send variants when available.
 - `benchmark/high-concurrency.js` runs HTTP and TCP cases with higher concurrency defaults.
 - `benchmark/syscalls.js` uses `strace -f -c` when installed to report server-side syscalls per completed connection.
-- `benchmark/first-slice.js` writes one compact validation report across capabilities, HTTP, TCP, and syscall cases.
+- `benchmark/first-slice.js` writes one compact smoke report across capabilities, HTTP, TCP, and syscall cases.
 
 Set `REPORT_PATH=artifacts/<name>.json` to keep machine-readable reports. Useful knobs include `DURATION_MS`, `REQUESTS`, `CONCURRENCY`, `QUEUE_DEPTH`, `BUFFER_COUNT`, `BUFFER_SIZE`, `CASES`, and `SYSCALL_CASES`. If you raise `BUFFER_COUNT`, `QUEUE_DEPTH`, or fixed send-buffer counts, raise `ulimit -l` / `RLIMIT_MEMLOCK` too.
 
