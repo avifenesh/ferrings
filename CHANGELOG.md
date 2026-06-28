@@ -8,6 +8,8 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Rewrote the README opening and benchmark section to present ferrings as a
+  usable transport first and refresh the Node 26 benchmark table for `0.2.6`.
 - Added a registry install smoke check that installs the published package,
   forces the optional native platform package path, starts a TCP server, and
   runs the installed CLI.
