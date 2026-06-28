@@ -55,6 +55,8 @@ The root package depends on target-specific optional native packages. npm instal
 - `ferrings-linux-arm64-gnu`
 - `ferrings-linux-arm64-musl`
 
+If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, the supported native package names, and the original loader error.
+
 ## Quick Start
 
 Create `quickstart.js`:

@@ -28,6 +28,26 @@ function run(command, args, options = {}) {
   return result;
 }
 
+function temporarilyRemove(filePaths, callback) {
+  const moved = [];
+  for (const filePath of filePaths) {
+    if (!fs.existsSync(filePath)) continue;
+    const backupPath = `${filePath}.ferrings-smoke-backup-${process.pid}`;
+    fs.renameSync(filePath, backupPath);
+    moved.push({ filePath, backupPath });
+  }
+
+  try {
+    callback();
+  } finally {
+    for (const { filePath, backupPath } of moved.reverse()) {
+      if (fs.existsSync(backupPath)) {
+        fs.renameSync(backupPath, filePath);
+      }
+    }
+  }
+}
+
 try {
   const packDir = path.join(tmpRoot, 'pack');
   const appDir = path.join(tmpRoot, 'app');
@@ -88,6 +108,41 @@ try {
   assert.match(
     fs.readFileSync(path.join(installedPackageDir, 'native.js'), 'utf8'),
     /require\('\.\/ferrings\.linux-x64-gnu\.node'\)/
+  );
+
+  temporarilyRemove(
+    [
+      path.join(installedPackageDir, 'ferrings.linux-x64-gnu.node'),
+      path.join(
+        appDir,
+        'node_modules',
+        'ferrings-linux-x64-gnu',
+        'ferrings.linux-x64-gnu.node'
+      )
+    ],
+    () => {
+      const diagnosticScript = `
+        const assert = require('node:assert/strict');
+        try {
+          require('ferrings');
+          assert.fail('requiring ferrings should fail without embedded or optional native bindings');
+        } catch (error) {
+          assert.equal(error.name, 'FerringsNativeLoadError');
+          assert.equal(error.code, 'FERRINGS_NATIVE_LOAD_FAILED');
+          assert.equal(error.target.platform, process.platform);
+          assert.equal(error.target.arch, process.arch);
+          assert.equal(Array.isArray(error.nativePackages), true);
+          assert.match(error.message, /ferrings could not load its native Linux binding/);
+          assert.match(error.message, /ferrings-linux-x64-gnu/);
+          assert.match(error.message, /optional dependencies enabled/);
+          assert.match(error.message, /Original loader error:/);
+          assert.ok(error.cause);
+        }
+      `;
+      run(process.execPath, ['-e', diagnosticScript], {
+        cwd: appDir
+      });
+    }
   );
 
   const smokeScript = `
