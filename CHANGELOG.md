@@ -8,6 +8,8 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.7 - 2026-06-29
+
 - Added a `check:main-health` gate for validating current `main` after a
   release without weakening the stricter next-release tag checks.
 - Added hosted CI coverage for `check:main-health -- --full` so the
@@ -19,6 +21,9 @@ may adjust APIs, defaults, or packaging.
 - Added a registry install smoke check that installs the published package,
   forces the optional native platform package path, starts a TCP server, and
   runs the installed CLI.
+- Added a verified repo-owned Zig installer for cross-build jobs so CI and
+  release builds no longer depend on a Node 20-based setup action or direct
+  unverified Zig tarball streams.
 
 ## 0.2.6 - 2026-06-28
 
