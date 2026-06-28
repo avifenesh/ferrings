@@ -50,6 +50,7 @@
     "check:native-packages": "node scripts/check-native-packages.js",
     "check:npm-names": "node scripts/check-npm-names.js",
     "check:npm-new-names": "node scripts/check-npm-names.js --require-new-names",
+    "check:github-repository": "node scripts/check-github-repository.js",
     "check:release-repository": "node scripts/check-release-repository.js",
     "check:release-ready": "node scripts/check-release-ready.js",
     "configure:release-repository": "node scripts/configure-release-repository.js",

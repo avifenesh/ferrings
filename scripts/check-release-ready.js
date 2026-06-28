@@ -97,7 +97,7 @@ if (full) {
 checks.push({
   name: 'origin remote configured',
   scope: 'external',
-  next: 'git remote add origin git@github.com:<owner>/<repo>.git',
+  next: 'gh repo create <owner>/<repo> --public --source . --remote origin --push',
   run: () => {
     const result = run('git', ['config', '--get', 'remote.origin.url']);
     if (result.status !== 0 || result.stdout.trim().length === 0) {
@@ -105,6 +105,15 @@ checks.push({
     }
     return pass(result.stdout.trim());
   }
+});
+
+addCommandCheck({
+  name: 'GitHub repository exists and is public',
+  scope: 'external',
+  command: process.execPath,
+  args: ['scripts/check-github-repository.js'],
+  success: 'GitHub repository public',
+  next: 'gh repo create <owner>/<repo> --public --source . --remote origin --push'
 });
 
 addCommandCheck({
