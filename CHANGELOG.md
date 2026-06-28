@@ -8,6 +8,8 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Added a `check:main-health` gate for validating current `main` after a
+  release without weakening the stricter next-release tag checks.
 - Rewrote the README opening and benchmark section to present ferrings as a
   usable transport first and refresh the Node 26 benchmark table for `0.2.6`.
 - Added a registry install smoke check that installs the published package,

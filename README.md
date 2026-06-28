@@ -373,6 +373,7 @@ There is no separate docs site yet; the README, type definitions, examples, benc
 Useful checks before cutting a release:
 
 ```bash
+npm run check:main-health
 npm run check:workflows
 npm run check:lockfile
 npm run check:native-packages
@@ -391,9 +392,10 @@ After a release has propagated, this should pass:
 
 ```bash
 npm run check:published -- --tag latest
+npm run check:main-health
 ```
 
-For a new release, bump the package version first; npm versions are immutable after publication, so `check:release-ready` is a release gate rather than a normal post-release main-branch check.
+For a new release, bump the package version first; npm versions are immutable after publication, so `check:release-ready` is a release gate rather than a normal post-release main-branch check. Use `check:main-health` when validating current `main` after a release or docs/tooling follow-up.
 
 ## Limitations
 
