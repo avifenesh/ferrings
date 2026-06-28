@@ -249,10 +249,10 @@ async function verifyFacadeKeepsProcessAlive() {
       await roundTripWithHost(batchFacadeAddress.port, batchFacadeAddress.address, 'batch-close'),
       'batch:close'
     );
-  assert.throws(
-    () => batchFacadeServer.sendBatch([{ data: 'missing connection' }]),
-    /connectionId must be a uint32/
-  );
+    assert.throws(
+      () => batchFacadeServer.sendBatch([{ data: 'missing connection' }]),
+      /connectionId must be a uint32/
+    );
   } finally {
     batchFacadeServer.close();
   }

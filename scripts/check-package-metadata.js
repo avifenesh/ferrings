@@ -9,6 +9,7 @@ const rootPackage = readJson(path.join(repoRoot, 'package.json'));
 const lock = readJson(path.join(repoRoot, 'package-lock.json'));
 const cargoToml = fs.readFileSync(path.join(repoRoot, 'Cargo.toml'), 'utf8');
 const cargoLock = fs.readFileSync(path.join(repoRoot, 'Cargo.lock'), 'utf8');
+const nativeLoader = fs.readFileSync(path.join(repoRoot, 'native.js'), 'utf8');
 
 const cargoVersion = matchVersion(cargoToml, /^version = "([^"]+)"/m, 'Cargo.toml package version');
 const cargoLockVersion = matchVersion(
@@ -32,6 +33,20 @@ assert.equal(rootPackage.files.includes('SECURITY.md'), true);
 
 for (const [name, version] of Object.entries(rootPackage.optionalDependencies)) {
   assert.equal(version, rootPackage.version, `${name} must match root package version`);
+  assert.match(
+    nativeLoader,
+    new RegExp(`require\\('${escapeRegExp(name)}'\\)`),
+    `native.js must include optional native package fallback ${name}`
+  );
+}
+
+const nativeLoaderVersions = [
+  ...nativeLoader.matchAll(/bindingPackageVersion !== '([^']+)'/g),
+  ...nativeLoader.matchAll(/expected ([^ ]+) but got/g)
+].map((match) => match[1]);
+assert.ok(nativeLoaderVersions.length > 0, 'native.js native package version checks not found');
+for (const version of nativeLoaderVersions) {
+  assert.equal(version, rootPackage.version, `native.js expected native package version ${version}`);
 }
 
 console.log(`package metadata ok (${rootPackage.name}@${rootPackage.version})`);
@@ -52,4 +67,8 @@ function repositoryHttpUrl(repositoryUrl) {
     .replace(/^ssh:\/\/git@github\.com\//, 'https://github.com/')
     .replace(/^git@github\.com:/, 'https://github.com/')
     .replace(/\.git$/, '');
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
