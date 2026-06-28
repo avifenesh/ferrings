@@ -62,6 +62,18 @@ assert.deepEqual(rootPackage.publishConfig, {
   access: 'public',
   provenance: true
 });
+assert.equal(typeof rootPackage.description, 'string');
+assert.deepEqual(rootPackage.keywords, [
+  'io_uring',
+  'node',
+  'napi-rs',
+  'rust',
+  'tcp',
+  'zero-copy',
+  'linux',
+  'networking'
+]);
+assert.deepEqual(rootPackage.engines, { node: '>=22' });
 assert.equal(typeof rootPackage.repository?.url, 'string');
 assert.equal(typeof rootPackage.homepage, 'string');
 assert.equal(typeof rootPackage.bugs?.url, 'string');
@@ -96,9 +108,16 @@ function checkPlatformPackage(target) {
   const packageJson = readJson(path.join(packageDir, 'package.json'));
   assert.equal(packageJson.name, target.name);
   assert.equal(packageJson.version, rootPackage.version);
+  assert.equal(
+    packageJson.description,
+    `Native ferrings binding for ${target.platform}`,
+    `${target.name} description must match target platform`
+  );
   assert.equal(packageJson.main, target.main);
   assert.deepEqual(packageJson.files, [target.main, 'LICENSE-APACHE', 'LICENSE-MIT']);
   assert.equal(packageJson.license, rootPackage.license);
+  assert.deepEqual(packageJson.engines, rootPackage.engines, `${target.name} engines must match root package engines`);
+  assert.deepEqual(packageJson.keywords, rootPackage.keywords, `${target.name} keywords must match root package keywords`);
   assert.deepEqual(packageJson.repository, rootPackage.repository);
   assert.equal(packageJson.homepage, rootPackage.homepage);
   assert.deepEqual(packageJson.bugs, rootPackage.bugs);

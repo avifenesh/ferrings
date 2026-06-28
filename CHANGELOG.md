@@ -8,9 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.8 - 2026-06-29
+
 - Added a metadata gate that keeps the README benchmark provenance aligned with
   the current package version.
-- Refreshed the README benchmark snapshot with `ferrings@0.2.7` results on Node
+- Added native package metadata gates for direct platform-package installs,
+  including Node engine, keywords, and target descriptions.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.8` results on Node
   26.
 
 ## 0.2.7 - 2026-06-29

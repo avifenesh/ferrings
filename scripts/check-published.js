@@ -28,24 +28,28 @@ const retryDelayMs = nonNegativeInteger(
 const TARGETS = [
   {
     package: 'ferrings-linux-x64-gnu',
+    platform: 'linux-x64-gnu',
     main: 'ferrings.linux-x64-gnu.node',
     cpu: ['x64'],
     libc: ['glibc']
   },
   {
     package: 'ferrings-linux-x64-musl',
+    platform: 'linux-x64-musl',
     main: 'ferrings.linux-x64-musl.node',
     cpu: ['x64'],
     libc: ['musl']
   },
   {
     package: 'ferrings-linux-arm64-gnu',
+    platform: 'linux-arm64-gnu',
     main: 'ferrings.linux-arm64-gnu.node',
     cpu: ['arm64'],
     libc: ['glibc']
   },
   {
     package: 'ferrings-linux-arm64-musl',
+    platform: 'linux-arm64-musl',
     main: 'ferrings.linux-arm64-musl.node',
     cpu: ['arm64'],
     libc: ['musl']
@@ -55,6 +59,8 @@ const TARGETS = [
 const PACKAGE_FIELDS = [
   'name',
   'version',
+  'description',
+  'keywords',
   'license',
   'main',
   'bin',
@@ -154,6 +160,8 @@ function runChecks() {
 function verifyRootPackage(published, errors) {
   expectEqual(published, 'name', rootPackage.name, errors);
   expectEqual(published, 'version', version, errors);
+  expectEqual(published, 'description', rootPackage.description, errors);
+  expectEqual(published, 'keywords', rootPackage.keywords, errors);
   expectEqual(published, 'license', rootPackage.license, errors);
   expectEqual(published, 'main', rootPackage.main, errors);
   expectEqual(published, 'bin', rootPackage.bin, errors);
@@ -173,8 +181,11 @@ function verifyRootPackage(published, errors) {
 function verifyNativePackage(published, target, errors) {
   expectEqual(published, 'name', target.package, errors);
   expectEqual(published, 'version', version, errors);
+  expectEqual(published, 'description', `Native ferrings binding for ${target.platform}`, errors);
+  expectEqual(published, 'keywords', rootPackage.keywords, errors);
   expectEqual(published, 'license', rootPackage.license, errors);
   expectEqual(published, 'main', target.main, errors);
+  expectEqual(published, 'engines', rootPackage.engines, errors);
   expectEqual(published, 'os', ['linux'], errors);
   expectEqual(published, 'cpu', target.cpu, errors);
   expectEqual(published, 'libc', target.libc, errors);

@@ -1,6 +1,6 @@
 {
   "name": "ferrings-linux-arm64-gnu",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "Native ferrings binding for linux-arm64-gnu",
   "main": "ferrings.linux-arm64-gnu.node",
   "files": [
@@ -9,6 +9,9 @@
     "LICENSE-MIT"
   ],
   "license": "MIT OR Apache-2.0",
+  "engines": {
+    "node": ">=22"
+  },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/",
     "access": "public",

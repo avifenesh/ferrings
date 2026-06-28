@@ -26,24 +26,28 @@ fs.writeFileSync(
     const targets = [
       {
         package: 'ferrings-linux-x64-gnu',
+        platform: 'linux-x64-gnu',
         main: 'ferrings.linux-x64-gnu.node',
         cpu: ['x64'],
         libc: ['glibc']
       },
       {
         package: 'ferrings-linux-x64-musl',
+        platform: 'linux-x64-musl',
         main: 'ferrings.linux-x64-musl.node',
         cpu: ['x64'],
         libc: ['musl']
       },
       {
         package: 'ferrings-linux-arm64-gnu',
+        platform: 'linux-arm64-gnu',
         main: 'ferrings.linux-arm64-gnu.node',
         cpu: ['arm64'],
         libc: ['glibc']
       },
       {
         package: 'ferrings-linux-arm64-musl',
+        platform: 'linux-arm64-musl',
         main: 'ferrings.linux-arm64-musl.node',
         cpu: ['arm64'],
         libc: ['musl']
@@ -97,6 +101,8 @@ fs.writeFileSync(
       return {
         name: rootPackage.name,
         version: rootPackage.version,
+        description: rootPackage.description,
+        keywords: rootPackage.keywords,
         license: rootPackage.license,
         main: rootPackage.main,
         bin: rootPackage.bin,
@@ -114,8 +120,11 @@ fs.writeFileSync(
       return {
         name: target.package,
         version: rootPackage.version,
+        description: 'Native ferrings binding for ' + target.platform,
+        keywords: rootPackage.keywords,
         license: rootPackage.license,
         main: target.main,
+        engines: rootPackage.engines,
         os: ['linux'],
         cpu: target.cpu,
         libc: target.libc,
