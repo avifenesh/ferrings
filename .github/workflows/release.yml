@@ -244,6 +244,10 @@ jobs:
         if: needs.validate.outputs.should_publish == 'true'
         run: npm run check:published -- --tag "${{ needs.validate.outputs.npm_tag }}" --retries 12 --retry-delay-ms 5000
 
+      - name: Smoke test registry install
+        if: needs.validate.outputs.should_publish == 'true'
+        run: npm run check:registry-install -- --version "${{ needs.validate.outputs.version }}"
+
       - name: Create or update GitHub release
         if: needs.validate.outputs.should_publish == 'true' && github.ref_type == 'tag'
         env:

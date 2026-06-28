@@ -60,6 +60,7 @@
     "check:metadata": "node scripts/check-package-metadata.js",
     "check:workflows": "node scripts/check-workflows.js",
     "check:published": "node scripts/check-published.js",
+    "check:registry-install": "node scripts/check-registry-install.js",
     "check:release-repository": "node scripts/check-release-repository.js",
     "check:release-publication-state": "node scripts/check-release-publication-state.js",
     "check:release-ready": "node scripts/check-release-ready.js",

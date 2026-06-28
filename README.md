@@ -379,6 +379,7 @@ npm run check:npm-names
 npm run check:release-repository
 npm run check:release-ready -- --full --strict
 npm run check:release-ready -- --full --require-zcrx
+npm run check:registry-install -- --version "$(node -p "require('./package.json').version")"
 ```
 
 Tag pushes that match the package version build all native artifacts, run package checks, publish to npm with the repository `NPM_TOKEN` secret, verify the published root package, native packages, integrity metadata, provenance attestations, registry signatures, and dist-tag from the npm registry, and then create or update the GitHub release. Manual `workflow_dispatch` runs can also publish when `publish=true`.

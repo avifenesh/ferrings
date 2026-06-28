@@ -6,6 +6,12 @@ This project follows semver for published npm package versions while it is in th
 `0.x` line: patch releases are intended to be safe updates, and minor releases
 may adjust APIs, defaults, or packaging.
 
+## Unreleased
+
+- Added a registry install smoke check that installs the published package,
+  forces the optional native platform package path, starts a TCP server, and
+  runs the installed CLI.
+
 ## 0.2.6 - 2026-06-28
 
 - Added a pinned `actionlint` workflow checker and CI job, and included it in
