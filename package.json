@@ -57,6 +57,7 @@
     "check:npm-new-names": "node scripts/check-npm-names.js --require-new-names",
     "check:github-repository": "node scripts/check-github-repository.js",
     "check:metadata": "node scripts/check-package-metadata.js",
+    "check:workflows": "node scripts/check-workflows.js",
     "check:published": "node scripts/check-published.js",
     "check:release-repository": "node scripts/check-release-repository.js",
     "check:release-publication-state": "node scripts/check-release-publication-state.js",

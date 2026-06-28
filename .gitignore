@@ -3,6 +3,7 @@
 /*.node
 /artifacts/
 /release-artifacts/
+/.cache/
 /npm/*/*.node
 /npm/*/LICENSE-APACHE
 /npm/*/LICENSE-MIT

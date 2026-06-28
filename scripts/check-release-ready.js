@@ -54,6 +54,15 @@ addCommandCheck({
 });
 
 addCommandCheck({
+  name: 'GitHub Actions workflow lint',
+  scope: 'local',
+  command: process.execPath,
+  args: ['scripts/check-workflows.js'],
+  success: 'workflow syntax and expressions ok',
+  next: 'npm run check:workflows'
+});
+
+addCommandCheck({
   name: 'native package metadata',
   scope: 'local',
   command: process.execPath,

@@ -368,6 +368,7 @@ There is no separate docs site yet; the README, type definitions, examples, benc
 Useful checks before cutting a release:
 
 ```bash
+npm run check:workflows
 npm run check:native-packages
 npm run check:npm-names
 npm run check:release-repository

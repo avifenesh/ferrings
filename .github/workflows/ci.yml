@@ -11,6 +11,22 @@ permissions:
   contents: read
 
 jobs:
+  workflow-lint:
+    name: Workflow lint
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+
+      - name: Check GitHub Actions workflows
+        run: npm run check:workflows
+
   linux-native:
     name: Linux native / Node ${{ matrix.node-version }}
     runs-on: ubuntu-24.04

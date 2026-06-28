@@ -8,6 +8,8 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Added a pinned `actionlint` workflow checker and CI job, and included it in
+  release-readiness checks.
 - Added a recv-bundle buffer-starvation regression that forces a tiny
   provided-buffer ring to recover with multishot receive resubmits while all TCP
   round trips complete.
