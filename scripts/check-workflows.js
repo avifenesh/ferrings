@@ -27,7 +27,25 @@ async function main() {
   const actionlint = process.env.ACTIONLINT_BIN || (await ensureActionlint());
   runChecked(actionlint, ['-version']);
   runChecked(actionlint, ['-color=false', ...workflowFiles]);
+  checkWorkflowPolicy(workflowFiles);
   console.log(`workflow lint ok (${workflowFiles.length} workflows, actionlint ${version})`);
+}
+
+function checkWorkflowPolicy(workflowFiles) {
+  for (const workflowFile of workflowFiles) {
+    const workflow = fs.readFileSync(workflowFile, 'utf8');
+    const label = path.relative(repoRoot, workflowFile);
+    assert.doesNotMatch(
+      workflow,
+      /uses:\s*mlugg\/setup-zig@/i,
+      `${label} must use scripts/install-zig.js instead of setup-zig's Node action runtime`
+    );
+    assert.doesNotMatch(
+      workflow,
+      /ziglang\.org\/download\/\$\{?ZIG_VERSION\}?\/zig-linux/i,
+      `${label} must not stream Zig release tarballs directly from ziglang.org`
+    );
+  }
 }
 
 async function ensureActionlint() {

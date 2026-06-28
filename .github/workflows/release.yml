@@ -139,13 +139,8 @@ jobs:
 
       - name: Install Zig for cross builds
         if: matrix.cross
-        run: |
-          set -euo pipefail
-          ZIG_VERSION="0.13.0"
-          ZIG_ARCH="$(uname -m)"
-          curl -sSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz" | sudo tar -xJ -C /usr/local
-          sudo ln -sf "/usr/local/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}/zig" /usr/local/bin/zig
-          zig version
+        timeout-minutes: 5
+        run: node scripts/install-zig.js --version 0.13.0
 
       - name: Install dependencies
         run: npm ci --omit=optional
