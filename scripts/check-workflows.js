@@ -46,6 +46,28 @@ function checkWorkflowPolicy(workflowFiles) {
       `${label} must not stream Zig release tarballs directly from ziglang.org`
     );
   }
+
+  const securityWorkflow = readWorkflow(workflowFiles, 'security.yml');
+  assert.equal(
+    matchCount(securityWorkflow, /-\s+"scripts\/install-cargo-audit\.js"/g),
+    2,
+    'security.yml path filters must include scripts/install-cargo-audit.js'
+  );
+  assert.match(
+    securityWorkflow,
+    /run:\s+npm run install:cargo-audit/,
+    'security.yml must install cargo-audit through the pinned local helper'
+  );
+}
+
+function readWorkflow(workflowFiles, name) {
+  const workflowFile = workflowFiles.find((file) => path.basename(file) === name);
+  assert.ok(workflowFile, `${name} workflow missing`);
+  return fs.readFileSync(workflowFile, 'utf8');
+}
+
+function matchCount(input, pattern) {
+  return input.match(pattern)?.length || 0;
 }
 
 async function ensureActionlint() {

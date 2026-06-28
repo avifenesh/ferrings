@@ -8,6 +8,12 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Rewrote the README to lead with the benchmark proof and present ferrings as a
+  usable Linux `io_uring` transport, with ZCRX described as a gated fast path
+  rather than the baseline product story.
+- Covered the cargo-audit installer helper in Security workflow path filters so
+  audit tooling changes cannot skip the workflow.
+
 ## 0.2.11 - 2026-06-29
 
 - Fixed the Node-style TCP facade `listen(port, host)` parser so numeric-looking
