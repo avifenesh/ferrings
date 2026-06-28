@@ -11,6 +11,9 @@ const json = args.includes('--json');
 const full = args.includes('--full');
 const requireZcrx = args.includes('--require-zcrx');
 const checks = [];
+let publicationState = null;
+
+const releaseStateCheck = computePublicationState();
 
 addCommandCheck({
   name: 'tracked worktree clean',
@@ -25,12 +28,22 @@ addCommandCheck({
 checks.push({
   name: `tag v${rootPackage.version} points at HEAD`,
   scope: 'local',
-  next: `git tag -f -a v${rootPackage.version} -m "${rootPackage.name} v${rootPackage.version}" HEAD`,
   run: () => {
     const expected = `v${rootPackage.version}`;
     const tag = run('git', ['rev-parse', '-q', '--verify', `refs/tags/${expected}`]);
     if (tag.status !== 0) {
-      return fail(`missing ${expected} tag`);
+      if (releaseVersionAvailable()) {
+        return {
+          ...fail(`missing ${expected} tag`),
+          next: `git tag -a ${expected} -m "${rootPackage.name} ${expected}" HEAD`
+        };
+      }
+      return {
+        ...fail(
+          `missing ${expected} tag, but ${rootPackage.name}@${rootPackage.version} is not publishable; bump the version before tagging`
+        ),
+        next: 'bump package.json, Cargo.toml, Cargo.lock, and npm/*/package.json versions before creating a new tag'
+      };
     }
     const head = run('git', ['rev-parse', 'HEAD']);
     const taggedCommit = run('git', ['rev-list', '-n', '1', expected]);
@@ -38,7 +51,18 @@ checks.push({
       return fail('could not resolve HEAD or release tag');
     }
     if (head.stdout.trim() !== taggedCommit.stdout.trim()) {
-      return fail(`${expected} does not point at HEAD`);
+      if (!releaseVersionAvailable()) {
+        return {
+          ...fail(
+            `${expected} points at ${taggedCommit.stdout.trim().slice(0, 12)}, not HEAD; ${releaseVersionBlockedDetail()}`
+          ),
+          next: 'bump package.json, Cargo.toml, Cargo.lock, and npm/*/package.json versions before creating a new tag'
+        };
+      }
+      return {
+        ...fail(`${expected} does not point at HEAD`),
+        next: `git tag -f -a ${expected} -m "${rootPackage.name} ${expected}" HEAD`
+      };
     }
     return pass();
   }
@@ -71,13 +95,27 @@ addCommandCheck({
   next: 'npm run check:native-packages'
 });
 
-addCommandCheck({
-  name: 'npm package versions available',
+checks.push({
+  name: 'npm publication state',
   scope: 'local',
-  command: process.execPath,
-  args: ['scripts/check-npm-names.js'],
-  success: 'all package versions available',
-  next: 'pick a new version or package name, then rerun npm run check:npm-names'
+  next: 'bump package.json, Cargo.toml, Cargo.lock, and npm/*/package.json versions, then rerun release checks',
+  run: () => {
+    if (!releaseStateCheck.ok) {
+      return releaseStateCheck;
+    }
+    if (publicationState.state === 'available') {
+      return pass(`${rootPackage.name}@${rootPackage.version} is available on npm`);
+    }
+    if (publicationState.state === 'published') {
+      return fail(
+        `${rootPackage.name}@${rootPackage.version} is already published and verified; bump the version before the next release`
+      );
+    }
+    return fail(
+      publicationState.errors?.join('; ') ||
+        `${rootPackage.name}@${rootPackage.version} publication state is ${publicationState.state}`
+    );
+  }
 });
 
 addCommandCheck({
@@ -88,12 +126,19 @@ addCommandCheck({
   success: 'prepublish dry-run ok'
 });
 
-addCommandCheck({
+checks.push({
   name: 'npm publish dry-run',
   scope: 'local',
-  command: 'npm',
-  args: ['publish', '--dry-run', '--json'],
-  success: 'publish tarball dry-run ok'
+  run: () => {
+    if (!releaseVersionAvailable()) {
+      return pass(`skipped because ${releaseVersionBlockedDetail()}`);
+    }
+    const result = run('npm', ['publish', '--dry-run', '--json']);
+    if (result.status === 0) {
+      return pass('publish tarball dry-run ok');
+    }
+    return fail(trimForDetail(result.stderr) || trimForDetail(result.stdout) || `npm publish exited ${result.status}`);
+  }
 });
 
 if (full) {
@@ -281,6 +326,46 @@ function run(command, commandArgs) {
     },
     maxBuffer: 20 * 1024 * 1024
   });
+}
+
+function computePublicationState() {
+  const result = run(process.execPath, [
+    'scripts/check-release-publication-state.js',
+    '--json'
+  ]);
+  let report = null;
+  try {
+    report = JSON.parse(result.stdout);
+  } catch (error) {
+    return fail(
+      trimForDetail(result.stderr) ||
+        trimForDetail(result.stdout) ||
+        `could not parse npm publication state: ${error.message}`
+    );
+  }
+  publicationState = report;
+  if (result.status === 0 && (report.state === 'available' || report.state === 'published')) {
+    return pass(report.state);
+  }
+  return fail(
+    report.errors?.join('; ') ||
+      trimForDetail(result.stderr) ||
+      `${rootPackage.name}@${rootPackage.version} publication state is ${report.state || 'unknown'}`
+  );
+}
+
+function releaseVersionAvailable() {
+  return releaseStateCheck.ok && publicationState?.state === 'available';
+}
+
+function releaseVersionBlockedDetail() {
+  if (publicationState?.state === 'published') {
+    return `${rootPackage.name}@${rootPackage.version} is already published and verified, so bump the version for the next release`;
+  }
+  if (publicationState?.state) {
+    return `${rootPackage.name}@${rootPackage.version} publication state is ${publicationState.state}; resolve the registry state before retagging`;
+  }
+  return releaseStateCheck.detail || `${rootPackage.name}@${rootPackage.version} publication state could not be determined`;
 }
 
 function pass(detail = '') {

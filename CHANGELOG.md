@@ -13,6 +13,9 @@ may adjust APIs, defaults, or packaging.
 - Added a recv-bundle buffer-starvation regression that forces a tiny
   provided-buffer ring to recover with multishot receive resubmits while all TCP
   round trips complete.
+- Made release-readiness checks registry-aware so an already-published version
+  asks for a version bump instead of retagging or running noisy publish
+  dry-runs.
 - Rewrote the README to strengthen the usable Linux `io_uring` transport
   positioning and keep the full benchmark table before installation with an
   explicit Node 20 EOL support note.
