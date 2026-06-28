@@ -7,6 +7,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 const repoRoot = path.resolve(__dirname, '..');
+const rootPackageJson = require(path.join(repoRoot, 'package.json'));
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ferrings-package-'));
 
 function run(command, args, options = {}) {
@@ -75,12 +76,7 @@ try {
     'x86_64-unknown-linux-musl',
     'aarch64-unknown-linux-musl'
   ]);
-  assert.deepEqual(installedPackageJson.optionalDependencies, {
-    'ferrings-linux-arm64-gnu': '0.1.0',
-    'ferrings-linux-arm64-musl': '0.1.0',
-    'ferrings-linux-x64-gnu': '0.1.0',
-    'ferrings-linux-x64-musl': '0.1.0'
-  });
+  assert.deepEqual(installedPackageJson.optionalDependencies, rootPackageJson.optionalDependencies);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.js')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.d.ts')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'ferrings.linux-x64-gnu.node')), true);

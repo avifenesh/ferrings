@@ -1,6 +1,6 @@
 {
   "name": "ferrings",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Linux io_uring TCP transport experiments for Node.js",
   "main": "index.js",
   "types": "index.d.ts",
@@ -68,10 +68,10 @@
     "@napi-rs/cli": "^3.7.2"
   },
   "optionalDependencies": {
-    "ferrings-linux-arm64-gnu": "0.1.0",
-    "ferrings-linux-arm64-musl": "0.1.0",
-    "ferrings-linux-x64-gnu": "0.1.0",
-    "ferrings-linux-x64-musl": "0.1.0"
+    "ferrings-linux-arm64-gnu": "0.2.0",
+    "ferrings-linux-arm64-musl": "0.2.0",
+    "ferrings-linux-x64-gnu": "0.2.0",
+    "ferrings-linux-x64-musl": "0.2.0"
   },
   "napi": {
     "binaryName": "ferrings",

@@ -366,7 +366,7 @@ npm run check:release-ready -- --full --strict
 npm run check:release-ready -- --full --require-zcrx
 ```
 
-Tag pushes that match the package version build all native artifacts, run package checks, and publish to npm with the repository `NPM_TOKEN` secret. Manual `workflow_dispatch` runs can also publish when `publish=true`. For a new release, bump the package version first; `0.1.0` is already published.
+Tag pushes that match the package version build all native artifacts, run package checks, and publish to npm with the repository `NPM_TOKEN` secret. Manual `workflow_dispatch` runs can also publish when `publish=true`. For a new release, bump the package version first; npm versions are immutable after publication.
 
 ## Limitations and tradeoffs
 
