@@ -31,6 +31,7 @@ jobs:
       version: ${{ steps.release.outputs.version }}
       npm_tag: ${{ steps.release.outputs.npm_tag }}
       should_publish: ${{ steps.release.outputs.should_publish }}
+      publication_state: ${{ steps.publication.outputs.state }}
 
     steps:
       - name: Checkout
@@ -42,9 +43,6 @@ jobs:
           node-version: 26
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
-
-      - name: Check npm package version availability
-        run: npm run check:npm-names
 
       - name: Check package metadata consistency
         run: npm run check:metadata
@@ -86,6 +84,16 @@ jobs:
           echo "npm_tag=${npm_tag}" >> "${GITHUB_OUTPUT}"
           echo "should_publish=${should_publish}" >> "${GITHUB_OUTPUT}"
           echo "Release ${version}, npm tag ${npm_tag}, publish ${should_publish}"
+
+      - name: Resolve npm publication state
+        id: publication
+        if: steps.release.outputs.should_publish == 'true'
+        run: |
+          set -euo pipefail
+          node scripts/check-release-publication-state.js --tag "${{ steps.release.outputs.npm_tag }}" --json | tee publication-state.json
+          state="$(node -e "const fs = require('node:fs'); console.log(JSON.parse(fs.readFileSync('publication-state.json', 'utf8')).state)")"
+          echo "state=${state}" >> "${GITHUB_OUTPUT}"
+          echo "npm publication state: ${state}"
 
       - name: Check provenance repository metadata
         if: steps.release.outputs.should_publish == 'true'
@@ -206,6 +214,7 @@ jobs:
         run: npm run check:prepublish
 
       - name: Check npm publish dry-run
+        if: needs.validate.outputs.should_publish == 'true' && needs.validate.outputs.publication_state == 'available'
         run: npm run check:publish
 
       - name: Upload prepared npm packages
@@ -221,7 +230,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish to npm
-        if: needs.validate.outputs.should_publish == 'true'
+        if: needs.validate.outputs.should_publish == 'true' && needs.validate.outputs.publication_state == 'available'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_ACCESS: public

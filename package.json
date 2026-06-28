@@ -59,6 +59,7 @@
     "check:metadata": "node scripts/check-package-metadata.js",
     "check:published": "node scripts/check-published.js",
     "check:release-repository": "node scripts/check-release-repository.js",
+    "check:release-publication-state": "node scripts/check-release-publication-state.js",
     "check:release-ready": "node scripts/check-release-ready.js",
     "configure:release-repository": "node scripts/configure-release-repository.js",
     "check:platform-install": "node test/platform-package-install-smoke.js",

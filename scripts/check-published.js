@@ -9,6 +9,7 @@ const rootPackage = require(path.join(repoRoot, 'package.json'));
 const args = process.argv.slice(2);
 const json = args.includes('--json');
 const noTag = args.includes('--no-tag');
+const requireProvenance = !args.includes('--no-provenance');
 const version = valueAfter('--version') || rootPackage.version;
 const expectedTag =
   valueAfter('--tag') || (version.includes('-') ? 'next' : 'latest');
@@ -59,7 +60,10 @@ const PACKAGE_FIELDS = [
   'repository.url',
   'homepage',
   'bugs.url',
-  'dist.integrity'
+  'dist.integrity',
+  'dist.tarball',
+  'dist.attestations',
+  'dist.signatures'
 ];
 
 let report;
@@ -120,6 +124,7 @@ function runChecks() {
     package: rootPackage.name,
     version,
     expectedTag: noTag ? null : expectedTag,
+    requireProvenance,
     ok: errors.length === 0,
     errors,
     verified
@@ -139,6 +144,10 @@ function verifyRootPackage(published, errors) {
   expectEqual(published, 'homepage', rootPackage.homepage, errors);
   expectEqual(published, 'bugs.url', rootPackage.bugs.url, errors);
   expectPresent(published, 'dist.integrity', errors);
+  expectPresent(published, 'dist.tarball', errors);
+  if (requireProvenance) {
+    expectProvenance(published, errors);
+  }
 }
 
 function verifyNativePackage(published, target, errors) {
@@ -153,6 +162,10 @@ function verifyNativePackage(published, target, errors) {
   expectEqual(published, 'homepage', rootPackage.homepage, errors);
   expectEqual(published, 'bugs.url', rootPackage.bugs.url, errors);
   expectPresent(published, 'dist.integrity', errors);
+  expectPresent(published, 'dist.tarball', errors);
+  if (requireProvenance) {
+    expectProvenance(published, errors);
+  }
 }
 
 function npmViewPackage(name, packageVersion, errors) {
@@ -203,6 +216,34 @@ function expectPresent(record, field, errors) {
   const value = fieldValue(record, field);
   if (typeof value !== 'string' || value.length === 0) {
     errors.push(`${fieldValue(record, 'name') || 'package'} ${field} is missing`);
+  }
+}
+
+function expectProvenance(record, errors) {
+  const packageName = fieldValue(record, 'name') || 'package';
+  const attestations = fieldValue(record, 'dist.attestations');
+  const signatures = fieldValue(record, 'dist.signatures');
+  const predicateType = attestations?.provenance?.predicateType;
+
+  if (typeof attestations?.url !== 'string' || attestations.url.length === 0) {
+    errors.push(`${packageName} dist.attestations.url is missing`);
+  }
+  if (predicateType !== 'https://slsa.dev/provenance/v1') {
+    errors.push(
+      `${packageName} dist.attestations.provenance.predicateType was ${JSON.stringify(predicateType)}, expected "https://slsa.dev/provenance/v1"`
+    );
+  }
+  if (!Array.isArray(signatures) || signatures.length === 0) {
+    errors.push(`${packageName} dist.signatures is missing`);
+    return;
+  }
+  for (const [index, signature] of signatures.entries()) {
+    if (typeof signature?.keyid !== 'string' || signature.keyid.length === 0) {
+      errors.push(`${packageName} dist.signatures[${index}].keyid is missing`);
+    }
+    if (typeof signature?.sig !== 'string' || signature.sig.length === 0) {
+      errors.push(`${packageName} dist.signatures[${index}].sig is missing`);
+    }
   }
 }
 
