@@ -228,3 +228,7 @@ jobs:
           NPM_CONFIG_PROVENANCE: true
           NPM_CONFIG_TAG: ${{ needs.validate.outputs.npm_tag }}
         run: npm publish --tag "${{ needs.validate.outputs.npm_tag }}" --access public --provenance
+
+      - name: Verify published npm packages
+        if: needs.validate.outputs.should_publish == 'true'
+        run: npm run check:published -- --tag "${{ needs.validate.outputs.npm_tag }}" --retries 12 --retry-delay-ms 5000
