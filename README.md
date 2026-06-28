@@ -307,6 +307,7 @@ npm run bench
 npm run check:npm-names
 npm run check:npm-new-names
 npm run check:release-repository
+npm run check:release-ready
 npm run configure:release-repository -- --repo avifenesh/ferrings
 npm run bench:first-slice
 npm run bench:tcp
@@ -411,6 +412,10 @@ After adding a GitHub `origin`, run `npm run configure:release-repository` to
 derive that metadata from the remote, or pass `--repo owner/name` explicitly.
 The helper only edits `package.json`; it does not create a repository, push, or
 publish.
+Run `npm run check:release-ready` for one aggregate local release verdict. By
+default it fails only local package/repository defects and prints external
+blockers separately; pass `-- --strict` after the GitHub remote, repository
+metadata, and ZCRX hardware proof exist to require every release gate.
 
 `test:zcrx` is skipped unless `ZCRX_INTERFACE` is set. On capable hardware it
 starts all three server types with `useZeroCopyReceive: true`, requires the
