@@ -45,28 +45,32 @@ addCommandCheck({
   name: 'native package metadata',
   scope: 'local',
   command: process.execPath,
-  args: ['scripts/check-native-packages.js']
+  args: ['scripts/check-native-packages.js'],
+  success: 'metadata ok'
 });
 
 addCommandCheck({
   name: 'npm package versions available',
   scope: 'local',
   command: process.execPath,
-  args: ['scripts/check-npm-names.js']
+  args: ['scripts/check-npm-names.js'],
+  success: 'all package versions available'
 });
 
 addCommandCheck({
   name: 'napi prepublish dry-run',
   scope: 'local',
   command: process.execPath,
-  args: ['scripts/prepublish.js', '--dry-run']
+  args: ['scripts/prepublish.js', '--dry-run'],
+  success: 'prepublish dry-run ok'
 });
 
 addCommandCheck({
   name: 'npm publish dry-run',
   scope: 'local',
   command: 'npm',
-  args: ['publish', '--dry-run', '--json']
+  args: ['publish', '--dry-run', '--json'],
+  success: 'publish tarball dry-run ok'
 });
 
 if (full) {
@@ -74,13 +78,15 @@ if (full) {
     name: 'platform package install smoke',
     scope: 'local',
     command: process.execPath,
-    args: ['test/platform-package-install-smoke.js']
+    args: ['test/platform-package-install-smoke.js'],
+    success: 'platform package install ok'
   });
   addCommandCheck({
     name: 'package install smoke',
     scope: 'local',
     command: process.execPath,
-    args: ['test/package-install-smoke.js']
+    args: ['test/package-install-smoke.js'],
+    success: 'package install ok'
   });
 }
 
@@ -147,7 +153,7 @@ if (json) {
 
 process.exitCode = failed ? 1 : 0;
 
-function addCommandCheck({ name, scope, command, args: commandArgs, pass: passFn, failure }) {
+function addCommandCheck({ name, scope, command, args: commandArgs, pass: passFn, failure, success }) {
   checks.push({
     name,
     scope,
@@ -155,7 +161,7 @@ function addCommandCheck({ name, scope, command, args: commandArgs, pass: passFn
       const result = run(command, commandArgs);
       const ok = passFn ? passFn(result) : result.status === 0;
       if (ok) {
-        return pass(trimForDetail(result.stdout));
+        return pass(success || trimForDetail(result.stdout));
       }
       return fail(
         failure
