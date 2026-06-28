@@ -307,6 +307,7 @@ npm run bench
 npm run check:npm-names
 npm run check:npm-new-names
 npm run check:release-repository
+npm run configure:release-repository -- --repo avifenesh/ferrings
 npm run bench:first-slice
 npm run bench:tcp
 npm run bench:high
@@ -406,6 +407,10 @@ that will run `.github/workflows/release.yml`, then configure each npm package's
 trusted publisher to that repository and workflow, or provide an `NPM_TOKEN`
 secret for token-based publishing. The release workflow blocks publishing when
 GitHub's `GITHUB_REPOSITORY` does not match the package repository metadata.
+After adding a GitHub `origin`, run `npm run configure:release-repository` to
+derive that metadata from the remote, or pass `--repo owner/name` explicitly.
+The helper only edits `package.json`; it does not create a repository, push, or
+publish.
 
 `test:zcrx` is skipped unless `ZCRX_INTERFACE` is set. On capable hardware it
 starts all three server types with `useZeroCopyReceive: true`, requires the

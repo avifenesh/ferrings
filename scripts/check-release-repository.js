@@ -1,8 +1,14 @@
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
 
-const rootPackage = require(path.resolve(__dirname, '..', 'package.json'));
+const args = process.argv.slice(2);
+const packageArg = valueAfter('--package-json');
+const packagePath = packageArg
+  ? path.resolve(process.cwd(), packageArg)
+  : path.resolve(__dirname, '..', 'package.json');
+const rootPackage = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const requireGithubMatch = process.argv.includes('--require-github-match');
 const repositoryUrl = normalizeRepositoryUrl(rootPackage.repository);
 const githubRepository = process.env.GITHUB_REPOSITORY || '';
@@ -41,6 +47,11 @@ function normalizeRepositoryUrl(repository) {
     return repository.url;
   }
   return '';
+}
+
+function valueAfter(name) {
+  const index = args.indexOf(name);
+  return index === -1 ? '' : args[index + 1] || '';
 }
 
 function githubRepositorySlug(repository) {
