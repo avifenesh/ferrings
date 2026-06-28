@@ -6,6 +6,15 @@ This project follows semver for published npm package versions while it is in th
 `0.x` line: patch releases are intended to be safe updates, and minor releases
 may adjust APIs, defaults, or packaging.
 
+## 0.2.5 - 2026-06-28
+
+- Added a public `FerringsNativeLoadError` with code
+  `FERRINGS_NATIVE_LOAD_FAILED` when native bindings cannot be loaded.
+- Documented the native-load diagnostic and covered the missing-binding path in
+  the packed-package install smoke test.
+- Repositioned the README around ferrings as a ready-to-use transport and moved
+  benchmark reproduction into the first-screen flow.
+
 ## 0.2.4 - 2026-06-28
 
 - Added `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, issue templates, and a pull
