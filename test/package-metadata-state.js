@@ -7,11 +7,24 @@ const path = require('node:path');
 
 const repoRoot = path.resolve(__dirname, '..');
 const rootPackage = require(path.join(repoRoot, 'package.json'));
+const packagePath = path.join(repoRoot, 'package.json');
 const nativeLoaderPath = path.join(repoRoot, 'native.js');
 const readmePath = path.join(repoRoot, 'README.md');
 
 const clean = runMetadataCheck();
 assert.equal(clean.status, 0, `expected clean metadata\nstdout:\n${clean.stdout}\nstderr:\n${clean.stderr}`);
+
+const originalPackage = fs.readFileSync(packagePath, 'utf8');
+try {
+  const packageJson = JSON.parse(originalPackage);
+  packageJson.cpu = ['x64'];
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for missing root CPU selectors');
+  assert.match(stale.stderr, /root package cpu must match supported native package CPUs/);
+} finally {
+  fs.writeFileSync(packagePath, originalPackage);
+}
 
 const original = fs.readFileSync(nativeLoaderPath, 'utf8');
 const staleVersion = rootPackage.version === '0.0.0' ? '0.0.1' : '0.0.0';

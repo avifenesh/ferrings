@@ -8,6 +8,12 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.9 - 2026-06-29
+
+- Added root package `cpu` and `libc` selectors so unsupported Linux targets
+  are rejected during install instead of failing later at native-load time.
+- Added published-package verification for the root `cpu` and `libc` metadata.
+
 ## 0.2.8 - 2026-06-29
 
 - Added a metadata gate that keeps the README benchmark provenance aligned with

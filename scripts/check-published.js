@@ -167,6 +167,8 @@ function verifyRootPackage(published, errors) {
   expectEqual(published, 'bin', rootPackage.bin, errors);
   expectEqual(published, 'engines', rootPackage.engines, errors);
   expectEqual(published, 'os', rootPackage.os, errors);
+  expectEqual(published, 'cpu', rootPackage.cpu, errors);
+  expectEqual(published, 'libc', rootPackage.libc, errors);
   expectEqual(published, 'optionalDependencies', rootPackage.optionalDependencies, errors);
   expectEqual(published, 'repository.url', rootPackage.repository.url, errors);
   expectEqual(published, 'homepage', rootPackage.homepage, errors);

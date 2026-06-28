@@ -108,6 +108,8 @@ fs.writeFileSync(
         bin: rootPackage.bin,
         engines: rootPackage.engines,
         os: rootPackage.os,
+        cpu: rootPackage.cpu,
+        libc: rootPackage.libc,
         optionalDependencies: rootPackage.optionalDependencies,
         repository: rootPackage.repository,
         homepage: rootPackage.homepage,

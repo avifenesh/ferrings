@@ -16,32 +16,32 @@ The main reason to use ferrings is measurable transport overhead reduction witho
 
 | Workload | Same-host result |
 | --- | --- |
-| Fixed-response HTTP | **1.60x** Node HTTP throughput, **49% fewer** server syscalls/conn, **44% lower** p99 latency |
-| Native TCP echo | **1.81x** Node `net` throughput, **53% fewer** server syscalls/conn |
-| Node-style TCP facade | **1.65x** Node `net` throughput, **38% fewer** server syscalls/conn |
-| Node-style TCP facade batch send | **1.58x** Node `net` throughput, **38% fewer** server syscalls/conn |
+| Fixed-response HTTP | **1.99x** Node HTTP throughput, **51% fewer** server syscalls/conn, **43% lower** p99 latency |
+| Native TCP echo | **2.35x** Node `net` throughput, **54% fewer** server syscalls/conn |
+| Node-style TCP facade | **1.63x** Node `net` throughput, **38% fewer** server syscalls/conn |
+| Node-style TCP facade batch send | **1.69x** Node `net` throughput, **38% fewer** server syscalls/conn |
 
 ```bash
 npm install ferrings
 ```
 
-Measured on 2026-06-29 with `ferrings@0.2.8`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.12.1`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; the useful signal is the same-host comparison.
+Measured on 2026-06-29 with `ferrings@0.2.9`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.12.1`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; the useful signal is the same-host comparison.
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 5,761 | 9.490 | 30.606 | 36.324 | 11.813 | libuv/epoll |
-| ferrings HTTP | 9,229 | 5.175 | 18.686 | 20.404 | 6.025 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 8,812 | 6.232 | 10.795 | 13.577 | 11.069 | libuv/epoll |
-| ferrings native TCP echo | 15,940 | 2.849 | 18.848 | 20.531 | 5.163 | native echo worker + provided buffers |
-| ferrings TCP facade | 14,529 | 3.203 | 19.672 | 21.385 | 6.912 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 13,965 | 3.030 | 19.987 | 21.831 | 6.822 | JS facade + batched native events/sends |
+| Node `http` | 4,387 | 12.665 | 35.825 | 42.324 | 11.628 | libuv/epoll |
+| ferrings HTTP | 8,728 | 6.035 | 20.103 | 24.037 | 5.695 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 6,785 | 8.969 | 12.751 | 13.960 | 11.099 | libuv/epoll |
+| ferrings native TCP echo | 15,942 | 3.266 | 13.126 | 14.574 | 5.161 | native echo worker + provided buffers |
+| ferrings TCP facade | 11,079 | 4.983 | 17.722 | 19.512 | 6.905 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 11,439 | 4.001 | 21.540 | 23.390 | 6.870 | JS facade + batched native events/sends |
 
 Reproduce the table:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.8.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.9.json \
 npm run bench:syscalls
 ```
 

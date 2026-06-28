@@ -93,8 +93,8 @@ try {
   assert.equal(installedPackageJson.private, undefined);
   assert.equal(installedPackageJson.license, 'MIT OR Apache-2.0');
   assert.deepEqual(installedPackageJson.os, ['linux']);
-  assert.equal(installedPackageJson.cpu, undefined);
-  assert.equal(installedPackageJson.libc, undefined);
+  assert.deepEqual(installedPackageJson.cpu, rootPackageJson.cpu);
+  assert.deepEqual(installedPackageJson.libc, rootPackageJson.libc);
   assert.deepEqual(installedPackageJson.napi.targets, [
     'x86_64-unknown-linux-gnu',
     'aarch64-unknown-linux-gnu',

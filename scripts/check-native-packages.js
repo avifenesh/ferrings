@@ -52,8 +52,8 @@ const selectedTargets = packageArg
 
 assert.ok(selectedTargets.length > 0, `unknown native package ${packageArg}`);
 assert.deepEqual(rootPackage.os, ['linux']);
-assert.equal(rootPackage.cpu, undefined);
-assert.equal(rootPackage.libc, undefined);
+assert.deepEqual(rootPackage.cpu, ['x64', 'arm64']);
+assert.deepEqual(rootPackage.libc, ['glibc', 'musl']);
 assert.deepEqual(rootPackage.napi.targets, TARGETS.map((target) => target.target));
 assert.equal(rootPackage.files.includes('ferrings.linux-x64-gnu.node'), true);
 assert.equal(rootPackage.files.some((entry) => entry.includes('*.node')), false);
