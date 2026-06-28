@@ -63,6 +63,9 @@ assert.deepEqual(rootPackage.publishConfig, {
   provenance: true
 });
 assert.equal(typeof rootPackage.repository?.url, 'string');
+assert.equal(typeof rootPackage.homepage, 'string');
+assert.equal(typeof rootPackage.bugs?.url, 'string');
+assert.equal(rootPackage.files.includes('SECURITY.md'), true);
 
 for (const target of TARGETS) {
   assert.equal(
@@ -94,6 +97,8 @@ function checkPlatformPackage(target) {
   assert.deepEqual(packageJson.files, [target.main, 'LICENSE-APACHE', 'LICENSE-MIT']);
   assert.equal(packageJson.license, rootPackage.license);
   assert.deepEqual(packageJson.repository, rootPackage.repository);
+  assert.equal(packageJson.homepage, rootPackage.homepage);
+  assert.deepEqual(packageJson.bugs, rootPackage.bugs);
   assert.deepEqual(packageJson.os, ['linux']);
   assert.deepEqual(packageJson.cpu, [target.cpu]);
   assert.deepEqual(packageJson.libc, [target.libc]);

@@ -46,6 +46,9 @@ jobs:
       - name: Check npm package version availability
         run: npm run check:npm-names
 
+      - name: Check package metadata consistency
+        run: npm run check:metadata
+
       - name: Resolve release version
         id: release
         env:
@@ -197,7 +200,7 @@ jobs:
           find npm -maxdepth 2 -type f | sort
 
       - name: Validate native package metadata and contents
-        run: node scripts/check-native-packages.js --require-binary
+        run: npm run check:metadata && node scripts/check-native-packages.js --require-binary
 
       - name: Check napi prepublish dry-run
         run: npm run check:prepublish

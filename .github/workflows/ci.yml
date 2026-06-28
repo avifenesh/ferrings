@@ -67,7 +67,7 @@ jobs:
         run: npm pack --dry-run --json
 
       - name: Check native package metadata
-        run: npm run check:native-packages
+        run: npm run check:metadata && npm run check:native-packages
 
       - name: Smoke test installed tarball
         run: node test/package-install-smoke.js

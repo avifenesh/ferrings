@@ -45,6 +45,15 @@ checks.push({
 });
 
 addCommandCheck({
+  name: 'package metadata consistency',
+  scope: 'local',
+  command: process.execPath,
+  args: ['scripts/check-package-metadata.js'],
+  success: 'metadata versions and links ok',
+  next: 'npm run check:metadata'
+});
+
+addCommandCheck({
   name: 'native package metadata',
   scope: 'local',
   command: process.execPath,
