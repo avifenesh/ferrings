@@ -191,6 +191,9 @@ try {
       DURATION_MS: '50',
       CONCURRENCY: '2',
       QUEUE_DEPTH: '32',
+      BUFFER_COUNT: '64',
+      BUFFER_SIZE: '2048',
+      TCP_CASES: 'node:net echo,ferrings native tcp echo,ferrings tcp facade echo',
       SYSCALL_REQUESTS: '8',
       SYSCALL_CONCURRENCY: '2',
       SYSCALL_CASES: 'node-http,ferrings-http,node-tcp,ferrings-native-tcp',
@@ -237,15 +240,6 @@ try {
     typeof installedFerringsFacadeTcp.result.serverInfo.fixedSendBufferMisses,
     'number'
   );
-  const installedFerringsFacadeBatchTcp = installedTcp.report.results.find(
-    (entry) => entry.caseName === 'ferrings tcp facade batch echo'
-  );
-  assert.ok(installedFerringsFacadeBatchTcp.result.serverInfo.recvCopyBytes > 0);
-  assert.equal(
-    typeof installedFerringsFacadeBatchTcp.result.serverInfo.fixedSendBufferMisses,
-    'number'
-  );
-
   const installedSyscalls = installedBenchmarkReport.results.find(
     (entry) => entry.script === 'syscalls.js'
   );

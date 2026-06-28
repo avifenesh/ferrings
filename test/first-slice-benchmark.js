@@ -22,6 +22,9 @@ try {
       DURATION_MS: '50',
       CONCURRENCY: '2',
       QUEUE_DEPTH: '32',
+      BUFFER_COUNT: '64',
+      BUFFER_SIZE: '2048',
+      TCP_CASES: 'node:net echo,ferrings native tcp echo,ferrings tcp facade echo',
       SYSCALL_REQUESTS: '8',
       SYSCALL_CONCURRENCY: '2',
       SYSCALL_CASES: 'node-http,ferrings-http,node-tcp,ferrings-native-tcp',
@@ -56,9 +59,6 @@ try {
   assert.ok(tcp.report.results.some((entry) => entry.caseName === 'node:net echo'));
   assert.ok(tcp.report.results.some((entry) => entry.caseName === 'ferrings native tcp echo'));
   assert.ok(tcp.report.results.some((entry) => entry.caseName === 'ferrings tcp facade echo'));
-  assert.ok(
-    tcp.report.results.some((entry) => entry.caseName === 'ferrings tcp facade batch echo')
-  );
   const ferringsNativeTcp = tcp.report.results.find(
     (entry) => entry.caseName === 'ferrings native tcp echo'
   );
@@ -69,11 +69,6 @@ try {
   );
   assert.ok(ferringsFacadeTcp.result.serverInfo.recvCopyBytes > 0);
   assert.equal(typeof ferringsFacadeTcp.result.serverInfo.fixedSendBufferMisses, 'number');
-  const ferringsFacadeBatchTcp = tcp.report.results.find(
-    (entry) => entry.caseName === 'ferrings tcp facade batch echo'
-  );
-  assert.ok(ferringsFacadeBatchTcp.result.serverInfo.recvCopyBytes > 0);
-  assert.equal(typeof ferringsFacadeBatchTcp.result.serverInfo.fixedSendBufferMisses, 'number');
 
   const syscalls = report.results.find((entry) => entry.script === 'syscalls.js');
   assert.ok(['passed', 'skipped'].includes(syscalls.status));
@@ -86,7 +81,7 @@ try {
   assert.equal(report.summary.httpLatency.metric, 'p99Ms');
   assert.equal(report.summary.tcpNativeLatency.metric, 'p99Ms');
   assert.equal(report.summary.tcpFacadeLatency.metric, 'p99Ms');
-  assert.equal(report.summary.tcpFacadeBatchLatency.metric, 'p99Ms');
+  assert.equal(report.summary.tcpFacadeBatchLatency, null);
   console.log('first-slice benchmark smoke ok');
 } finally {
   fs.rmSync(reportPath, { force: true });

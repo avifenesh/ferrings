@@ -2,7 +2,9 @@
 
 const fs = require('node:fs');
 const net = require('node:net');
+const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { performance } = require('node:perf_hooks');
 const {
   UringTcpEchoServer,
@@ -16,10 +18,56 @@ const RESPONSE = Buffer.from('pong');
 const DURATION_MS = Number(process.env.DURATION_MS || 5000);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 128);
 const QUEUE_DEPTH = Number(process.env.QUEUE_DEPTH || 256);
+const BUFFER_COUNT = Number(process.env.BUFFER_COUNT || 512);
+const BUFFER_SIZE = Number(process.env.BUFFER_SIZE || 2048);
 const BUNDLE_REQUEST_SIZE = Number(process.env.BUNDLE_REQUEST_SIZE || 4096);
 const BUNDLE_REQUEST = payload(BUNDLE_REQUEST_SIZE);
-const CAPS = capabilities();
+let capsCache = null;
+const DEFAULT_CASES = [
+  'node:net echo',
+  'ferrings native tcp echo',
+  'ferrings native tcp echo recv-bundle',
+  'ferrings tcp echo',
+  'ferrings tcp echo batch',
+  'ferrings tcp echo full batch',
+  'ferrings tcp facade echo',
+  'ferrings tcp facade batch echo',
+  'ferrings tcp echo zc',
+  'ferrings native tcp echo zc',
+  'ferrings native tcp echo zc recv-bundle',
+  'ferrings tcp echo batch zc',
+  'ferrings tcp echo full batch zc',
+  'ferrings tcp facade echo zc',
+  'ferrings tcp facade batch echo zc'
+];
+const CASES = (process.env.CASES || DEFAULT_CASES.join(','))
+  .split(',')
+  .map((name) => name.trim())
+  .filter(Boolean);
+const CASE_ISOLATION = process.env.CASE_ISOLATION !== '0';
+const CASE_REPORT_PATH = process.env.CASE_REPORT_PATH;
 const REPORT_PATH = process.env.REPORT_PATH;
+
+if (process.argv[2] === '--case') {
+  runCase(process.argv[3])
+    .then((result) => {
+      if (CASE_REPORT_PATH) {
+        fs.mkdirSync(path.dirname(CASE_REPORT_PATH), { recursive: true });
+        fs.writeFileSync(CASE_REPORT_PATH, `${JSON.stringify(result, null, 2)}\n`);
+      } else {
+        console.log(JSON.stringify(result));
+      }
+    })
+    .catch((error) => {
+      console.error(error);
+      process.exitCode = 1;
+    });
+} else {
+  main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}
 
 function payload(size) {
   const data = Buffer.alloc(size);
@@ -27,6 +75,13 @@ function payload(size) {
     data[index] = index % 251;
   }
   return data;
+}
+
+function caps() {
+  if (!capsCache) {
+    capsCache = capabilities();
+  }
+  return capsCache;
 }
 
 function echoOnce(port, request = REQUEST, expected = RESPONSE) {
@@ -101,8 +156,8 @@ async function withUringNativeEchoServer(options = {}, request = REQUEST) {
     host: '127.0.0.1',
     port: 0,
     queueDepth: QUEUE_DEPTH,
-    bufferCount: 4096,
-    bufferSize: 2048,
+    bufferCount: BUFFER_COUNT,
+    bufferSize: BUFFER_SIZE,
     ...options
   });
 
@@ -122,8 +177,8 @@ async function withUringServer(options = {}) {
     host: '127.0.0.1',
     port: 0,
     queueDepth: QUEUE_DEPTH,
-    bufferCount: 4096,
-    bufferSize: 2048,
+    bufferCount: BUFFER_COUNT,
+    bufferSize: BUFFER_SIZE,
     ...options
   });
 
@@ -148,8 +203,8 @@ async function withUringBatchServer(options = {}) {
     host: '127.0.0.1',
     port: 0,
     queueDepth: QUEUE_DEPTH,
-    bufferCount: 4096,
-    bufferSize: 2048,
+    bufferCount: BUFFER_COUNT,
+    bufferSize: BUFFER_SIZE,
     ...options
   });
 
@@ -176,8 +231,8 @@ async function withUringFullBatchServer(options = {}) {
     host: '127.0.0.1',
     port: 0,
     queueDepth: QUEUE_DEPTH,
-    bufferCount: 4096,
-    bufferSize: 2048,
+    bufferCount: BUFFER_COUNT,
+    bufferSize: BUFFER_SIZE,
     ...options
   });
 
@@ -209,8 +264,8 @@ async function withTcpFacadeServer(options = {}) {
       host: '127.0.0.1',
       port: 0,
       queueDepth: QUEUE_DEPTH,
-      bufferCount: 4096,
-      bufferSize: 2048,
+      bufferCount: BUFFER_COUNT,
+      bufferSize: BUFFER_SIZE,
       ...options
     },
     (connection) => {
@@ -237,8 +292,8 @@ async function withTcpFacadeBatchServer(options = {}) {
     host: '127.0.0.1',
     port: 0,
     queueDepth: QUEUE_DEPTH,
-    bufferCount: 4096,
-    bufferSize: 2048,
+    bufferCount: BUFFER_COUNT,
+    bufferSize: BUFFER_SIZE,
     ...options
   });
 
@@ -265,16 +320,27 @@ function percentile(values, quantile) {
 }
 
 async function maybeRecvBundle(label, runner) {
-  if (!CAPS.recvBundle) {
+  if (!caps().recvBundle) {
     const result = {
       skipped: 'kernel does not report IORING_FEAT_RECVSEND_BUNDLE'
     };
     console.log(label, result);
     return result;
   }
-  const result = await runner();
-  console.log(label, result);
-  return result;
+  try {
+    const result = await runner();
+    console.log(label, result);
+    return result;
+  } catch (error) {
+    if (/provided-buffer-ring setup was unavailable|Cannot allocate memory/i.test(error.message)) {
+      const result = {
+        skipped: error.message
+      };
+      console.log(label, result);
+      return result;
+    }
+    throw error;
+  }
 }
 
 function summarizeServerInfo(info) {
@@ -318,9 +384,12 @@ function baseReport() {
       durationMs: DURATION_MS,
       concurrency: CONCURRENCY,
       queueDepth: QUEUE_DEPTH,
-      bundleRequestSize: BUNDLE_REQUEST_SIZE
+      bufferCount: BUFFER_COUNT,
+      bufferSize: BUFFER_SIZE,
+      bundleRequestSize: BUNDLE_REQUEST_SIZE,
+      cases: CASES
     },
-    capabilities: CAPS,
+    capabilities: caps(),
     results: [],
     error: null
   };
@@ -341,21 +410,55 @@ function errorForReport(error) {
   };
 }
 
-async function record(report, caseName, runner) {
-  const result = await runner();
+async function record(report, caseName) {
+  const result = CASE_ISOLATION ? runIsolatedCase(caseName) : await runCase(caseName);
   report.results.push({ caseName, result });
   console.log(caseName, result);
 }
 
-(async () => {
-  const report = baseReport();
+function runIsolatedCase(caseName) {
+  const caseReportPath = path.join(
+    os.tmpdir(),
+    `ferrings-tcp-case-${process.pid}-${Date.now()}-${caseName.replace(/[^a-z0-9]+/gi, '-')}.json`
+  );
+  const result = spawnSync(process.execPath, [__filename, '--case', caseName], {
+    cwd: path.join(__dirname, '..'),
+    env: {
+      ...process.env,
+      CASE_ISOLATION: '0',
+      CASE_REPORT_PATH: caseReportPath,
+      REPORT_PATH: ''
+    },
+    stdio: 'inherit'
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    const error = new Error(`${caseName} exited with status ${result.status ?? 1}`);
+    error.caseResult = readCaseReport(caseReportPath);
+    throw error;
+  }
+  return readCaseReport(caseReportPath);
+}
+
+function readCaseReport(caseReportPath) {
   try {
-    console.log(report.config);
-    await record(report, 'node:net echo', withNodeServer);
-    await record(report, 'ferrings native tcp echo', withUringNativeEchoServer);
-    report.results.push({
-      caseName: 'ferrings native tcp echo recv-bundle',
-      result: await maybeRecvBundle('ferrings native tcp echo recv-bundle', () =>
+    if (!fs.existsSync(caseReportPath)) return null;
+    return JSON.parse(fs.readFileSync(caseReportPath, 'utf8'));
+  } finally {
+    fs.rmSync(caseReportPath, { force: true });
+  }
+}
+
+async function runCase(caseName) {
+  switch (caseName) {
+    case 'node:net echo':
+      return withNodeServer();
+    case 'ferrings native tcp echo':
+      return withUringNativeEchoServer();
+    case 'ferrings native tcp echo recv-bundle':
+      return maybeRecvBundle(caseName, () =>
         withUringNativeEchoServer(
           {
             bufferSize: 512,
@@ -363,30 +466,31 @@ async function record(report, caseName, runner) {
           },
           BUNDLE_REQUEST
         )
-      )
-    });
-    await record(report, 'ferrings tcp echo', withUringServer);
-    await record(report, 'ferrings tcp echo batch', withUringBatchServer);
-    await record(report, 'ferrings tcp echo full batch', withUringFullBatchServer);
-    await record(report, 'ferrings tcp facade echo', withTcpFacadeServer);
-    await record(report, 'ferrings tcp facade batch echo', withTcpFacadeBatchServer);
-    await record(report, 'ferrings tcp echo zc', () =>
-      withUringServer({
+      );
+    case 'ferrings tcp echo':
+      return withUringServer();
+    case 'ferrings tcp echo batch':
+      return withUringBatchServer();
+    case 'ferrings tcp echo full batch':
+      return withUringFullBatchServer();
+    case 'ferrings tcp facade echo':
+      return withTcpFacadeServer();
+    case 'ferrings tcp facade batch echo':
+      return withTcpFacadeBatchServer();
+    case 'ferrings tcp echo zc':
+      return withUringServer({
         useZeroCopySend: true,
         sendBufferCount: 512,
         sendBufferSize: 2048
-      })
-    );
-    await record(report, 'ferrings native tcp echo zc', () =>
-      withUringNativeEchoServer({
+      });
+    case 'ferrings native tcp echo zc':
+      return withUringNativeEchoServer({
         useZeroCopySend: true,
         sendBufferCount: 512,
         sendBufferSize: 2048
-      })
-    );
-    report.results.push({
-      caseName: 'ferrings native tcp echo zc recv-bundle',
-      result: await maybeRecvBundle('ferrings native tcp echo zc recv-bundle', () =>
+      });
+    case 'ferrings native tcp echo zc recv-bundle':
+      return maybeRecvBundle(caseName, () =>
         withUringNativeEchoServer(
           {
             bufferSize: 512,
@@ -397,36 +501,43 @@ async function record(report, caseName, runner) {
           },
           BUNDLE_REQUEST
         )
-      )
-    });
-    await record(report, 'ferrings tcp echo batch zc', () =>
-      withUringBatchServer({
+      );
+    case 'ferrings tcp echo batch zc':
+      return withUringBatchServer({
         useZeroCopySend: true,
         sendBufferCount: 512,
         sendBufferSize: 2048
-      })
-    );
-    await record(report, 'ferrings tcp echo full batch zc', () =>
-      withUringFullBatchServer({
+      });
+    case 'ferrings tcp echo full batch zc':
+      return withUringFullBatchServer({
         useZeroCopySend: true,
         sendBufferCount: 512,
         sendBufferSize: 2048
-      })
-    );
-    await record(report, 'ferrings tcp facade echo zc', () =>
-      withTcpFacadeServer({
+      });
+    case 'ferrings tcp facade echo zc':
+      return withTcpFacadeServer({
         useZeroCopySend: true,
         sendBufferCount: 512,
         sendBufferSize: 2048
-      })
-    );
-    await record(report, 'ferrings tcp facade batch echo zc', () =>
-      withTcpFacadeBatchServer({
+      });
+    case 'ferrings tcp facade batch echo zc':
+      return withTcpFacadeBatchServer({
         useZeroCopySend: true,
         sendBufferCount: 512,
         sendBufferSize: 2048
-      })
-    );
+      });
+    default:
+      throw new Error(`unknown TCP benchmark case: ${caseName}`);
+  }
+}
+
+async function main() {
+  const report = baseReport();
+  try {
+    console.log(report.config);
+    for (const caseName of CASES) {
+      await record(report, caseName);
+    }
     report.status = 'passed';
   } catch (error) {
     report.status = 'failed';
@@ -436,7 +547,4 @@ async function record(report, caseName, runner) {
     report.finishedAt = new Date().toISOString();
     writeReport(report);
   }
-})().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+}

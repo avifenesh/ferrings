@@ -282,8 +282,8 @@ Common server options:
 | `host` | `127.0.0.1` | all servers | Bind address. |
 | `port` | `0` | all servers | Bind port; `0` asks the kernel for a free port. |
 | `backlog` | `1024` | all servers | Passed to `listen(2)`, subject to host `somaxconn`. |
-| `queueDepth` | `1024` | all servers | `io_uring` queue depth. |
-| `bufferCount` | `4096` | all servers | Receive buffer slots. |
+| `queueDepth` | `64` | all servers | `io_uring` queue depth. |
+| `bufferCount` | `512` | all servers | Receive buffer slots. |
 | `bufferSize` | `2048` | all servers | Size of each receive buffer. |
 | `maxConnections` | `0` | all servers | `0` means unlimited tracked active connections. |
 | `idleTimeoutMs` | `0` | all servers | `0` disables native idle eviction. |
@@ -312,7 +312,29 @@ All servers expose live counters through `ServerInfo`, including accepted/closed
 
 ## Performance and benchmarks
 
-The repository includes benchmark drivers, but the README does not publish benchmark numbers because results depend on kernel, CPU, NIC, limits, and benchmark shape.
+### Snapshot: loopback syscall benchmark
+
+Measured on 2026-06-28 on an Intel Core Ultra 9 275HX laptop, Linux `7.0.0-22-generic`, Node `v25.9.0`, npm `11.12.1`, Rust `1.96.0`, with the default 8 MiB locked-memory limit. This is loopback under `strace -f -c`, not a NIC or ZCRX benchmark, so use the ratios more than the absolute numbers.
+
+```bash
+REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
+CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
+REPORT_PATH=artifacts/benchmark-readme-2026-06-28.json \
+npm run bench:syscalls
+```
+
+| Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Fast path |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| Node `http` | 2,689 | 19.536 | 63.368 | 75.987 | 11.620 | libuv/epoll |
+| ferrings HTTP | 5,547 | 10.480 | 28.965 | 33.123 | 5.645 | multishot accept/recv + provided buffer ring |
+| Node `net` TCP echo | 4,086 | 14.881 | 19.244 | 26.649 | 10.987 | libuv/epoll |
+| ferrings native TCP echo | 8,128 | 6.353 | 16.562 | 20.422 | 5.842 | native echo worker + provided buffer ring |
+| ferrings TCP facade | 7,001 | 7.199 | 30.371 | 33.890 | 8.149 | JS facade + batched native events |
+| ferrings TCP facade batch send | 8,451 | 6.188 | 24.787 | 28.451 | 7.143 | JS facade + batched native events/sends |
+
+In this shape, ferrings HTTP uses about half the server syscalls per completed connection and roughly doubles request throughput versus Node `http`. The native TCP echo path does the same against Node `net`; the JS facade still crosses into JavaScript, but batching keeps syscall count and throughput ahead in this benchmark.
+
+### Running benchmarks
 
 ```bash
 npm run bench
@@ -330,7 +352,7 @@ Benchmark scripts:
 - `benchmark/syscalls.js` uses `strace -f -c` when installed to report server-side syscalls per completed connection.
 - `benchmark/first-slice.js` writes one compact validation report for the first useful slice across capabilities, HTTP, TCP, and syscall cases.
 
-Set `REPORT_PATH=artifacts/<name>.json` to keep machine-readable reports.
+Set `REPORT_PATH=artifacts/<name>.json` to keep machine-readable reports. Useful knobs include `DURATION_MS`, `REQUESTS`, `CONCURRENCY`, `QUEUE_DEPTH`, `BUFFER_COUNT`, `BUFFER_SIZE`, `CASES`, and `SYSCALL_CASES`. If you raise `BUFFER_COUNT`, `QUEUE_DEPTH`, or fixed send-buffer counts, raise `ulimit -l` / `RLIMIT_MEMLOCK` too.
 
 ## ZCRX
 

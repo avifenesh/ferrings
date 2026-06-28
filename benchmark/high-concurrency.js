@@ -8,13 +8,17 @@ const path = require('node:path');
 const DEFAULT_DURATION_MS = '10000';
 const DEFAULT_CONCURRENCY = '512';
 const DEFAULT_QUEUE_DEPTH = '1024';
+const DEFAULT_BUFFER_COUNT = '512';
+const DEFAULT_BUFFER_SIZE = '2048';
 const REPORT_PATH = process.env.REPORT_PATH;
 
 const env = {
   ...process.env,
   DURATION_MS: process.env.DURATION_MS || DEFAULT_DURATION_MS,
   CONCURRENCY: process.env.CONCURRENCY || DEFAULT_CONCURRENCY,
-  QUEUE_DEPTH: process.env.QUEUE_DEPTH || DEFAULT_QUEUE_DEPTH
+  QUEUE_DEPTH: process.env.QUEUE_DEPTH || DEFAULT_QUEUE_DEPTH,
+  BUFFER_COUNT: process.env.BUFFER_COUNT || DEFAULT_BUFFER_COUNT,
+  BUFFER_SIZE: process.env.BUFFER_SIZE || DEFAULT_BUFFER_SIZE
 };
 
 const report = {
@@ -25,7 +29,9 @@ const report = {
   config: {
     durationMs: Number(env.DURATION_MS),
     concurrency: Number(env.CONCURRENCY),
-    queueDepth: Number(env.QUEUE_DEPTH)
+    queueDepth: Number(env.QUEUE_DEPTH),
+    bufferCount: Number(env.BUFFER_COUNT),
+    bufferSize: Number(env.BUFFER_SIZE)
   },
   results: [],
   error: null

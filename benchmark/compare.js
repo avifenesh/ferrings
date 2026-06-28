@@ -10,6 +10,8 @@ const BODY = 'ok\n';
 const DURATION_MS = Number(process.env.DURATION_MS || 5000);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 128);
 const QUEUE_DEPTH = Number(process.env.QUEUE_DEPTH || 256);
+const BUFFER_COUNT = Number(process.env.BUFFER_COUNT || 512);
+const BUFFER_SIZE = Number(process.env.BUFFER_SIZE || 2048);
 const REPORT_PATH = process.env.REPORT_PATH;
 
 function requestOnce(port) {
@@ -76,8 +78,8 @@ async function withUringServer() {
     port: 0,
     queueDepth: QUEUE_DEPTH,
     responseBody: BODY,
-    bufferCount: 4096,
-    bufferSize: 2048
+    bufferCount: BUFFER_COUNT,
+    bufferSize: BUFFER_SIZE
   });
 
   const info = server.start();
@@ -131,7 +133,9 @@ function baseReport() {
     config: {
       durationMs: DURATION_MS,
       concurrency: CONCURRENCY,
-      queueDepth: QUEUE_DEPTH
+      queueDepth: QUEUE_DEPTH,
+      bufferCount: BUFFER_COUNT,
+      bufferSize: BUFFER_SIZE
     },
     results: [],
     error: null

@@ -9,6 +9,9 @@ const { capabilities } = require('../');
 const DURATION_MS = String(process.env.DURATION_MS || 1000);
 const CONCURRENCY = String(process.env.CONCURRENCY || 128);
 const QUEUE_DEPTH = String(process.env.QUEUE_DEPTH || 256);
+const BUFFER_COUNT = String(process.env.BUFFER_COUNT || 512);
+const BUFFER_SIZE = String(process.env.BUFFER_SIZE || 2048);
+const TCP_CASES = process.env.TCP_CASES || '';
 const SYSCALL_REQUESTS = String(process.env.SYSCALL_REQUESTS || 200);
 const SYSCALL_CONCURRENCY = String(process.env.SYSCALL_CONCURRENCY || 32);
 const SYSCALL_CASES =
@@ -25,6 +28,11 @@ const report = {
     durationMs: Number(DURATION_MS),
     concurrency: Number(CONCURRENCY),
     queueDepth: Number(QUEUE_DEPTH),
+    bufferCount: Number(BUFFER_COUNT),
+    bufferSize: Number(BUFFER_SIZE),
+    tcpCases: TCP_CASES
+      ? TCP_CASES.split(',').map((name) => name.trim()).filter(Boolean)
+      : null,
     syscallRequests: Number(SYSCALL_REQUESTS),
     syscallConcurrency: Number(SYSCALL_CONCURRENCY),
     syscallCases: SYSCALL_CASES.split(',').map((name) => name.trim()).filter(Boolean)
@@ -41,14 +49,19 @@ try {
     runBenchmark('HTTP fixed response latency', 'compare.js', {
       DURATION_MS,
       CONCURRENCY,
-      QUEUE_DEPTH
+      QUEUE_DEPTH,
+      BUFFER_COUNT,
+      BUFFER_SIZE
     })
   );
   report.results.push(
     runBenchmark('TCP echo latency matrix', 'tcp-echo.js', {
       DURATION_MS,
       CONCURRENCY,
-      QUEUE_DEPTH
+      QUEUE_DEPTH,
+      BUFFER_COUNT,
+      BUFFER_SIZE,
+      ...(TCP_CASES ? { CASES: TCP_CASES } : {})
     })
   );
   report.results.push(runSyscallBenchmark());
@@ -81,6 +94,8 @@ function runSyscallBenchmark() {
     REQUESTS: SYSCALL_REQUESTS,
     CONCURRENCY: SYSCALL_CONCURRENCY,
     QUEUE_DEPTH,
+    BUFFER_COUNT,
+    BUFFER_SIZE,
     CASES: SYSCALL_CASES
   });
 }

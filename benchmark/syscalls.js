@@ -22,10 +22,12 @@ const TCP_RESPONSE = Buffer.from('pong');
 const REQUESTS = Number(process.env.REQUESTS || 1000);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 32);
 const QUEUE_DEPTH = Number(process.env.QUEUE_DEPTH || 256);
+const BUFFER_COUNT = Number(process.env.BUFFER_COUNT || 512);
+const BUFFER_SIZE = Number(process.env.BUFFER_SIZE || 2048);
 const BUNDLE_REQUEST_SIZE = Number(process.env.BUNDLE_REQUEST_SIZE || 4096);
 const BUNDLE_REQUEST = payload(BUNDLE_REQUEST_SIZE);
-const CAPS = capabilities();
-const DEFAULT_CASES = [
+let capsCache = null;
+const BASE_DEFAULT_CASES = [
   'node-http',
   'ferrings-http',
   'node-tcp',
@@ -34,22 +36,10 @@ const DEFAULT_CASES = [
   'ferrings-tcp-facade-batch',
   'ferrings-native-tcp'
 ];
-if (CAPS.sendZc) {
-  DEFAULT_CASES.push(
-    'ferrings-http-zc',
-    'ferrings-tcp-zc',
-    'ferrings-tcp-facade-zc',
-    'ferrings-tcp-facade-batch-zc',
-    'ferrings-native-tcp-zc'
-  );
-}
-if (CAPS.recvBundle) {
-  DEFAULT_CASES.push('ferrings-native-tcp-recv-bundle');
-  if (CAPS.sendZc) {
-    DEFAULT_CASES.push('ferrings-native-tcp-zc-recv-bundle');
-  }
-}
-const CASES = (process.env.CASES || DEFAULT_CASES.join(','))
+const CASE_SOURCE =
+  process.env.CASES ||
+  (process.argv[2] === '--serve' ? process.argv[3] : defaultCases().join(','));
+const CASES = CASE_SOURCE
   .split(',')
   .map((name) => name.trim())
   .filter(Boolean);
@@ -102,10 +92,12 @@ function baseReport() {
       requests: REQUESTS,
       concurrency: CONCURRENCY,
       queueDepth: QUEUE_DEPTH,
+      bufferCount: BUFFER_COUNT,
+      bufferSize: BUFFER_SIZE,
       bundleRequestSize: BUNDLE_REQUEST_SIZE,
       cases: CASES
     },
-    capabilities: CAPS,
+    capabilities: caps(),
     results: [],
     error: null
   };
@@ -124,6 +116,34 @@ function errorForReport(error) {
     message: error && error.message ? error.message : String(error),
     stack: error && error.stack ? error.stack : undefined
   };
+}
+
+function caps() {
+  if (!capsCache) {
+    capsCache = capabilities();
+  }
+  return capsCache;
+}
+
+function defaultCases() {
+  const defaults = [...BASE_DEFAULT_CASES];
+  const currentCaps = caps();
+  if (currentCaps.sendZc) {
+    defaults.push(
+      'ferrings-http-zc',
+      'ferrings-tcp-zc',
+      'ferrings-tcp-facade-zc',
+      'ferrings-tcp-facade-batch-zc',
+      'ferrings-native-tcp-zc'
+    );
+  }
+  if (currentCaps.recvBundle) {
+    defaults.push('ferrings-native-tcp-recv-bundle');
+    if (currentCaps.sendZc) {
+      defaults.push('ferrings-native-tcp-zc-recv-bundle');
+    }
+  }
+  return defaults;
 }
 
 async function traceServerCase(caseName) {
@@ -228,8 +248,8 @@ async function startServer(caseName) {
       port: 0,
       queueDepth: QUEUE_DEPTH,
       responseBody: BODY,
-      bufferCount: 4096,
-      bufferSize: 2048,
+      bufferCount: BUFFER_COUNT,
+      bufferSize: BUFFER_SIZE,
       useZeroCopySend: caseName === 'ferrings-http-zc'
     });
     const info = server.start();
@@ -260,8 +280,8 @@ async function startServer(caseName) {
       host: '127.0.0.1',
       port: 0,
       queueDepth: QUEUE_DEPTH,
-      bufferCount: 4096,
-      bufferSize: 2048,
+      bufferCount: BUFFER_COUNT,
+      bufferSize: BUFFER_SIZE,
       useZeroCopySend: caseName === 'ferrings-tcp-zc',
       sendBufferCount: 512,
       sendBufferSize: 2048
@@ -287,8 +307,8 @@ async function startServer(caseName) {
       host: '127.0.0.1',
       port: 0,
       queueDepth: QUEUE_DEPTH,
-      bufferCount: 4096,
-      bufferSize: 2048,
+      bufferCount: BUFFER_COUNT,
+      bufferSize: BUFFER_SIZE,
       useZeroCopySend,
       sendBufferCount: 512,
       sendBufferSize: 2048
@@ -320,7 +340,7 @@ async function startServer(caseName) {
     const useZeroCopySend =
       caseName === 'ferrings-native-tcp-zc' ||
       caseName === 'ferrings-native-tcp-zc-recv-bundle';
-    if (useRecvBundle && !CAPS.recvBundle) {
+    if (useRecvBundle && !caps().recvBundle) {
       throw new Error(
         `${caseName} requires IORING_FEAT_RECVSEND_BUNDLE but capabilities().recvBundle is false`
       );
@@ -329,8 +349,8 @@ async function startServer(caseName) {
       host: '127.0.0.1',
       port: 0,
       queueDepth: QUEUE_DEPTH,
-      bufferCount: 4096,
-      bufferSize: useRecvBundle ? 512 : 2048,
+      bufferCount: BUFFER_COUNT,
+      bufferSize: useRecvBundle ? 512 : BUFFER_SIZE,
       useRecvBundle,
       useZeroCopySend,
       sendBufferCount: 512,
