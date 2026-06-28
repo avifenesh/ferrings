@@ -25,6 +25,9 @@ assert.equal(cargoVersion, rootPackage.version);
 assert.equal(cargoLockVersion, rootPackage.version);
 assert.equal(rootPackage.homepage, `${repositoryHttpUrl(rootPackage.repository.url)}#readme`);
 assert.equal(rootPackage.bugs.url, `${repositoryHttpUrl(rootPackage.repository.url)}/issues`);
+assert.equal(rootPackage.files.includes('CHANGELOG.md'), true);
+assert.equal(rootPackage.files.includes('CONTRIBUTING.md'), true);
+assert.equal(rootPackage.files.includes('CODE_OF_CONDUCT.md'), true);
 assert.equal(rootPackage.files.includes('SECURITY.md'), true);
 
 for (const [name, version] of Object.entries(rootPackage.optionalDependencies)) {

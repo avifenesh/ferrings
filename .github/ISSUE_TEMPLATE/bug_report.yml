@@ -1,0 +1,59 @@
+name: Bug report
+description: Report a ferrings runtime, packaging, or documentation bug.
+title: "[bug]: "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction
+      description: Include the smallest script or command sequence that shows the problem.
+      render: bash
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ferrings version
+      placeholder: "0.2.3"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Include Linux distribution, kernel, Node.js, npm, architecture, libc, and Rust if building from source.
+      value: |
+        - Linux:
+        - Kernel:
+        - Node.js:
+        - npm:
+        - Architecture:
+        - libc:
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Paste relevant `npx ferrings doctor --json`, benchmark, or test output.
+      render: json
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I can reproduce this on a supported Linux target.
+          required: true
+        - label: I searched existing issues for the same problem.
+          required: true

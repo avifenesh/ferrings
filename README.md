@@ -347,6 +347,9 @@ npm test
 ## Project Health
 
 - npm package: [`ferrings`](https://www.npmjs.com/package/ferrings)
+- Changelog: [`CHANGELOG.md`](CHANGELOG.md)
+- Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
 - Examples: [`examples/http-fixed.js`](examples/http-fixed.js), [`examples/tcp-echo.js`](examples/tcp-echo.js)
 - Benchmarks: [`benchmark/`](benchmark/)
 - Type surface: [`index.d.ts`](index.d.ts), [`native.d.ts`](native.d.ts)
@@ -387,7 +390,8 @@ Tag pushes that match the package version build all native artifacts, run packag
 
 ## Contributing
 
-Issues and pull requests are welcome. There is no standalone `CONTRIBUTING.md` yet, so use this baseline before opening a change:
+Issues and pull requests are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md).
+At minimum, run this baseline before opening a change:
 
 ```bash
 npm install

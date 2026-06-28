@@ -65,6 +65,9 @@ assert.deepEqual(rootPackage.publishConfig, {
 assert.equal(typeof rootPackage.repository?.url, 'string');
 assert.equal(typeof rootPackage.homepage, 'string');
 assert.equal(typeof rootPackage.bugs?.url, 'string');
+assert.equal(rootPackage.files.includes('CHANGELOG.md'), true);
+assert.equal(rootPackage.files.includes('CONTRIBUTING.md'), true);
+assert.equal(rootPackage.files.includes('CODE_OF_CONDUCT.md'), true);
 assert.equal(rootPackage.files.includes('SECURITY.md'), true);
 
 for (const target of TARGETS) {

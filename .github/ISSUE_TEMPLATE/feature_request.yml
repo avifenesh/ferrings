@@ -1,0 +1,34 @@
+name: Feature request
+description: Propose a ferrings API, transport, packaging, or documentation improvement.
+title: "[feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What production use case or workflow should this improve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the API, behavior, or documentation change you want.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: What have you tried, and why is it insufficient?
+    validations:
+      required: false
+  - type: textarea
+    id: environment
+    attributes:
+      label: Target Environment
+      description: Include kernel, Node.js, architecture, NIC/ZCRX requirements, or deployment constraints if relevant.
+    validations:
+      required: false

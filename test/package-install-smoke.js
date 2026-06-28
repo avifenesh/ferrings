@@ -38,6 +38,11 @@ try {
   const [packed] = JSON.parse(pack.stdout);
   assert.ok(packed, 'npm pack should report one package');
   const packedFiles = new Set(packed.files.map((file) => file.path));
+  assert.equal(packedFiles.has('README.md'), true);
+  assert.equal(packedFiles.has('CHANGELOG.md'), true);
+  assert.equal(packedFiles.has('CONTRIBUTING.md'), true);
+  assert.equal(packedFiles.has('CODE_OF_CONDUCT.md'), true);
+  assert.equal(packedFiles.has('SECURITY.md'), true);
   assert.equal(packedFiles.has('ferrings.linux-x64-gnu.node'), true);
   assert.equal(packedFiles.has('LICENSE-APACHE'), true);
   assert.equal(packedFiles.has('LICENSE-MIT'), true);
