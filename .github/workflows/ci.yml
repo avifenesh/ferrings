@@ -27,6 +27,37 @@ jobs:
       - name: Check GitHub Actions workflows
         run: npm run check:workflows
 
+  main-health:
+    name: Main health
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends strace
+
+      - name: Install dependencies
+        run: npm ci --omit=optional
+
+      - name: Build native binding
+        run: npm run build
+
+      - name: Check main health
+        run: npm run check:main-health -- --full
+
   linux-native:
     name: Linux native / Node ${{ matrix.node-version }}
     runs-on: ubuntu-24.04
