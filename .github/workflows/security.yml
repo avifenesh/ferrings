@@ -45,6 +45,12 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache cargo-audit
+        uses: actions/cache@v6
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-0.22.2-${{ runner.os }}-${{ runner.arch }}
+
       - name: Install dependencies
         run: npm ci --omit=optional
 
@@ -52,7 +58,8 @@ jobs:
         run: npm audit --omit=optional --audit-level=moderate
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit --locked --version 0.22.2
+        timeout-minutes: 10
+        run: npm run install:cargo-audit
 
       - name: Audit Rust dependencies
         run: cargo audit
