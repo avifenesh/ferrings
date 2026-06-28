@@ -34,12 +34,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 26
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
@@ -111,12 +111,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 26
           package-manager-cache: false
 
       - name: Setup Rust target
@@ -155,7 +155,7 @@ jobs:
           find "dist/${{ matrix.package }}" -maxdepth 1 -type f | sort
 
       - name: Upload native artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: bindings-${{ matrix.package }}
           path: dist/${{ matrix.package }}/
@@ -170,12 +170,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 26
           registry-url: "https://registry.npmjs.org"
           package-manager-cache: false
 
@@ -183,7 +183,7 @@ jobs:
         run: npm ci
 
       - name: Download native artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: bindings-*
           path: artifacts
@@ -206,7 +206,7 @@ jobs:
         run: npm run check:publish
 
       - name: Upload prepared npm packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: npm-packages-${{ needs.validate.outputs.version }}
           path: |

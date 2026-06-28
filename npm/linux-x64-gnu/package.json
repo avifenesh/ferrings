@@ -1,6 +1,6 @@
 {
   "name": "ferrings-linux-x64-gnu",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Native ferrings binding for linux-x64-gnu",
   "main": "ferrings.linux-x64-gnu.node",
   "files": [
