@@ -391,9 +391,11 @@ Release reruns are registry-aware: if the exact version is already published and
 After a release has propagated, this should pass:
 
 ```bash
-npm run check:published -- --tag latest
+npm run check:published -- --tag latest --verify-tarballs
 npm run check:main-health
 ```
+
+`check:published --verify-tarballs` verifies registry metadata, provenance, signatures, dist-tags, and the downloaded npm tarball contents for the root package and every native package.
 
 For a new release, bump the package version first; npm versions are immutable after publication, so `check:release-ready` is a release gate rather than a normal post-release main-branch check. Use `check:main-health` when validating current `main` after a release or docs/tooling follow-up.
 

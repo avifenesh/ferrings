@@ -91,11 +91,13 @@ checks.push({
         'scripts/check-published.js',
         '--tag',
         expectedTag,
+        '--verify-tarballs',
         '--json'
       ]);
       const report = parseJson(result.stdout);
       if (result.status === 0 && report?.ok) {
-        return pass(`published packages verified with ${expectedTag} dist-tag`);
+        const tarballDetail = report.verifyTarballs ? ' and tarballs' : '';
+        return pass(`published packages verified with ${expectedTag} dist-tag${tarballDetail}`);
       }
       return fail(
         report?.errors?.join('; ') ||

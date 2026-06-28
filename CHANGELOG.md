@@ -12,6 +12,8 @@ may adjust APIs, defaults, or packaging.
   release without weakening the stricter next-release tag checks.
 - Added hosted CI coverage for `check:main-health -- --full` so the
   post-release health gate cannot drift silently.
+- Added published npm tarball-content verification for the root package and all
+  native packages.
 - Rewrote the README opening and benchmark section to present ferrings as a
   usable transport first and refresh the Node 26 benchmark table for `0.2.6`.
 - Added a registry install smoke check that installs the published package,

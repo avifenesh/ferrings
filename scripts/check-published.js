@@ -2,6 +2,8 @@
 
 const { spawnSync } = require('node:child_process');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const repoRoot = path.resolve(__dirname, '..');
@@ -10,10 +12,14 @@ const args = process.argv.slice(2);
 const json = args.includes('--json');
 const noTag = args.includes('--no-tag');
 const requireProvenance = !args.includes('--no-provenance');
+const verifyTarballs = args.includes('--verify-tarballs');
 const version = valueAfter('--version') || rootPackage.version;
 const expectedTag =
   valueAfter('--tag') || (version.includes('-') ? 'next' : 'latest');
-const retries = positiveInteger(valueAfter('--retries') || process.env.FERRINGS_PUBLISH_CHECK_RETRIES || '1', 'retries');
+const retries = positiveInteger(
+  valueAfter('--retries') || process.env.FERRINGS_PUBLISH_CHECK_RETRIES || '1',
+  'retries'
+);
 const retryDelayMs = nonNegativeInteger(
   valueAfter('--retry-delay-ms') || process.env.FERRINGS_PUBLISH_CHECK_RETRY_DELAY_MS || '0',
   'retry-delay-ms'
@@ -82,7 +88,9 @@ if (json) {
   console.log(JSON.stringify(lastReport, null, 2));
 } else if (lastReport.ok) {
   console.log(
-    `published package metadata ok (${rootPackage.name}@${version}, ${noTag ? 'dist-tag skipped' : `tag ${expectedTag}`}, ${TARGETS.length} native packages)`
+    `published package metadata ok (${rootPackage.name}@${version}, ${
+      noTag ? 'dist-tag skipped' : `tag ${expectedTag}`
+    }, ${TARGETS.length} native packages${verifyTarballs ? ', tarballs verified' : ''})`
   );
 } else {
   for (const error of lastReport.errors) {
@@ -95,11 +103,16 @@ process.exitCode = lastReport.ok ? 0 : 1;
 function runChecks() {
   const errors = [];
   const verified = [];
+  const verifiedTarballs = [];
   const root = npmViewPackage(rootPackage.name, version, errors);
 
   if (root) {
     verifyRootPackage(root, errors);
     verified.push(rootPackage.name);
+    if (verifyTarballs) {
+      verifyRootTarball(errors);
+      verifiedTarballs.push(rootPackage.name);
+    }
   }
 
   if (!noTag) {
@@ -107,7 +120,8 @@ function runChecks() {
     if (tags) {
       if (tags[expectedTag] !== version) {
         errors.push(
-          `${rootPackage.name} dist-tag ${expectedTag} points at ${tags[expectedTag] || '(missing)'}, expected ${version}`
+          `${rootPackage.name} dist-tag ${expectedTag} points at ` +
+            `${tags[expectedTag] || '(missing)'}, expected ${version}`
         );
       }
     }
@@ -118,6 +132,10 @@ function runChecks() {
     if (!published) continue;
     verifyNativePackage(published, target, errors);
     verified.push(target.package);
+    if (verifyTarballs) {
+      verifyNativeTarball(target, errors);
+      verifiedTarballs.push(target.package);
+    }
   }
 
   return {
@@ -125,9 +143,11 @@ function runChecks() {
     version,
     expectedTag: noTag ? null : expectedTag,
     requireProvenance,
+    verifyTarballs,
     ok: errors.length === 0,
     errors,
-    verified
+    verified,
+    verifiedTarballs
   };
 }
 
@@ -168,6 +188,62 @@ function verifyNativePackage(published, target, errors) {
   }
 }
 
+function verifyRootTarball(errors) {
+  const pack = npmPackPackage(rootPackage.name, errors);
+  if (!pack) return;
+  expectEqual(pack, 'name', rootPackage.name, errors);
+  expectEqual(pack, 'version', version, errors);
+  const files = packFileSet(pack, rootPackage.name, errors);
+  if (!files) return;
+
+  for (const filePath of [
+    'package.json',
+    'README.md',
+    'CHANGELOG.md',
+    'CONTRIBUTING.md',
+    'CODE_OF_CONDUCT.md',
+    'SECURITY.md',
+    'LICENSE-APACHE',
+    'LICENSE-MIT',
+    'index.js',
+    'index.d.ts',
+    'native.js',
+    'native.d.ts',
+    'tcp-transport.js',
+    'zcrx-smoke.js',
+    'bin/ferrings.js',
+    'benchmark/compare.js',
+    'benchmark/first-slice.js',
+    'benchmark/high-concurrency.js',
+    'benchmark/syscalls.js',
+    'benchmark/tcp-echo.js',
+    'examples/http-fixed.js',
+    'examples/tcp-echo.js',
+    'ferrings.linux-x64-gnu.node'
+  ]) {
+    expectFile(files, rootPackage.name, filePath, errors);
+  }
+
+  for (const filePath of ['src/lib.rs', 'src/uring.rs', 'test/smoke.js']) {
+    expectNoFile(files, rootPackage.name, filePath, errors);
+  }
+}
+
+function verifyNativeTarball(target, errors) {
+  const pack = npmPackPackage(target.package, errors);
+  if (!pack) return;
+  expectEqual(pack, 'name', target.package, errors);
+  expectEqual(pack, 'version', version, errors);
+  const files = packFileSet(pack, target.package, errors);
+  if (!files) return;
+
+  for (const filePath of ['package.json', target.main, 'LICENSE-APACHE', 'LICENSE-MIT']) {
+    expectFile(files, target.package, filePath, errors);
+  }
+  expectNoFile(files, target.package, 'README.md', errors);
+  expectNoFile(files, target.package, 'src/uring.rs', errors);
+}
+
 function npmViewPackage(name, packageVersion, errors) {
   const result = npmView([`${name}@${packageVersion}`, ...PACKAGE_FIELDS]);
   if (result.status !== 0) {
@@ -194,6 +270,33 @@ function npmView(viewArgs) {
   });
 }
 
+function npmPackPackage(name, errors) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ferrings-published-pack-'));
+  try {
+    const result = spawnSync(
+      'npm',
+      ['pack', `${name}@${version}`, '--json', '--pack-destination', tmpDir],
+      {
+        cwd: repoRoot,
+        encoding: 'utf8',
+        maxBuffer: 10 * 1024 * 1024
+      }
+    );
+    if (result.status !== 0) {
+      errors.push(`${name}@${version} tarball could not be packed: ${npmFailure(result)}`);
+      return null;
+    }
+    const packs = parseJson(result.stdout, `${name}@${version} npm pack output`, errors);
+    if (!Array.isArray(packs) || packs.length !== 1) {
+      errors.push(`${name}@${version} npm pack returned ${JSON.stringify(packs)}`);
+      return null;
+    }
+    return packs[0];
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+}
+
 function parseJson(output, label, errors) {
   try {
     return JSON.parse(output);
@@ -208,7 +311,10 @@ function expectEqual(record, field, expected, errors) {
   try {
     assert.deepEqual(actual, expected);
   } catch {
-    errors.push(`${fieldValue(record, 'name') || 'package'} ${field} was ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`);
+    errors.push(
+      `${fieldValue(record, 'name') || 'package'} ${field} was ` +
+        `${JSON.stringify(actual)}, expected ${JSON.stringify(expected)}`
+    );
   }
 }
 
@@ -216,6 +322,26 @@ function expectPresent(record, field, errors) {
   const value = fieldValue(record, field);
   if (typeof value !== 'string' || value.length === 0) {
     errors.push(`${fieldValue(record, 'name') || 'package'} ${field} is missing`);
+  }
+}
+
+function packFileSet(pack, packageName, errors) {
+  if (!Array.isArray(pack.files)) {
+    errors.push(`${packageName} tarball file list is missing`);
+    return null;
+  }
+  return new Set(pack.files.map((file) => file.path));
+}
+
+function expectFile(files, packageName, filePath, errors) {
+  if (!files.has(filePath)) {
+    errors.push(`${packageName} tarball is missing ${filePath}`);
+  }
+}
+
+function expectNoFile(files, packageName, filePath, errors) {
+  if (files.has(filePath)) {
+    errors.push(`${packageName} tarball unexpectedly includes ${filePath}`);
   }
 }
 
@@ -230,7 +356,8 @@ function expectProvenance(record, errors) {
   }
   if (predicateType !== 'https://slsa.dev/provenance/v1') {
     errors.push(
-      `${packageName} dist.attestations.provenance.predicateType was ${JSON.stringify(predicateType)}, expected "https://slsa.dev/provenance/v1"`
+      `${packageName} dist.attestations.provenance.predicateType was ` +
+        `${JSON.stringify(predicateType)}, expected "https://slsa.dev/provenance/v1"`
     );
   }
   if (!Array.isArray(signatures) || signatures.length === 0) {
