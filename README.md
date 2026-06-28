@@ -1,441 +1,428 @@
 # ferrings
 
-Linux-first Node.js transport experiment built as a Rust/NAPI addon over
-`io_uring`.
+[![CI](https://github.com/avifenesh/ferrings/actions/workflows/ci.yml/badge.svg)](https://github.com/avifenesh/ferrings/actions/workflows/ci.yml)
+[![Release](https://github.com/avifenesh/ferrings/actions/workflows/release.yml/badge.svg)](https://github.com/avifenesh/ferrings/actions/workflows/release.yml)
+![Node.js >=20](https://img.shields.io/badge/node-%3E%3D20-339933)
+![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-The current slice exposes three servers:
+Linux `io_uring` TCP transport for Node.js, built with Rust and napi-rs for high-concurrency server experiments outside libuv's networking loop.
 
-- `UringTcpServer`: a raw TCP transport that emits `connect`, `data`, and `close`
-  events into JavaScript through a NAPI thread-safe function. Writes go back to
-  the native worker through an `eventfd` wakeup and are submitted with
-  `IORING_OP_SEND`. With `useZeroCopySend: true`, writes are submitted with
-  `IORING_OP_SEND_ZC`; when the fixed-send pool is available and the payload fits,
-  the worker also uses a registered buffer slot, while larger payloads or hosts
-  without fixed-send-buffer registration use heap-backed `SEND_ZC` and keep the
-  payload alive until completion/notification. Fixed slots are recycled only
-  after the notification CQE. `ServerInfo` reports live
-  `zeroCopySendRequests`, `zeroCopySendNotifications`, `zeroCopySendCopied`, and
-  `zeroCopySendErrors` counters; ferrings requests
-  `IORING_SEND_ZC_REPORT_USAGE` so notification CQEs can distinguish copied
-  fallback from true zero-copy use. With `useRegisteredSendBuffer: true`, writes
-  use the same fixed-buffer pool with plain `IORING_OP_SEND` and
-  `IORING_RECVSEND_FIXED_BUF`, tracked by `registeredSendRequests` and
-  `registeredSendErrors`. `capabilities().registeredSendBuffer` actively submits
-  a socketpair-backed fixed-buffer `SEND`; if that probe fails, explicitly
-  requesting `useRegisteredSendBuffer` fails at startup instead of silently
-  running the heap path. If a payload cannot fit in the fixed-send pool, or the
-  pool has no free slot, `fixedSendBufferMisses` and `fixedSendBufferMissBytes`
-  report the heap fallback. If a later fixed-buffer send is rejected despite the
-  startup probe, ferrings falls back to heap-backed `IORING_OP_SEND` and
-  increments `registeredSendErrors`. Use `startBatch((events) => {})` to receive
-  event arrays and `sendBatch([{ connectionId, data }])` to queue many writes
-  behind one worker wakeup. `sendAndClose()` and `sendBatchAndClose()` drain
-  queued writes before closing the connection, which matches `socket.end(data)`
-  style protocol responses.
-- `UringHttpServer`: a fixed-response HTTP benchmark server. It tries to
-  register the response buffer and send it with `IORING_OP_SEND_ZC`; if
-  zero-copy send is rejected for a connection, that connection falls back to
-  normal `IORING_OP_SEND`. With `useRegisteredSendBuffer: true`, the fixed
-  response buffer is registered and submitted with plain `IORING_OP_SEND` plus
-  `IORING_RECVSEND_FIXED_BUF`; startup is guarded by the same active
-  `capabilities().registeredSendBuffer` probe used by the TCP transport.
-- `UringTcpEchoServer`: a native TCP echo benchmark server. It uses the same
-  multishot accept/recv and provided-buffer path as `UringTcpServer`, but echoes
-  one request and closes without per-connection JS callbacks or JS-to-native send
-  commands. This isolates the core `io_uring` TCP path from NAPI transport
-  overhead. Its send path also honors `useZeroCopySend`, including heap-backed
-  `SEND_ZC` when the echoed payload does not fit the fixed-send pool.
+ferrings exposes Node-friendly TCP and fixed-response HTTP APIs backed by a native `io_uring` worker: multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, and an optional ZCRX path for capable NICs. The project is at the 0.1.0 source-release stage; npm publishing is intentionally still gated on trusted publishing setup.
 
-The package also exports `createTcpServer()`, a small Node-friendly facade over
-`UringTcpServer`. It gives each accepted connection an `EventEmitter` object
-with `remoteAddress`, `remoteFamily`, `remotePort`, `write()`, `end()`, and
-`destroy()` while keeping the same native io_uring worker, multishot receive
-path, bounded command queues, and optional zero-copy send/ZCRX options
-underneath. Raw `UringTcpServer` connect events expose the same split peer
-fields plus the legacy formatted `remoteAddr` string. The facade also exposes explicit
-`sendBatch()` and `sendBatchAndClose()` methods that accept either
-`{ connection, data }` or `{ connectionId, data }` entries, so hot paths can
-amortize JS-to-native sends without dropping down to the raw `UringTcpServer`.
-Use `getConnections((err, count) => {})` for Node-style asynchronous active
-connection counts backed by the native transport counters.
-
-Both paths use one native worker thread, multishot accept, multishot recv, and
-provided buffers. Each server also has a native `eventfd` wake path so idle
-shutdown does not wait for network traffic. They try to use a registered
-provided-buffer ring first; if the kernel or process limits reject that
-registration, they fall back to `IORING_OP_PROVIDE_BUFFERS` while keeping the
-multishot receive path. Pass `useRecvBundle: true` to submit
-`IORING_RECVSEND_BUNDLE` multishot receives on kernels that advertise
-`IORING_FEAT_RECVSEND_BUNDLE`; this requires the registered provided-buffer ring
-path and reports live `ServerInfo.recvBundleCompletions`,
-`recvBundleBuffers`, and `recvBundleBytes` counters. Receive health is also
-reported through `recvBufferStarvations` for recoverable `-ENOBUFS` multishot
-recv completions, `recvMultishotResubmits` for receive requests re-armed
-after a multishot CQE without `IORING_CQE_F_MORE`, and `recvCopyEvents` /
-`recvCopyBytes` for receive payloads copied out of kernel/provided-buffer
-ownership. The fixed-response HTTP server parses request bytes in place before
-recycling receive buffers, so its ordinary receive path keeps those copy
-counters at zero; programmable TCP and native echo increment them when payloads
-must live past buffer recycle for JavaScript delivery or echo sends. ZCRX is
-reported via `capabilities()` and the structured `zcrxProbe()` helper, then kept
-gated because it requires NIC header/data split, flow steering/RSS isolation,
-CQE32 ring setup, and io_uring ifq/memory-region registration. `capabilities()`
-actively probes provided-buffer-ring registration, reports kernel
-`IORING_OP_RECV_ZC` support, and checks whether ferrings can create the
-CQE32/SINGLE_ISSUER/DEFER_TASKRUN ring shape required for ZCRX, queue a
-`RecvZc` SQE on it, and complete a socketpair-backed registered-buffer `SEND`
-probe for plain fixed-buffer sends. By default `zcrxProbe()` is a
-passive sysfs/ethtool/kernel-opcode probe that reports the selected `rxQueue`
-and blocks queues outside the discovered RX queue count; pass
-`activeRegistration: true` to attempt a short-lived
-`IORING_REGISTER_ZCRX_IFQ` registration on the selected RX queue,
-allocate/register receive and refill regions, prime the refill queue, and get
-the exact errno/result back. Pass `rxBufferSize` to `zcrxProbe()` or
-`zcrxRxBufferSize` to a server to try a specific ZCRX `rx_buf_len`; `0` keeps
-the kernel default page-sized chunk path, and server startup retries that
-default if a nonzero hint is rejected. Passing `useZeroCopyReceive: true` now
-starts a CQE32 worker that keeps a persistent ZCRX IFQ registration, submits
-multishot `RecvZc`, decodes big-CQE packet offsets, and recycles receive buffers
-after the HTTP response, echo payload, or JS-owned event `Buffer` has been
-copied into the next ownership boundary. `ServerInfo.zcrxRxBufferSize` reports
-the effective registered chunk size, or `0` for the ordinary non-ZCRX path.
-`ServerInfo.zcrxPackets` and `zcrxBytes` count valid packets decoded from ZCRX
-CQEs for live connections, giving hardware smokes a transport-local proof that
-the `RecvZc` path actually received traffic.
-Startup still fails with the active registration error on hosts without a
-capable NIC queue.
-
-All servers create the listening socket directly with `socket`, `bind`, and
-`listen` instead of using libuv. `backlog` defaults to `1024`, is passed to
-`listen(2)`, and is reported as `ServerInfo.backlog`; Linux may still cap the
-effective pending-connection queue at the host `net.core.somaxconn` setting.
-Set `reusePort: true` to apply `SO_REUSEPORT` before `bind(2)`, allowing
-multiple ferrings listeners or processes that all opt in to share one TCP
-address/port and let Linux distribute accepts across them. The default
-`reusePort: false` keeps exclusive listener ownership. Set
-`tcpDeferAcceptSeconds` to a positive value to apply `TCP_DEFER_ACCEPT` before
-`listen(2)`, so Linux wakes the accept path only after data arrives or the
-defer timer expires; the default `0` keeps normal accept behavior.
-Accepted sockets default to `tcpNoDelay: true`, matching the low-latency TCP
-behavior expected by most Node services; set `tcpNoDelay: false` to leave
-Nagle's algorithm enabled for protocols that prefer coalescing. Set
-`socketRecvBufferSize` and/or `socketSendBufferSize` to pass non-default
-`SO_RCVBUF` / `SO_SNDBUF` values before `listen(2)` and on accepted sockets;
-the default `0` leaves the kernel defaults in place, and Linux may report
-internally doubled buffer sizes through lower-level tools.
-
-Programmable TCP writes cross from JavaScript to the native worker through a
-bounded command queue. `commandQueueCapacity` defaults to `65536`; when the queue
-is full, `send()`, `sendAndClose()`, `sendBatch()`, `sendBatchAndClose()`, and
-`closeConnection()` return `false` instead of growing memory without bound.
-`ServerInfo.commandQueueDrops` reports how often that backpressure path was hit.
-After commands reach the worker, each connection also has a bounded native send
-backlog: `sendQueueCapacity` defaults to `1024`, and `sendQueueDrops` reports
-payloads dropped because one connection already had that many queued writes
-behind an active send. The optional fixed-send pool used by
-`useRegisteredSendBuffer` and `useZeroCopySend` is sized with
-`sendBufferCount` and `sendBufferSize`; programmable TCP and native echo report
-those values as `ServerInfo.sendBufferCount` and `sendBufferSize`, while the
-fixed-response HTTP server reports `0` because it registers its response body
-directly instead of using the per-payload pool.
-Native-to-JavaScript event delivery is also bounded: `eventQueueCapacity`
-defaults to `65536`, can be lowered for tighter memory envelopes, and
-`ServerInfo.eventQueueDrops` reports connect/data/close events dropped when
-JavaScript falls behind. `startBatch()` and the public TCP facade flush native
-event arrays at `eventBatchSize` events, defaulting to `64`; lower it for
-latency-sensitive callbacks or raise it to amortize JS wakeups further. All
-servers also report live transport counters through
-`activeConnections`, `acceptedConnections`, `closedConnections`,
-`rejectedConnections`, `bytesReceived`, and `bytesSent`. Set `maxConnections`
-to a positive value to cap tracked active connections; over-limit accepted
-sockets are closed immediately and counted in `rejectedConnections`. The default
-`maxConnections: 0` keeps the connection count unlimited. Set `idleTimeoutMs`
-to a positive value to close idle tracked connections with no active send backlog;
-the default `0` disables idle eviction and `ServerInfo.idleTimeouts` reports the
-number of native idle closes.
-
-## Usage
+```bash
+git clone https://github.com/avifenesh/ferrings.git
+cd ferrings
+npm install
+npm run build
+```
 
 ```js
-const { createTcpServer, UringHttpServer, capabilities, zcrxProbe } = require('./');
+const net = require('node:net');
+const { createTcpServer } = require('./');
+
+const server = createTcpServer((connection) => {
+  connection.on('data', (data) => connection.end(`ferrings:${data}`));
+});
+
+server.listen(0, '127.0.0.1', (info) => {
+  const client = net.createConnection(info.port, info.host, () => client.write('ping'));
+  client.on('data', (data) => {
+    console.log(data.toString());
+    server.close();
+  });
+});
+```
+
+Run the example from the repository root with `node quickstart.js`; it prints `ferrings:ping`. After npm publishing, replace `require('./')` with `require('ferrings')`.
+
+## Quick proof signals
+
+- Linux-only native addon for Node.js `>=20`, written in Rust with napi-rs.
+- CI builds and tests Node 20, 22, and 24 on Linux.
+- Release workflow builds native packages for `linux-x64-gnu`, `linux-x64-musl`, `linux-arm64-gnu`, and `linux-arm64-musl`.
+- `npm run check:release-ready -- --full --strict` reports `ready-with-optional-blockers`; the optional blocker is ZCRX hardware proof.
+- Package install smoke tests pack the tarball, install it in a temporary app, start a TCP server through `require('ferrings')`, and run the installed CLI.
+
+## Why this project
+
+- Use this when you want to compare Node's `net` / `http` servers with a modern Linux `io_uring` TCP path.
+- Use this when you need a Node API over a Rust-native networking worker for high-concurrency Linux experiments.
+- Use this when you want runtime visibility into kernel features such as multishot recv, provided buffer rings, recv-bundle, zero-copy send, and ZCRX readiness.
+- Use this when you want to benchmark syscall counts, tail latency, and queue behavior without building a native addon from scratch.
+- Use this when you are exploring ZCRX, but want the broadly usable core to work on machines without ZCRX-capable NIC hardware.
+
+## Installation
+
+The npm package family is prepared but not published yet. Use the source checkout path for now:
+
+```bash
+git clone https://github.com/avifenesh/ferrings.git
+cd ferrings
+npm install
+npm run build
+npm test
+```
+
+When the npm packages are published, the intended install path is:
+
+```bash
+npm install ferrings
+```
+
+The base package is Linux-only and depends on optional native packages for glibc/musl and x64/arm64 targets.
+
+## Quick start
+
+Create `quickstart.js` in the repository root:
+
+```js
+'use strict';
+
+const net = require('node:net');
+const { createTcpServer, capabilities } = require('./');
+
+console.log(capabilities());
+
+const server = createTcpServer((connection) => {
+  connection.on('data', (data) => {
+    connection.end(Buffer.concat([Buffer.from('echo:'), data]));
+  });
+});
+
+server.listen(
+  {
+    host: '127.0.0.1',
+    port: 0,
+    backlog: 1024,
+    useRecvBundle: true,
+    useZeroCopySend: true
+  },
+  (info) => {
+    console.log(`listening on tcp://${info.host}:${info.port}`);
+
+    const client = net.createConnection({ host: info.host, port: info.port }, () => {
+      client.write('hello');
+    });
+
+    let body = Buffer.alloc(0);
+    client.on('data', (chunk) => {
+      body = Buffer.concat([body, chunk]);
+    });
+    client.on('end', () => {
+      console.log(body.toString('utf8'));
+      server.close();
+    });
+  }
+);
+```
+
+Run it:
+
+```bash
+node quickstart.js
+```
+
+What happened:
+
+- `createTcpServer()` created a Node-style TCP server backed by a native `io_uring` worker.
+- `capabilities()` printed the active kernel probes for this host.
+- `useRecvBundle` and `useZeroCopySend` were requested, but remain capability-gated by the native addon.
+- The client received `echo:hello` and the server shut down.
+
+## Core concepts
+
+ferrings is not a wrapper around Node's libuv TCP implementation. It creates the listening socket directly with `socket`, `bind`, and `listen`, then drives accepts, receives, sends, and shutdown from a Rust worker thread with `io_uring`.
+
+JavaScript stays in control of the application API:
+
+- Native to JS events are delivered through NAPI thread-safe callbacks.
+- JS to native writes go through a bounded command queue and an `eventfd` wakeup.
+- Server counters are exposed through `info()` and the initial `ServerInfo` returned by `start()` / `listen()`.
+- Kernel-specific features are probed at runtime instead of assumed.
+
+The broad core path is multishot accept + multishot recv + provided buffers. ZCRX is intentionally separate: it requires kernel support, NIC header/data split, flow steering/RSS isolation, permissions, and a capable RX queue.
+
+## Features
+
+- Node-style TCP server facade with `connection`, `data`, `close`, `write()`, `end()`, `destroy()`, `address()`, and `getConnections()`.
+- Raw `UringTcpServer` for lower-level event handling, batched event delivery, and batched sends.
+- `UringTcpEchoServer` for native TCP echo benchmarks without per-connection JS callbacks.
+- `UringHttpServer` for fixed-response HTTP benchmarks on the cleanest `io_uring` path.
+- Multishot accept and recv for fewer per-operation submissions on supported kernels.
+- Provided buffer rings first, with `IORING_OP_PROVIDE_BUFFERS` fallback when registration is rejected.
+- Optional recv-bundle mode using `IORING_FEAT_RECVSEND_BUNDLE` when the kernel advertises it.
+- Optional zero-copy send using `IORING_OP_SEND_ZC`, with counters for requests, notifications, copied fallback, and errors.
+- Optional registered-buffer send path, guarded by an active startup probe.
+- Optional ZCRX path with `zcrxProbe()`, CLI diagnostics, active IFQ registration probe, and hardware smoke tests.
+- Bounded command, event, and per-connection send queues so overload is reported instead of growing memory without bound.
+
+## API and usage patterns
+
+### Node-style TCP
+
+```js
+const { createTcpServer } = require('./');
+
+const server = createTcpServer((connection) => {
+  connection.on('data', (data) => connection.end(data));
+});
+
+server.listen(0, '127.0.0.1', (info) => {
+  console.log(info);
+});
+```
+
+Use this path when you want a familiar Node server shape over the native transport.
+
+### Raw TCP events
+
+```js
+const { UringTcpServer } = require('./');
+
+const server = new UringTcpServer({
+  host: '127.0.0.1',
+  port: 0,
+  useRecvBundle: true,
+  useZeroCopySend: true
+});
+
+const info = server.start((event) => {
+  if (event.eventType === 'data') {
+    server.sendAndClose(event.connectionId, Buffer.from('pong'));
+  }
+});
+
+console.log(`tcp://${info.host}:${info.port}`);
+```
+
+Use this path when you want direct event objects and explicit connection IDs.
+
+### Batched TCP events and sends
+
+```js
+const { UringTcpServer } = require('./');
+
+const server = new UringTcpServer({ host: '127.0.0.1', port: 0 });
+
+const info = server.startBatch((events) => {
+  const sends = [];
+  for (const event of events) {
+    if (event.eventType === 'data') {
+      sends.push({ connectionId: event.connectionId, data: event.data });
+    }
+  }
+  if (sends.length > 0) {
+    server.sendBatchAndClose(sends);
+  }
+});
+
+console.log(`tcp://${info.host}:${info.port}`);
+```
+
+Use this path when JS callback overhead matters and events can be processed in batches.
+
+### Fixed-response HTTP
+
+```js
+const { UringHttpServer } = require('./');
+
+const server = new UringHttpServer({
+  host: '127.0.0.1',
+  port: 0,
+  responseBody: 'hello from ferrings\n',
+  useZeroCopySend: true
+});
+
+const info = server.start();
+console.log(`http://${info.host}:${info.port}`);
+```
+
+`UringHttpServer` is a benchmark server, not a general HTTP framework.
+
+### Native echo benchmark server
+
+```js
+const { UringTcpEchoServer } = require('./');
+
+const server = new UringTcpEchoServer({
+  host: '127.0.0.1',
+  port: 0,
+  useZeroCopySend: true
+});
+
+const info = server.start();
+console.log(`tcp://${info.host}:${info.port}`);
+```
+
+Use this to isolate the native TCP echo path from JavaScript event delivery.
+
+### Capability and ZCRX probes
+
+```js
+const { capabilities, zcrxProbe } = require('./');
 
 console.log(capabilities());
 console.log(zcrxProbe({ interfaceName: 'eth0' }));
 console.log(zcrxProbe({
   interfaceName: 'eth0',
   rxQueue: 0,
-  rxBufferSize: 0,
   activeRegistration: true
 }));
-
-const server = new UringHttpServer({
-  host: '127.0.0.1',
-  port: 0,
-  backlog: 1024,
-  responseBody: 'hello from io_uring\n',
-  idleTimeoutMs: 0,
-  tcpNoDelay: true,
-  reusePort: false,
-  tcpDeferAcceptSeconds: 0,
-  socketRecvBufferSize: 0,
-  socketSendBufferSize: 0,
-  useZeroCopySend: true,
-  useRegisteredSendBuffer: false,
-  useRecvBundle: false,
-  // Requires a capable NIC queue; on ordinary loopback/virtual interfaces this
-  // fails with the active ZCRX IFQ registration errno.
-  useZeroCopyReceive: false,
-  zcrxInterfaceName: 'eth0',
-  zcrxRxQueue: 0,
-  zcrxRxBufferSize: 0
-});
-
-const info = server.start();
-console.log(`listening on http://${info.host}:${info.port}`);
-
-process.on('SIGINT', () => {
-  server.stop();
-});
 ```
 
-```js
-const { createTcpServer } = require('./');
+The CLI exposes the same diagnostics from a source checkout:
 
-const server = createTcpServer((connection) => {
-  connection.on('data', (data) => {
-    connection.end(data);
-  });
-});
-
-server.listen({
-  host: '127.0.0.1',
-  port: 0,
-  backlog: 1024,
-  queueDepth: 1024,
-  tcpNoDelay: true,
-  reusePort: false,
-  tcpDeferAcceptSeconds: 0,
-  socketRecvBufferSize: 0,
-  socketSendBufferSize: 0,
-  useRecvBundle: true,
-  useZeroCopySend: true
-}, (info) => {
-  console.log(`listening on tcp://${info.host}:${info.port}`);
-});
+```bash
+node bin/ferrings.js capabilities --json
+node bin/ferrings.js doctor --interface eth0 --rx-queue 0 --active --json
+node bin/ferrings.js zcrx-probe --interface eth0 --rx-queue 0 --active --json
 ```
 
-```js
-const { createTcpServer } = require('./');
+After npm publishing, the same commands can be run as `npx ferrings ...`.
 
-const server = createTcpServer();
-server.on('data', (connection, data) => {
-  server.sendBatchAndClose([
-    { connection, data: Buffer.from('echo:') },
-    { connectionId: connection.id, data }
-  ]);
-});
-```
+## Configuration
 
-```js
-const net = require('node:net');
-const { UringTcpServer } = require('./');
+Common server options:
 
-const server = new UringTcpServer({
-  host: '127.0.0.1',
-  port: 0,
-  backlog: 1024,
-  maxConnections: 0,
-  idleTimeoutMs: 0,
-  tcpNoDelay: true,
-  reusePort: false,
-  tcpDeferAcceptSeconds: 0,
-  socketRecvBufferSize: 0,
-  socketSendBufferSize: 0,
-  commandQueueCapacity: 65536,
-  eventQueueCapacity: 65536,
-  eventBatchSize: 64,
-  sendQueueCapacity: 1024,
-  sendBufferCount: 256,
-  sendBufferSize: 2048,
-  useRecvBundle: true,
-  useRegisteredSendBuffer: true,
-  useZeroCopySend: false
-});
-const info = server.start((event) => {
-  if (event.eventType === 'data') {
-    server.send(event.connectionId, Buffer.from('pong'));
-  }
-});
+| Option | Default | Applies to | Purpose |
+| --- | ---: | --- | --- |
+| `host` | `127.0.0.1` | all servers | Bind address. |
+| `port` | `0` | all servers | Bind port; `0` asks the kernel for a free port. |
+| `backlog` | `1024` | all servers | Passed to `listen(2)`, subject to host `somaxconn`. |
+| `queueDepth` | `1024` | all servers | `io_uring` queue depth. |
+| `bufferCount` | `4096` | all servers | Receive buffer slots. |
+| `bufferSize` | `2048` | all servers | Size of each receive buffer. |
+| `maxConnections` | `0` | all servers | `0` means unlimited tracked active connections. |
+| `idleTimeoutMs` | `0` | all servers | `0` disables native idle eviction. |
+| `tcpNoDelay` | `true` | all servers | Applies `TCP_NODELAY` to accepted sockets. |
+| `reusePort` | `false` | all servers | Applies `SO_REUSEPORT` before bind. |
+| `tcpDeferAcceptSeconds` | `0` | all servers | Applies `TCP_DEFER_ACCEPT` when positive. |
+| `socketRecvBufferSize` | `0` | all servers | `SO_RCVBUF`; `0` keeps kernel defaults. |
+| `socketSendBufferSize` | `0` | all servers | `SO_SNDBUF`; `0` keeps kernel defaults. |
+| `useRecvBundle` | `false` | TCP servers | Requests recv-bundle mode when supported. |
+| `useZeroCopySend` | `false` | all servers | Requests `IORING_OP_SEND_ZC`. |
+| `useRegisteredSendBuffer` | `false` | all servers | Requests fixed-buffer send mode. |
+| `useZeroCopyReceive` | `false` | all servers | Requests ZCRX; requires capable hardware and permissions. |
 
-const client = net.createConnection(info.port, info.host, () => {
-  client.write('ping');
-});
-```
+TCP-only queue options:
 
-```js
-const { UringTcpEchoServer } = require('./');
+| Option | Default | Purpose |
+| --- | ---: | --- |
+| `commandQueueCapacity` | `65536` | JS-to-native command queue bound. |
+| `eventQueueCapacity` | `65536` | Native-to-JS event queue bound. |
+| `eventBatchSize` | `64` | Events per JS batch in `startBatch()` and the facade. |
+| `sendQueueCapacity` | `1024` | Per-connection native send backlog. |
+| `sendBufferCount` | `256` | Fixed-send pool slot count. |
+| `sendBufferSize` | `2048` | Fixed-send pool slot size. |
 
-const echoServer = new UringTcpEchoServer({
-  host: '127.0.0.1',
-  port: 0,
-  useZeroCopySend: true
-});
-const echoInfo = echoServer.start();
-console.log(`native TCP echo on ${echoInfo.port}`);
-```
+All servers expose live counters through `ServerInfo`, including accepted/closed/rejected connections, bytes sent/received, queue drops, receive buffer starvations, recv-bundle counters, zero-copy send counters, fixed-send misses, and ZCRX packet counters.
 
-```js
-const batchServer = new UringTcpServer({ host: '127.0.0.1', port: 0 });
-const batchInfo = batchServer.startBatch((events) => {
-  const sends = [];
-  for (const event of events) {
-    if (event.eventType === 'data') {
-      sends.push({ connectionId: event.connectionId, data: Buffer.from('pong') });
-    }
-  }
-  if (sends.length > 0) batchServer.sendBatchAndClose(sends);
-});
-console.log(batchInfo.port);
-```
+## Performance and benchmarks
 
-## Commands
+The repository includes benchmark drivers, but the README does not publish benchmark numbers because results depend on kernel, CPU, NIC, limits, and benchmark shape.
 
-```sh
-npm install
-npm test
+```bash
 npm run bench
-npm run check:npm-names
-npm run check:npm-new-names
-npm run check:github-repository
-npm run check:release-repository
-npm run check:release-ready
-npm run configure:release-repository -- --repo avifenesh/ferrings
-npm run bench:first-slice
 npm run bench:tcp
 npm run bench:high
-npm run example:http
-npm run example:tcp
-npx ferrings capabilities --json
-npx ferrings doctor --interface eth0 --rx-queue 0 --active --json
-npx ferrings zcrx-probe --interface eth0 --rx-queue 0 --active --json
-npx ferrings zcrx-smoke --interface eth0 --rx-queue 0 --connect-host <nic-routed-host> --report-path artifacts/zcrx-smoke.json --json
+npm run bench:first-slice
 REQUESTS=1000 CONCURRENCY=32 npm run bench:syscalls
-REPORT_PATH=artifacts/high-concurrency.json DURATION_MS=1000 CONCURRENCY=128 npm run bench:high
-REPORT_PATH=artifacts/first-slice.json DURATION_MS=1000 CONCURRENCY=128 SYSCALL_REQUESTS=200 npm run bench:first-slice
-REPORT_PATH=artifacts/syscalls.json REQUESTS=1000 CONCURRENCY=32 npm run bench:syscalls
-ZCRX_INTERFACE=eth0 ZCRX_RX_QUEUE=0 ZCRX_RX_BUFFER_SIZE=0 ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx
-ZCRX_INTERFACE=eth0 ZCRX_RX_QUEUE=0 ZCRX_REQUIRE_RX_QUEUE_STATS=1 ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx
-ZCRX_INTERFACE=eth0 ZCRX_CONNECT_HOST=<nic-routed-host> ZCRX_REPORT_PATH=artifacts/zcrx-smoke.json npm run test:zcrx
 ```
 
-`bench:first-slice` is the compact validation report for the first useful
-slice: it records `capabilities()`, runs the fixed-response HTTP benchmark
-against Node's `http` server and `UringHttpServer`, runs the TCP echo matrix
-against Node's `net` server and the ferrings native/programmatic/facade echo
-paths, and, when `strace` is installed, runs the syscall-per-connection
-benchmark for Node HTTP, ferrings HTTP, Node TCP, the public ferrings TCP facade,
-and ferrings native TCP. Set `REPORT_PATH` to write one JSON artifact with child
-reports and headline comparisons. `bench` and `bench:tcp` report throughput plus
-p50/p95/p99 request latency.
-`bench:tcp` includes native echo recv-bundle variants when
-`capabilities().recvBundle` is true, using `BUNDLE_REQUEST_SIZE=4096` by default
-so the receive path spans multiple 512-byte buffers. `bench:high` runs both
-HTTP and TCP benchmarks with high-concurrency defaults (`CONCURRENCY=512`,
-`QUEUE_DEPTH=1024`, `DURATION_MS=10000`), and those environment variables remain
-overridable for shorter smoke runs. `bench:syscalls` requires `strace`. It runs
-only the server under `strace -f -c`, drives requests from an untraced parent
-process, and reports latency plus server-side syscalls per completed connection;
-ferrings cases include a compact `serverInfo` summary so the measurement records
-whether the worker actually started with multishot recv, a provided-buffer ring,
-recv-bundle, receive-copy counters, and zero-copy send enabled. Its default case
-list also reports fixed-send-buffer misses, includes the public TCP facade and
-facade batch paths, adds HTTP/TCP zero-copy-send variants when
-`capabilities().sendZc` is true, native TCP recv-bundle variants when
-`capabilities().recvBundle` is true, and the combined zero-copy-send recv-bundle
-case when both are available. Use
-`CASES=ferrings-native-tcp-recv-bundle,ferrings-native-tcp-zc-recv-bundle` to
-target those cases, and `BUNDLE_REQUEST_SIZE` to resize the multi-buffer request.
-The fixed-response HTTP server is the cleanest core `io_uring` path; raw TCP
-results also include NAPI thread-safe callback delivery and JS-to-native command
-wakeups. Set `REPORT_PATH` for `bench`, `bench:tcp`, `bench:high`, or
-`bench:syscalls` to write a JSON report with the benchmark configuration,
-results, and ferrings `serverInfo` feature summaries. `bench:high` writes one
-aggregate report that nests the HTTP and TCP child benchmark reports.
+Benchmark scripts:
 
-The installed package also exposes a `ferrings` CLI. `ferrings capabilities`
-prints active kernel/io_uring probes, while `ferrings doctor` combines the core
-transport probes with one selected ZCRX NIC probe and prints a single verdict,
-blocker list, and next command. `ferrings zcrx-probe` reports ZCRX readiness for
-a selected NIC queue. Add `--json` or `--compact` for automation, `--all` to
-inspect every `/sys/class/net` interface, `--active` to attempt a short-lived
-ZCRX IFQ registration, and `--require-ready` to fail with exit code `2` when the
-selected queue is not ready. `ferrings zcrx-smoke` runs the full hardware
-traffic proof from the installed package: it starts the HTTP, native TCP echo,
-and programmable TCP servers with `useZeroCopyReceive: true`, drives traffic
-through `--connect-host`, requires `ServerInfo.zcrxPackets` and `zcrxBytes` to
-increase for each server, and can write the same JSON report as `test:zcrx` with
-`--report-path`.
+- `benchmark/compare.js` compares Node HTTP with `UringHttpServer`.
+- `benchmark/tcp-echo.js` compares Node TCP, the ferrings TCP facade, raw TCP, native echo, recv-bundle, and zero-copy-send variants when available.
+- `benchmark/high-concurrency.js` runs HTTP and TCP cases with higher concurrency defaults.
+- `benchmark/syscalls.js` uses `strace -f -c` when installed to report server-side syscalls per completed connection.
+- `benchmark/first-slice.js` writes one compact validation report for the first useful slice across capabilities, HTTP, TCP, and syscall cases.
 
-The native package layout follows the napi-rs generated-binding path:
-`npm run build` runs `napi build --platform --js native.js --dts native.d.ts`,
-leaving the generated loader, generated types, and `ferrings.*.node` binary in
-the same package directory as the public `index.js` facade. The package install
-smoke packs the tarball, installs it in a temporary app, checks those copied
-files, starts a TCP server through `require('ferrings')`, and runs the installed
-`.bin/ferrings` CLI.
-The base package is Linux-only and declares napi-rs targets for
-`linux-x64-gnu`, `linux-x64-musl`, `linux-arm64-gnu`, and
-`linux-arm64-musl`. The local tarball smoke still includes the host
-`ferrings.linux-x64-gnu.node` binary so it can be installed directly from a
-packed tarball, while CI also builds the extra Linux target artifacts. Public
-multi-target publishing should ship the base package plus the matching optional
-native packages under `npm/linux-*/`, each with its own `os`/`cpu`/`libc`
-constraints. The release staging flow mirrors napi-rs: put built `.node`
-artifacts under `artifacts/`, run `npm run artifacts` to copy them into
-`npm/linux-*` and add shared license files, then run
-`npm run check:native-packages` or
-`node scripts/check-native-packages.js --package linux-x64-gnu --require-binary`
-to dry-run pack the staged native package.
-Use `npm run check:npm-names` before publishing to verify that the root package
-and optional native package versions are not already present on the npm
-registry. For the initial claim of the package family, use
-`npm run check:npm-new-names` to require every package name to be completely
-unpublished.
-The release workflow uses npm trusted-publishing/provenance-friendly defaults:
-GitHub-hosted runners, `id-token: write`, Node 24, public package access, and
-`publishConfig.provenance` on the root and native package manifests. Before a
-real publish, create a public GitHub repository, set
-`package.json.repository.url` to that exact repository, then configure each npm
-package's trusted publisher to that repository and workflow. Tag pushes build
-and upload release artifacts but do not publish to npm; npm publish is an
-explicit manual `workflow_dispatch` run with `publish=true` after trusted
-publishing is configured. The release workflow blocks publishing when GitHub's
-`GITHUB_REPOSITORY` does not match the package repository metadata.
-After adding a GitHub `origin`, run `npm run configure:release-repository` to
-derive that metadata from the remote, or pass `--repo owner/name` explicitly.
-The helper edits the root `package.json` and every `npm/linux-*` native package
-manifest; it does not create a repository, push, or publish.
-Run `npm run check:release-ready` for one aggregate local release verdict. By
-default it fails only local package/repository defects and prints external
-blockers separately. ZCRX hardware proof is reported as optional because the
-0.1 core release is useful without a ZCRX-capable NIC. Pass `-- --strict` to
-make required external repository gates fail the command, and pass
-`-- --require-zcrx` when a ZCRX-capable NIC proof should gate the release.
+Set `REPORT_PATH=artifacts/<name>.json` to keep machine-readable reports.
 
-`test:zcrx` is skipped unless `ZCRX_INTERFACE` is set. On capable hardware it
-starts all three server types with `useZeroCopyReceive: true`, requires the
-active IFQ registration probe to pass, and drives HTTP/native echo/programmable
-TCP traffic through `ZCRX_CONNECT_HOST`. Each smoke requires
-`ServerInfo.zcrxPackets` and `zcrxBytes` to increase, so a passing run proves
-that ferrings decoded traffic from ZCRX CQEs in addition to completing the
-application round trip. Set `ZCRX_RX_BUFFER_SIZE` to try a
-large `rx_buf_len` hint; `0` uses the kernel default and is the broadest
-compatibility path. When the NIC driver exposes recognizable `ethtool -S`
-per-RX-queue traffic counters, the hardware smoke records before/after deltas
-for the selected queue and fails if traffic completes without a counter
-increase. Set `ZCRX_REQUIRE_RX_QUEUE_STATS=1` to also fail when those counters
-are unavailable. For a real NIC RX validation, `ZCRX_CONNECT_HOST` must route
-packets through the selected NIC queue; a second host or network namespace is
-usually less misleading than connecting to `127.0.0.1`. Set `ZCRX_REPORT_PATH`
-to write a JSON report containing the active probe result, each HTTP/native
-echo/programmable TCP smoke result, and any selected RX queue counter deltas.
+## ZCRX
+
+ZCRX support is present but gated. Use it only on hosts with the right kernel, permissions, NIC support, header/data split, and flow steering/RSS isolation.
+
+```bash
+node bin/ferrings.js zcrx-probe --interface eth0 --rx-queue 0 --active --json
+ZCRX_INTERFACE=eth0 ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx
+```
+
+`test:zcrx` starts the HTTP, native TCP echo, and programmable TCP servers with `useZeroCopyReceive: true`, drives traffic through `ZCRX_CONNECT_HOST`, and requires `ServerInfo.zcrxPackets` and `zcrxBytes` to increase.
+
+For a real NIC receive proof, avoid `127.0.0.1`; route packets through the selected NIC queue, usually from a second host or a network namespace.
+
+## Release and package layout
+
+The release flow follows napi-rs native package conventions:
+
+- Root package: `ferrings`
+- Optional native packages:
+  - `ferrings-linux-x64-gnu`
+  - `ferrings-linux-x64-musl`
+  - `ferrings-linux-arm64-gnu`
+  - `ferrings-linux-arm64-musl`
+
+Useful release checks:
+
+```bash
+npm run check:native-packages
+npm run check:npm-new-names
+npm run check:release-repository
+npm run check:release-ready -- --full --strict
+npm run check:release-ready -- --full --require-zcrx
+```
+
+Tag pushes build and upload release artifacts but do not publish to npm. A real npm publish is an explicit manual `workflow_dispatch` run with `publish=true` after npm trusted publishing is configured for the root and native packages.
+
+## Limitations and tradeoffs
+
+- Linux only; there is no macOS or Windows transport.
+- Node.js `>=20` is required.
+- This is a native addon, so kernel support and process limits affect which fast paths are active.
+- The TCP facade is intentionally similar to Node's server shape, but it is not a drop-in replacement for every `net.Server` behavior.
+- `UringHttpServer` is a fixed-response benchmark server, not an HTTP application framework.
+- TLS is not implemented.
+- ZCRX requires specific NIC hardware, kernel support, queue setup, permissions, and routed traffic through the selected RX queue.
+- Registered-buffer send can be unavailable even when the kernel supports other modern `io_uring` networking features; ferrings reports that through `capabilities().registeredSendBuffer`.
+- APIs and packaging are still at the 0.1 release-candidate stage.
+
+## Docs, examples, and project health
+
+- Examples: [`examples/http-fixed.js`](examples/http-fixed.js), [`examples/tcp-echo.js`](examples/tcp-echo.js)
+- Benchmarks: [`benchmark/`](benchmark/)
+- Type surface: [`index.d.ts`](index.d.ts), [`native.d.ts`](native.d.ts)
+- CLI entrypoint: [`bin/ferrings.js`](bin/ferrings.js)
+- Release workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml)
+- CI workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
+- Tests: [`test/`](test/)
+
+There is no separate docs site yet; the README, type definitions, examples, and tests are the current reference material.
+
+## Contributing
+
+Issues and pull requests are welcome. There is no standalone `CONTRIBUTING.md` yet, so use this baseline before opening a change:
+
+```bash
+npm install
+npm test
+npm run check:release-ready -- --full --strict
+```
+
+For changes that touch native packaging, also run:
+
+```bash
+npm run check:native-packages
+npm run check:publish
+```
+
+For ZCRX changes, include `npm run test:zcrx` output when you have access to capable hardware. If you do not, include `node bin/ferrings.js zcrx-probe --all --active --json` output so reviewers can see the blocker.
+
+## License
+
+Licensed under either of:
+
+- [MIT](LICENSE-MIT)
+- [Apache-2.0](LICENSE-APACHE)
+
+at your option.
