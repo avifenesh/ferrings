@@ -69,9 +69,6 @@ jobs:
       - name: Check native package metadata
         run: npm run check:native-packages
 
-      - name: Check publish dry-run
-        run: npm run check:publish
-
       - name: Smoke test installed tarball
         run: node test/package-install-smoke.js
 

@@ -37,7 +37,7 @@ Save the example as `quickstart.js` and run it with `node quickstart.js`; it pri
 
 - Published on npm as [`ferrings`](https://www.npmjs.com/package/ferrings) for Node.js `>=20` on Linux.
 - CI builds and tests Node 20, 22, and 24 on Linux.
-- Uses the napi-rs root-package + optional-native-package pattern: one JS API package, target-specific native bindings underneath.
+- Uses the napi-rs root-package + optional-native-package pattern: one JS API package for users, matrix-built native packages underneath.
 - `npm run check:release-ready -- --full --strict` verifies the local release gates; ZCRX hardware proof is optional unless `--require-zcrx` is set.
 - Package install smoke tests pack the tarball, install it in a temporary app, start a TCP server through `require('ferrings')`, and run the installed CLI.
 
@@ -57,7 +57,7 @@ Install the published package:
 npm install ferrings
 ```
 
-The base package is Linux-only. It depends on target-specific optional native packages, but a normal install picks the one package that matches the current machine. For source development:
+The base package is Linux-only. It depends on target-specific optional native packages, but a normal install picks the one package that matches the current machine. The release build still produces all supported targets through CI matrix jobs. For source development:
 
 ```bash
 git clone https://github.com/avifenesh/ferrings.git
@@ -347,7 +347,7 @@ For a real NIC receive proof, avoid `127.0.0.1`; route packets through the selec
 
 ## Release and package layout
 
-The release flow follows napi-rs native package conventions. Users install `ferrings`; npm picks one optional native package for the current machine.
+The release flow follows napi-rs native package conventions, the same shape used by projects such as Glide: CI builds every supported target in a matrix, publishes one small native package per target, and keeps `ferrings` as the single package users install.
 
 - Root package: `ferrings`
 - Published native packages:
@@ -406,7 +406,7 @@ For changes that touch native packaging, also run:
 
 ```bash
 npm run check:native-packages
-npm run check:publish
+npm pack --dry-run --json
 ```
 
 For ZCRX changes, include `npm run test:zcrx` output when you have access to capable hardware. If you do not, include `node bin/ferrings.js zcrx-probe --all --active --json` output so reviewers can see the blocker.
