@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Added a recv-bundle buffer-starvation regression that forces a tiny
+  provided-buffer ring to recover with multishot receive resubmits while all TCP
+  round trips complete.
 - Rewrote the README to present ferrings as a usable Linux `io_uring` transport,
   with the full benchmark table before installation and an explicit Node 20 EOL
   support note.
