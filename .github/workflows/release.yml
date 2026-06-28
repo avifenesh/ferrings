@@ -1,0 +1,212 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to npm after building and packing all artifacts"
+        type: boolean
+        default: false
+      npm_tag:
+        description: "npm dist-tag"
+        type: choice
+        default: alpha
+        options:
+          - alpha
+          - next
+          - latest
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  validate:
+    name: Validate release inputs
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      npm_tag: ${{ steps.release.outputs.npm_tag }}
+      should_publish: ${{ steps.release.outputs.should_publish }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: release
+        env:
+          INPUT_NPM_TAG: ${{ github.event.inputs.npm_tag }}
+          INPUT_PUBLISH: ${{ github.event.inputs.publish }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            expected="v${version}"
+            if [[ "${GITHUB_REF_NAME}" != "${expected}" ]]; then
+              echo "::error::tag ${GITHUB_REF_NAME} does not match package version ${version}"
+              exit 1
+            fi
+          fi
+
+          npm_tag="${INPUT_NPM_TAG:-}"
+          if [[ -z "${npm_tag}" ]]; then
+            if [[ "${version}" == *-* ]]; then
+              npm_tag="next"
+            else
+              npm_tag="latest"
+            fi
+          fi
+
+          should_publish="false"
+          if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            should_publish="true"
+          elif [[ "${INPUT_PUBLISH:-false}" == "true" ]]; then
+            should_publish="true"
+          fi
+
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "npm_tag=${npm_tag}" >> "${GITHUB_OUTPUT}"
+          echo "should_publish=${should_publish}" >> "${GITHUB_OUTPUT}"
+          echo "Release ${version}, npm tag ${npm_tag}, publish ${should_publish}"
+
+  build-native:
+    name: Build native / ${{ matrix.package }}
+    needs: validate
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            package: linux-x64-gnu
+            cross: false
+          - target: aarch64-unknown-linux-gnu
+            package: linux-arm64-gnu
+            cross: true
+          - target: x86_64-unknown-linux-musl
+            package: linux-x64-musl
+            cross: true
+          - target: aarch64-unknown-linux-musl
+            package: linux-arm64-musl
+            cross: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Setup Rust target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Zig for cross builds
+        if: matrix.cross
+        run: |
+          set -euo pipefail
+          ZIG_VERSION="0.13.0"
+          ZIG_ARCH="$(uname -m)"
+          curl -sSL "https://ziglang.org/download/${ZIG_VERSION}/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}.tar.xz" | sudo tar -xJ -C /usr/local
+          sudo ln -sf "/usr/local/zig-linux-${ZIG_ARCH}-${ZIG_VERSION}/zig" /usr/local/bin/zig
+          zig version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build native target
+        run: |
+          set -euo pipefail
+          args=(--release --strip --platform --target "${{ matrix.target }}" --js native.js --dts native.d.ts)
+          if [[ "${{ matrix.cross }}" == "true" ]]; then
+            args+=(--cross-compile)
+          fi
+          npx napi build "${args[@]}"
+
+      - name: Stage native artifact
+        run: |
+          set -euo pipefail
+          mkdir -p "dist/${{ matrix.package }}"
+          cp ferrings.*.node "dist/${{ matrix.package }}/"
+          file "dist/${{ matrix.package }}"/*.node
+          find "dist/${{ matrix.package }}" -maxdepth 1 -type f | sort
+
+      - name: Upload native artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ matrix.package }}
+          path: dist/${{ matrix.package }}/
+          if-no-files-found: error
+
+  package-and-publish:
+    name: Package and publish
+    needs:
+      - validate
+      - build-native
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://registry.npmjs.org"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: bindings-*
+          path: artifacts
+          merge-multiple: false
+
+      - name: Prepare npm package directories
+        run: |
+          set -euo pipefail
+          find artifacts -type f -name "*.node" -print | sort
+          npm run artifacts
+          find npm -maxdepth 2 -type f | sort
+
+      - name: Validate native package metadata and contents
+        run: node scripts/check-native-packages.js --require-binary
+
+      - name: Check napi prepublish dry-run
+        run: npm run check:prepublish
+
+      - name: Check npm publish dry-run
+        run: npm run check:publish
+
+      - name: Upload prepared npm packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-packages-${{ needs.validate.outputs.version }}
+          path: |
+            package.json
+            ferrings.*.node
+            native.js
+            native.d.ts
+            npm/
+          if-no-files-found: error
+
+      - name: Publish to npm
+        if: needs.validate.outputs.should_publish == 'true'
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: true
+          NPM_CONFIG_TAG: ${{ needs.validate.outputs.npm_tag }}
+        run: npm publish --tag "${{ needs.validate.outputs.npm_tag }}" --provenance

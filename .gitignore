@@ -2,6 +2,7 @@
 /target/
 /*.node
 /artifacts/
+/release-artifacts/
 /npm/*/*.node
 /npm/*/LICENSE-APACHE
 /npm/*/LICENSE-MIT

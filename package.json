@@ -40,6 +40,8 @@
     "test:rust": "cargo test",
     "test:zcrx": "npm run build:debug && node test/zcrx-hardware-smoke.js",
     "artifacts": "napi artifacts --output-dir artifacts --npm-dir npm && node scripts/copy-native-package-assets.js",
+    "prepublishOnly": "node scripts/prepublish.js",
+    "check:prepublish": "node scripts/prepublish.js --dry-run",
     "check:native-packages": "node scripts/check-native-packages.js",
     "check:platform-install": "node test/platform-package-install-smoke.js",
     "check:publish": "npm publish --dry-run --json",
