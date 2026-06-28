@@ -20,7 +20,7 @@ on:
           - latest
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -241,3 +241,30 @@ jobs:
       - name: Verify published npm packages
         if: needs.validate.outputs.should_publish == 'true'
         run: npm run check:published -- --tag "${{ needs.validate.outputs.npm_tag }}" --retries 12 --retry-delay-ms 5000
+
+      - name: Create or update GitHub release
+        if: needs.validate.outputs.should_publish == 'true' && github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          create_args=("${tag}" --title "${tag}" --generate-notes --verify-tag)
+          edit_args=("${tag}" --title "${tag}")
+
+          if [[ "${VERSION}" == *-* ]]; then
+            create_args+=(--prerelease --latest=false)
+            edit_args+=(--prerelease)
+          else
+            create_args+=(--latest)
+            edit_args+=(--latest)
+          fi
+
+          if gh release view "${tag}" >/dev/null 2>&1; then
+            gh release edit "${edit_args[@]}"
+          else
+            gh release create "${create_args[@]}"
+          fi
+
+          gh release view "${tag}" --json tagName,name,url,isDraft,isPrerelease,publishedAt,targetCommitish
