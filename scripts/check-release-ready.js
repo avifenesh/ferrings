@@ -9,6 +9,7 @@ const args = process.argv.slice(2);
 const strict = args.includes('--strict');
 const json = args.includes('--json');
 const full = args.includes('--full');
+const requireZcrx = args.includes('--require-zcrx');
 const checks = [];
 
 addCommandCheck({
@@ -127,6 +128,8 @@ addCommandCheck({
 checks.push({
   name: 'ZCRX hardware proof configured',
   scope: 'external',
+  optional: !requireZcrx,
+  hardFail: requireZcrx,
   next: 'ZCRX_INTERFACE=<ifname> ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx',
   run: () => {
     if (!process.env.ZCRX_INTERFACE) {
@@ -137,15 +140,30 @@ checks.push({
 });
 
 const results = checks.map((check) => {
-  const result = { name: check.name, scope: check.scope, ...check.run() };
+  const result = {
+    name: check.name,
+    scope: check.scope,
+    optional: check.optional === true,
+    hardFail: check.hardFail === true,
+    ...check.run()
+  };
   if (!result.ok && check.next) {
     result.next = check.next;
   }
   return result;
 });
 const localFailures = results.filter((result) => result.scope === 'local' && !result.ok);
-const externalFailures = results.filter((result) => result.scope === 'external' && !result.ok);
-const failed = localFailures.length > 0 || (strict && externalFailures.length > 0);
+const externalFailures = results.filter((result) => result.scope === 'external' && !result.ok && !result.optional);
+const optionalFailures = results.filter((result) => !result.ok && result.optional);
+const hardFailures = results.filter((result) => !result.ok && result.hardFail);
+const failed = localFailures.length > 0 || hardFailures.length > 0 || (strict && externalFailures.length > 0);
+const status = failed
+  ? 'failed'
+  : externalFailures.length > 0
+    ? 'external-blocked'
+    : optionalFailures.length > 0
+      ? 'ready-with-optional-blockers'
+      : 'ready';
 
 if (json) {
   console.log(
@@ -155,7 +173,8 @@ if (json) {
         version: rootPackage.version,
         strict,
         full,
-        status: failed ? 'failed' : externalFailures.length > 0 ? 'external-blocked' : 'ready',
+        requireZcrx,
+        status,
         results
       },
       null,
@@ -164,12 +183,21 @@ if (json) {
   );
 } else {
   for (const result of results) {
-    const marker = result.ok ? 'ok' : result.scope === 'external' && !strict ? 'blocked' : 'fail';
+    const marker = result.ok
+      ? 'ok'
+      : result.optional
+        ? 'optional'
+        : result.scope === 'external' && !strict
+          ? 'blocked'
+          : 'fail';
     const suffix = result.detail ? `: ${oneLine(result.detail)}` : '';
     console.log(`${marker} ${result.scope} ${result.name}${suffix}`);
   }
   if (externalFailures.length > 0 && !strict) {
-    console.log('external blockers remain; rerun with --strict when remote, repository metadata, and ZCRX proof exist');
+    console.log('external blockers remain; rerun with --strict when required remote and repository metadata exist');
+  }
+  if (optionalFailures.length > 0) {
+    console.log('optional blockers remain; rerun with --require-zcrx when ZCRX hardware proof should gate this release');
   }
   const actionable = results.filter((result) => !result.ok && result.next);
   for (const result of actionable) {

@@ -417,8 +417,10 @@ The helper edits the root `package.json` and every `npm/linux-*` native package
 manifest; it does not create a repository, push, or publish.
 Run `npm run check:release-ready` for one aggregate local release verdict. By
 default it fails only local package/repository defects and prints external
-blockers separately; pass `-- --strict` after the GitHub remote, repository
-metadata, and ZCRX hardware proof exist to require every release gate.
+blockers separately. ZCRX hardware proof is reported as optional because the
+0.1 core release is useful without a ZCRX-capable NIC. Pass `-- --strict` to
+make required external repository gates fail the command, and pass
+`-- --require-zcrx` when a ZCRX-capable NIC proof should gate the release.
 
 `test:zcrx` is skipped unless `ZCRX_INTERFACE` is set. On capable hardware it
 starts all three server types with `useZeroCopyReceive: true`, requires the
