@@ -8,9 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.12 - 2026-06-29
+
 - Rewrote the README to lead with the benchmark proof and present ferrings as a
   usable Linux `io_uring` transport, with ZCRX described as a gated fast path
   rather than the baseline product story.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.12` results on
+  Node 26.
 - Covered the cargo-audit installer helper in Security workflow path filters so
   audit tooling changes cannot skip the workflow.
 
