@@ -47,6 +47,9 @@ assert.equal(
   rootPackage.version,
   `README benchmark version ${readmeBenchmarkVersion} must match package version ${rootPackage.version}`
 );
+assertReadmePositioning(readme);
+assertNoExperimentalPublicFraming(readme, 'README');
+assertNoExperimentalPublicFraming(rootPackage.description || '', 'package description');
 
 for (const [name, version] of Object.entries(rootPackage.optionalDependencies)) {
   assert.equal(version, rootPackage.version, `${name} must match root package version`);
@@ -88,4 +91,33 @@ function repositoryHttpUrl(repositoryUrl) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function assertReadmePositioning(content) {
+  const h2Sections = [...content.matchAll(/^## .+$/gm)].map((match) => match[0]);
+  assert.equal(
+    h2Sections[0],
+    '## Benchmarks',
+    'README Benchmarks section must be the first top-level section after the opening'
+  );
+
+  const benchmarksIndex = h2Sections.indexOf('## Benchmarks');
+  const installationIndex = h2Sections.indexOf('## Installation');
+  const quickStartIndex = h2Sections.indexOf('## Quick Start');
+  assert.notEqual(benchmarksIndex, -1, 'README Benchmarks section not found');
+  assert.notEqual(installationIndex, -1, 'README Installation section not found');
+  assert.notEqual(quickStartIndex, -1, 'README Quick Start section not found');
+  assert.ok(
+    benchmarksIndex < installationIndex && benchmarksIndex < quickStartIndex,
+    'README Benchmarks section must stay above install and quick start'
+  );
+}
+
+function assertNoExperimentalPublicFraming(content, label) {
+  const forbidden = /\b(experiment|experimental|prototype|proof[- ]of[- ]concept|poc)\b/i;
+  assert.equal(
+    forbidden.test(content),
+    false,
+    `${label} must not present ferrings as an experiment or prototype`
+  );
 }

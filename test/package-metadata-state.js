@@ -63,6 +63,33 @@ try {
   fs.writeFileSync(readmePath, originalReadme);
 }
 
+const experimentalReadme = originalReadme.replace(
+  'Linux `io_uring` TCP transport for Node.js services',
+  'Experimental Linux `io_uring` TCP transport for Node.js services'
+);
+assert.notEqual(experimentalReadme, originalReadme, 'README experimental framing mutation should apply');
+
+try {
+  fs.writeFileSync(readmePath, experimentalReadme);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail when README presents ferrings as experimental');
+  assert.match(stale.stderr, /README must not present ferrings as an experiment or prototype/);
+} finally {
+  fs.writeFileSync(readmePath, originalReadme);
+}
+
+const demotedBenchmarkReadme = originalReadme.replace('## Benchmarks', '## Performance Notes');
+assert.notEqual(demotedBenchmarkReadme, originalReadme, 'README benchmark-first mutation should apply');
+
+try {
+  fs.writeFileSync(readmePath, demotedBenchmarkReadme);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail when README no longer leads with benchmarks');
+  assert.match(stale.stderr, /README Benchmarks section must be the first top-level section/);
+} finally {
+  fs.writeFileSync(readmePath, originalReadme);
+}
+
 console.log('package metadata state ok');
 
 function assertNoLegacyFirstSlicePublicSurface() {
