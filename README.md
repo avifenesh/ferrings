@@ -10,7 +10,7 @@
 
 Use it when a Linux Node service is spending real time in the socket path. Accept, receive, send, shutdown, buffer ownership, and event batching run on a native `io_uring` worker while application code can stay in ordinary JavaScript callbacks.
 
-The broadly deployable path is multishot accept/recv plus provided buffer rings. ZCRX is implemented as a gated receive fast path for capable hosts; it is not required for the benchmarked wins below.
+The broadly deployable path is multishot accept/recv plus provided buffer rings. ZCRX is implemented as a gated receive fast path for capable hosts; it is not required for the benchmarked wins below. Treat ZCRX hardware receive as untested for production until your target host passes the `ZCRX Hardware Certification` workflow or the equivalent `doctor --require-zcrx` plus routed traffic-smoke commands.
 
 ## Benchmarks
 
@@ -338,6 +338,8 @@ npx ferrings zcrx-probe --interface eth0 --rx-queue 0 --active --json
 
 ZCRX is implemented as a gated receive path for hosts with the right kernel, permissions, NIC support, header/data split, RX queue setup, and flow steering or RSS isolation. Start with the default multishot/provided-buffer path, then enable ZCRX only after the probe and hardware smoke test pass on the target host.
 
+Current delivery status: the default transport is the supported production path. ZCRX hardware receive is shipped behind capability gates, but remains untested/uncertified unless a target host produces passing `doctor --require-zcrx` and hardware-smoke reports.
+
 ```bash
 node bin/ferrings.js zcrx-probe --interface eth0 --rx-queue 0 --active --json
 ZCRX_INTERFACE=eth0 ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx
@@ -455,6 +457,7 @@ For a new release, bump the package version first; npm versions are immutable af
 - `UringHttpServer` is a fixed-response server, not an HTTP application framework.
 - TLS is not implemented.
 - ZCRX requires specific NIC hardware, kernel support, queue setup, permissions, and routed traffic through the selected RX queue.
+- ZCRX hardware receive should be considered untested on any host that has not passed the ZCRX certification workflow or equivalent hard-gate commands.
 - Registered-buffer send can be unavailable even when the kernel supports other modern `io_uring` networking features; ferrings reports that through `capabilities().registeredSendBuffer`.
 - ferrings is in the `0.x` version line: patch releases are intended to be safe updates, while minor releases may adjust API names or defaults.
 

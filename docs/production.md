@@ -125,6 +125,12 @@ kernel, and whether traffic uses loopback or a real NIC path.
 ZCRX is not the default production path. Enable it only after the selected host
 passes active probing and traffic validation.
 
+Delivery status: the default multishot/provided-buffer transport is the
+supported production path. ZCRX hardware receive is available behind explicit
+capability gates, but remains untested for a deployment until that target host
+passes `doctor --require-zcrx --require-ready` and the routed hardware smoke
+test.
+
 Requirements:
 
 - Kernel exposes `IORING_OP_RECV_ZC`.
@@ -171,6 +177,10 @@ For repeatable CI-style certification, attach a self-hosted runner labeled
 `doctor --active --require-zcrx --require-ready` to pass, runs the routed
 hardware traffic smoke, and uploads the doctor and smoke JSON reports as
 artifacts.
+
+If the workflow or equivalent commands fail, leave `useZeroCopyReceive` off and
+ship the default transport. Do not treat ZCRX as production-certified from
+opcode support alone.
 
 ## Release Verification
 

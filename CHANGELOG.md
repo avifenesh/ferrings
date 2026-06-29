@@ -11,6 +11,9 @@ may adjust APIs, defaults, or packaging.
 - Added a manual ZCRX hardware certification workflow for self-hosted Linux
   runners with a capable NIC path, plus workflow-policy checks and docs for the
   repeatable `doctor --require-zcrx` and routed traffic-smoke gate.
+- Clarified that the default multishot/provided-buffer transport is the
+  delivered production path, while ZCRX hardware receive remains untested for a
+  deployment until that target host passes the hard certification gate.
 
 ## 0.2.48 - 2026-06-29
 
