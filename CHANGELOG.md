@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.32 - 2026-06-29
+
+- Reworked `ferrings doctor` so default transport readiness is separated from
+  optional ZCRX readiness. ZCRX blockers now stay under `optionalBlockers`
+  unless `--require-zcrx` is passed.
+- Rewrote the README opening around production use and refreshed the benchmark
+  snapshot with `ferrings@0.2.32` results on Node 26.
+
 ## 0.2.31 - 2026-06-29
 
 - Added a post-publish `main-health` check that verifies the lockfile can
