@@ -200,7 +200,7 @@ pub struct TcpEvent {
 
 #[napi(object)]
 pub struct TcpSend {
-    pub connection_id: u32,
+    pub connection_id: f64,
     pub data: Buffer,
 }
 
@@ -450,7 +450,8 @@ impl UringTcpServer {
     }
 
     #[napi]
-    pub fn send(&self, connection_id: u32, data: Buffer) -> Result<bool> {
+    pub fn send(&self, connection_id: f64, data: Buffer) -> Result<bool> {
+        let connection_id = validate_connection_id(connection_id)?;
         let Some(server) = &self.server else {
             return Ok(false);
         };
@@ -462,7 +463,8 @@ impl UringTcpServer {
     }
 
     #[napi(js_name = "sendAndClose")]
-    pub fn send_and_close(&self, connection_id: u32, data: Buffer) -> Result<bool> {
+    pub fn send_and_close(&self, connection_id: f64, data: Buffer) -> Result<bool> {
+        let connection_id = validate_connection_id(connection_id)?;
         let Some(server) = &self.server else {
             return Ok(false);
         };
@@ -474,6 +476,7 @@ impl UringTcpServer {
 
     #[napi(js_name = "sendBatch")]
     pub fn send_batch(&self, sends: Vec<TcpSend>) -> Result<bool> {
+        let sends = validate_tcp_sends(sends)?;
         let Some(server) = &self.server else {
             return Ok(false);
         };
@@ -483,9 +486,9 @@ impl UringTcpServer {
 
         let sends = sends
             .into_iter()
-            .map(|send| uring::TcpSendCommand {
-                connection_id: send.connection_id,
-                data: Vec::<u8>::from(send.data),
+            .map(|(connection_id, data)| uring::TcpSendCommand {
+                connection_id,
+                data: Vec::<u8>::from(data),
             })
             .collect();
         server.enqueue_command(uring::TcpCommand::SendBatch { sends })
@@ -493,6 +496,7 @@ impl UringTcpServer {
 
     #[napi(js_name = "sendBatchAndClose")]
     pub fn send_batch_and_close(&self, sends: Vec<TcpSend>) -> Result<bool> {
+        let sends = validate_tcp_sends(sends)?;
         let Some(server) = &self.server else {
             return Ok(false);
         };
@@ -502,16 +506,17 @@ impl UringTcpServer {
 
         let sends = sends
             .into_iter()
-            .map(|send| uring::TcpSendCommand {
-                connection_id: send.connection_id,
-                data: Vec::<u8>::from(send.data),
+            .map(|(connection_id, data)| uring::TcpSendCommand {
+                connection_id,
+                data: Vec::<u8>::from(data),
             })
             .collect();
         server.enqueue_command(uring::TcpCommand::SendBatchAndClose { sends })
     }
 
     #[napi(js_name = "closeConnection")]
-    pub fn close_connection(&self, connection_id: u32) -> Result<bool> {
+    pub fn close_connection(&self, connection_id: f64) -> Result<bool> {
+        let connection_id = validate_connection_id(connection_id)?;
         let Some(server) = &self.server else {
             return Ok(false);
         };
@@ -591,6 +596,23 @@ pub fn zcrx_probe(options: Option<ZcrxProbeOptions>) -> ZcrxProbe {
 
 fn to_napi_error(error: uring::UringError) -> Error {
     Error::new(Status::GenericFailure, error.to_string())
+}
+
+fn validate_tcp_sends(sends: Vec<TcpSend>) -> Result<Vec<(u32, Buffer)>> {
+    sends
+        .into_iter()
+        .map(|send| Ok((validate_connection_id(send.connection_id)?, send.data)))
+        .collect()
+}
+
+fn validate_connection_id(value: f64) -> Result<u32> {
+    if !value.is_finite() || value.fract() != 0.0 || value < 0.0 || value > u32::MAX as f64 {
+        return Err(Error::new(
+            Status::InvalidArg,
+            format!("connectionId must be an integer between 0 and {}", u32::MAX),
+        ));
+    }
+    Ok(value as u32)
 }
 
 fn wake_event_fd(fd: RawFd) {
