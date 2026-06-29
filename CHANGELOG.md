@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.48 - 2026-06-29
+
+- Hardened CLI value parsing so whitespace-only values and non-decimal numeric
+  forms such as `--rx-queue 1e3` or `--rx-queue 0x10` fail with usage errors
+  instead of being coerced by JavaScript `Number()`.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.48` results on
+  Node 26 using 5,000 completed requests per case.
+
 ## 0.2.47 - 2026-06-29
 
 - Rewrote the README opening to present ferrings as a usable Linux Node

@@ -14,29 +14,29 @@ The broadly deployable path is multishot accept/recv plus provided buffer rings.
 
 ## Benchmarks
 
-`ferrings@0.2.47` on Node `v26.4.0` reached **2.49x** Node `http` throughput, **2.58x** Node `net` throughput on the native TCP path, **2.28x** throughput through the Node-style TCP facade, **2.04x** with facade batch sends, and **37-56% fewer server syscalls per completed connection** on the same host.
+`ferrings@0.2.48` on Node `v26.4.0` reached **2.51x** Node `http` throughput, **2.34x** Node `net` throughput on the native TCP path, **2.00x** throughput through the Node-style TCP facade, **2.02x** with facade batch sends, and **37-57% fewer server syscalls per completed connection** on the same host.
 
 Benchmarks are first because this package exists to remove measurable overhead from high-concurrency Node networking. These are default-transport results: multishot accept/recv plus provided buffer rings, with ZCRX disabled. They do not require specialized NIC receive support.
 
-Measured on 2026-06-29 with `ferrings@0.2.47`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, 5,000 completed requests per case, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; rerun this on the machine class you plan to deploy.
+Measured on 2026-06-29 with `ferrings@0.2.48`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, 5,000 completed requests per case, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; rerun this on the machine class you plan to deploy.
 
 | Workload | Baseline | ferrings path | Baseline req/s | ferrings req/s | Result |
 | --- | --- | --- | ---: | ---: | --- |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | 7,588 | 18,858 | **2.49x throughput**, **67% lower p50**, **46% lower p99**, **56% fewer syscalls/conn** |
-| TCP echo | Node `net` | native echo worker | 8,874 | 22,906 | **2.58x throughput**, **62% lower p50**, **64% lower p95**, **54% fewer syscalls/conn** |
-| TCP echo | Node `net` | Node-style TCP facade | 8,874 | 20,275 | **2.28x throughput**, **58% lower p50**, **55% lower p95**, **37% fewer syscalls/conn** |
-| TCP echo | Node `net` | facade batch send | 8,874 | 18,130 | **2.04x throughput**, **56% lower p50**, **49% lower p95**, **37% fewer syscalls/conn** |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | 6,886 | 17,302 | **2.51x throughput**, **66% lower p50**, **42% lower p99**, **57% fewer syscalls/conn** |
+| TCP echo | Node `net` | native echo worker | 8,869 | 20,794 | **2.34x throughput**, **61% lower p50**, **61% lower p95**, **54% fewer syscalls/conn** |
+| TCP echo | Node `net` | Node-style TCP facade | 8,869 | 17,725 | **2.00x throughput**, **53% lower p50**, **51% lower p95**, **38% fewer syscalls/conn** |
+| TCP echo | Node `net` | facade batch send | 8,869 | 17,948 | **2.02x throughput**, **56% lower p50**, **38% lower p95**, **37% fewer syscalls/conn** |
 
 Detailed latency and syscall data from the same run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 7,588 | 7.595 | 11.584 | 35.950 | 9.684 | libuv/epoll |
-| ferrings HTTP | 18,858 | 2.485 | 6.756 | 19.323 | 4.242 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 8,874 | 6.669 | 10.326 | 12.554 | 9.507 | libuv/epoll |
-| ferrings native TCP echo | 22,906 | 2.501 | 3.768 | 13.290 | 4.347 | native echo worker + provided buffers |
-| ferrings TCP facade | 20,275 | 2.802 | 4.682 | 10.059 | 5.994 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 18,130 | 2.960 | 5.267 | 29.354 | 5.996 | JS facade + batched native events/sends |
+| Node `http` | 6,886 | 8.054 | 16.280 | 29.053 | 9.665 | libuv/epoll |
+| ferrings HTTP | 17,302 | 2.770 | 7.954 | 16.731 | 4.169 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 8,869 | 6.770 | 10.251 | 13.386 | 9.474 | libuv/epoll |
+| ferrings native TCP echo | 20,794 | 2.647 | 3.988 | 25.923 | 4.355 | native echo worker + provided buffers |
+| ferrings TCP facade | 17,725 | 3.178 | 5.069 | 20.459 | 5.915 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 17,948 | 2.981 | 6.339 | 14.866 | 6.000 | JS facade + batched native events/sends |
 
 The ferrings server info for this run reported `multishotAccept: true`, `multishotRecv: true`, `providedBufferRing: true`, and `zeroCopyReceive: false`.
 
@@ -45,11 +45,11 @@ Reproduce the README run:
 ```bash
 REQUESTS=5000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.47-5000.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.48-5000.json \
 npm run bench:syscalls
 ```
 
-Watch throughput, server syscalls per completed connection, and tail latency together. In this one-host loopback run ferrings improved TCP p50/p95 across the listed TCP paths; TCP p99 was lower for the Node-style facade and higher for the native echo worker and facade batch-send path. Payload size, kernel, NIC path, CPU governor, queue settings, and JavaScript callback work can change that balance.
+Watch throughput, server syscalls per completed connection, and tail latency together. In this one-host loopback run ferrings improved TCP p50/p95 across the listed TCP paths; TCP p99 was higher across the TCP echo cases while HTTP p99 was lower. Payload size, kernel, NIC path, CPU governor, queue settings, and JavaScript callback work can change that balance.
 
 ## Where It Fits
 

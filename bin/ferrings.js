@@ -423,7 +423,7 @@ function parseFlags(rawArgs, schema) {
       options[name] = parseBooleanFlag(flag);
     } else if (values.has(name)) {
       const value = inlineValue === undefined ? rawArgs[++index] : inlineValue;
-      if (value === undefined || value === '' || value.startsWith('-')) {
+      if (value === undefined || value.trim() === '' || value.startsWith('-')) {
         throw new CliError(`${flag.displayName} requires a value`, 64);
       }
       options[name] = value;
@@ -465,8 +465,11 @@ function normalizeFlagName(name) {
 
 function numberOption(value, name, min = 0, max = Number.MAX_SAFE_INTEGER) {
   if (value === undefined) return undefined;
+  if (!/^\d+$/.test(value)) {
+    throw new CliError(`--${name} must be an integer between ${min} and ${max}`, 64);
+  }
   const number = Number(value);
-  if (!Number.isInteger(number) || number < min || number > max) {
+  if (!Number.isSafeInteger(number) || number < min || number > max) {
     throw new CliError(`--${name} must be an integer between ${min} and ${max}`, 64);
   }
   return number;

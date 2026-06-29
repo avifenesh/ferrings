@@ -115,6 +115,18 @@ assert.match(missingProbeQueue.stderr, /--rx-queue requires a value/);
 const missingProbeInterface = run(['zcrx-probe', '--interface='], 64);
 assert.match(missingProbeInterface.stderr, /--interface requires a value/);
 
+const whitespaceProbeInterface = run(['zcrx-probe', '--interface', '   '], 64);
+assert.match(whitespaceProbeInterface.stderr, /--interface requires a value/);
+
+const whitespaceProbeQueue = run(['zcrx-probe', '--rx-queue', '   '], 64);
+assert.match(whitespaceProbeQueue.stderr, /--rx-queue requires a value/);
+
+const exponentProbeQueue = run(['zcrx-probe', '--rx-queue', '1e3'], 64);
+assert.match(exponentProbeQueue.stderr, /--rx-queue must be an integer between 0 and 4294967295/);
+
+const hexProbeQueue = run(['zcrx-probe', '--rx-queue', '0x10'], 64);
+assert.match(hexProbeQueue.stderr, /--rx-queue must be an integer between 0 and 4294967295/);
+
 const compactFalse = JSON.parse(run(['capabilities', '--json', '--compact=false']).stdout);
 assert.equal(compactFalse.package, 'ferrings');
 
