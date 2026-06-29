@@ -1,6 +1,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const dns = require('node:dns').promises;
 const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -37,6 +38,9 @@ async function runZcrxHardwareSmoke(options = {}) {
     if (routeBlocker) {
       throw new Error(routeBlocker);
     }
+    report.trafficRoute = await validateZcrxTrafficRoute(config);
+    config.connectAddress = report.trafficRoute.resolvedAddress;
+    report.config.connectAddress = config.connectAddress;
 
     const probe = zcrxProbe({
       interfaceName: config.interfaceName,
@@ -180,12 +184,14 @@ function baseReport(config) {
       rxBufferSize: config.rxBufferSize,
       bindHost: config.bindHost,
       connectHost: config.connectHost,
+      connectAddress: config.connectAddress,
       connectHostExplicit: config.connectHostExplicit,
       connectHostSource: config.connectHostSource,
       timeoutMs: config.timeoutMs,
       requireRxQueueStats: config.requireRxQueueStats
     },
     warnings: [],
+    trafficRoute: null,
     probe: null,
     queueCounters: null,
     smokes: []
@@ -203,6 +209,117 @@ function zcrxTrafficRouteBlocker(config) {
     return `ZCRX_CONNECT_HOST=${config.connectHost} is a wildcard bind address; use a concrete host routed through the selected NIC path`;
   }
   return '';
+}
+
+async function validateZcrxTrafficRoute(config) {
+  const resolved = await resolveConnectHostForRoute(config.connectHost);
+  if (isLoopbackHost(resolved.address)) {
+    throw new Error(
+      `ZCRX_CONNECT_HOST=${config.connectHost} resolved to loopback ${resolved.address}; ` +
+        'use a host routed through the selected NIC path'
+    );
+  }
+  if (isWildcardHost(resolved.address)) {
+    throw new Error(
+      `ZCRX_CONNECT_HOST=${config.connectHost} resolved to wildcard ${resolved.address}; ` +
+        'use a concrete host routed through the selected NIC path'
+    );
+  }
+
+  const lookup = readIpRouteGet(resolved.address);
+  return buildTrafficRouteReport(config, resolved, lookup);
+}
+
+function buildTrafficRouteReport(config, resolved, lookup) {
+  const route = selectRouteWithDevice(lookup.routes);
+  const routeDev = route && route.dev ? String(route.dev) : '';
+  if (!routeDev) {
+    throw new Error(
+      `could not determine route interface for ZCRX_CONNECT_HOST=${config.connectHost} ` +
+        `(${resolved.address}); ip route get returned no dev field`
+    );
+  }
+  if (routeDev !== config.interfaceName) {
+    throw new Error(
+      `ZCRX_CONNECT_HOST=${config.connectHost} (${resolved.address}) routes via ${routeDev}, ` +
+        `not selected ZCRX_INTERFACE=${config.interfaceName}`
+    );
+  }
+
+  return {
+    connectHost: config.connectHost,
+    resolvedAddress: resolved.address,
+    resolvedFamily: resolved.family,
+    resolvedRecords: resolved.records,
+    command: lookup.command,
+    interfaceName: config.interfaceName,
+    routeDev,
+    matchesInterface: true,
+    route
+  };
+}
+
+async function resolveConnectHostForRoute(host) {
+  const normalized = normalizeHostForRoute(host);
+  const ipFamily = net.isIP(normalized);
+  if (ipFamily) {
+    return {
+      address: normalized,
+      family: ipFamily,
+      records: [{ address: normalized, family: ipFamily }]
+    };
+  }
+
+  let records;
+  try {
+    records = await dns.lookup(normalized, { all: true, verbatim: true });
+  } catch (error) {
+    throw new Error(`could not resolve ZCRX_CONNECT_HOST=${host}: ${error.message}`);
+  }
+  if (!records || records.length === 0) {
+    throw new Error(`could not resolve ZCRX_CONNECT_HOST=${host}: no addresses returned`);
+  }
+  const selected = records.find((record) => !isLoopbackHost(record.address) && !isWildcardHost(record.address)) || records[0];
+  return {
+    address: selected.address,
+    family: selected.family,
+    records: records.map((record) => ({ address: record.address, family: record.family }))
+  };
+}
+
+function readIpRouteGet(address) {
+  const args = ['-json', 'route', 'get', address];
+  const output = spawnSync('ip', args, {
+    encoding: 'utf8',
+    maxBuffer: 1024 * 1024
+  });
+  const command = ['ip', ...args];
+  if (output.error || output.status !== 0) {
+    const detail = output.error ? output.error.message : (output.stderr || output.stdout || 'ip route get failed').trim();
+    throw new Error(`could not verify route for ${address}: ${command.join(' ')} failed: ${detail}`);
+  }
+  return {
+    command,
+    routes: parseIpRouteGetJson(output.stdout || '')
+  };
+}
+
+function parseIpRouteGetJson(output) {
+  let parsed;
+  try {
+    parsed = JSON.parse(output);
+  } catch (error) {
+    throw new Error(`could not parse ip route get JSON output: ${error.message}`);
+  }
+  const routes = Array.isArray(parsed) ? parsed : [parsed];
+  if (routes.length === 0 || routes.every((route) => !route || typeof route !== 'object')) {
+    throw new Error('ip route get JSON output did not contain a route object');
+  }
+  return routes.filter((route) => route && typeof route === 'object');
+}
+
+function selectRouteWithDevice(routes) {
+  return routes.find((route) => route.dev) || routes[0] || null;
 }
 
 function normalizeHostForRoute(host) {
@@ -334,10 +451,13 @@ function requestHttp(port, config) {
   return withTimeout(new Promise((resolve, reject) => {
     const req = http.get(
       {
-        host: config.connectHost,
+        host: connectHostForTraffic(config),
         port,
         path: '/',
         agent: false,
+        headers: {
+          host: config.connectHost
+        },
         timeout: config.timeoutMs
       },
       (res) => {
@@ -356,7 +476,7 @@ function requestHttp(port, config) {
 
 function tcpRoundTrip(port, payload, config) {
   return withTimeout(new Promise((resolve, reject) => {
-    const socket = net.createConnection({ host: config.connectHost, port }, () => {
+    const socket = net.createConnection({ host: connectHostForTraffic(config), port }, () => {
       socket.write(Buffer.from(payload));
     });
     let body = Buffer.alloc(0);
@@ -368,6 +488,10 @@ function tcpRoundTrip(port, payload, config) {
     socket.on('end', () => resolve(body.toString('utf8')));
     socket.on('error', reject);
   }), config.timeoutMs, 'TCP ZCRX round trip');
+}
+
+function connectHostForTraffic(config) {
+  return config.connectAddress || config.connectHost;
 }
 
 async function smokeHttp(report, config) {
@@ -521,6 +645,49 @@ NIC statistics:
   assert.equal(isWildcardHost('[::]'), true);
   assert.equal(isLoopbackHost('192.0.2.10'), false);
   assert.equal(isWildcardHost('192.0.2.10'), false);
+  assert.deepEqual(parseIpRouteGetJson('[{"dst":"192.0.2.10","dev":"eth0","prefsrc":"192.0.2.1"}]'), [
+    { dst: '192.0.2.10', dev: 'eth0', prefsrc: '192.0.2.1' }
+  ]);
+  assert.deepEqual(parseIpRouteGetJson('{"dst":"2001:db8::10","dev":"enp1s0"}'), [
+    { dst: '2001:db8::10', dev: 'enp1s0' }
+  ]);
+  assert.equal(
+    selectRouteWithDevice([
+      { dst: '192.0.2.10' },
+      { dst: '192.0.2.10', dev: 'eth1' }
+    ]).dev,
+    'eth1'
+  );
+  const routeReport = buildTrafficRouteReport(
+    { connectHost: 'example.test', interfaceName: 'eth0' },
+    {
+      address: '192.0.2.10',
+      family: 4,
+      records: [{ address: '192.0.2.10', family: 4 }]
+    },
+    {
+      command: ['ip', '-json', 'route', 'get', '192.0.2.10'],
+      routes: [{ dst: '192.0.2.10', dev: 'eth0' }]
+    }
+  );
+  assert.equal(routeReport.routeDev, 'eth0');
+  assert.equal(routeReport.matchesInterface, true);
+  assert.throws(
+    () =>
+      buildTrafficRouteReport(
+        { connectHost: 'example.test', interfaceName: 'eth0' },
+        {
+          address: '192.0.2.10',
+          family: 4,
+          records: [{ address: '192.0.2.10', family: 4 }]
+        },
+        {
+          command: ['ip', '-json', 'route', 'get', '192.0.2.10'],
+          routes: [{ dst: '192.0.2.10', dev: 'eth1' }]
+        }
+      ),
+    /routes via eth1, not selected ZCRX_INTERFACE=eth0/
+  );
   const before = { counters: new Map([['rx_queue_0_packets', 10n], ['rx_queue_0_bytes', 800n]]) };
   const after = { counters: new Map([['rx_queue_0_packets', 12n], ['rx_queue_0_bytes', 936n]]) };
   const deltas = diffCounters(before, after);

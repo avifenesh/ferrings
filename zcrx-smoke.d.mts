@@ -38,6 +38,21 @@ export interface ZcrxQueueCounterReport {
   positiveDeltas: Array<ZcrxQueueCounterDelta>
 }
 
+export interface ZcrxTrafficRouteReport {
+  connectHost: string
+  resolvedAddress: string
+  resolvedFamily: 4 | 6
+  resolvedRecords: Array<{
+    address: string
+    family: 4 | 6
+  }>
+  command: Array<string>
+  interfaceName: string
+  routeDev: string
+  matchesInterface: boolean
+  route: Record<string, unknown>
+}
+
 export interface ZcrxSmokeCaseReport {
   name: 'http' | 'native-echo' | 'programmable-tcp' | string
   status: ZcrxSmokeCaseStatus
@@ -57,6 +72,7 @@ export interface ZcrxSmokeReport {
     rxBufferSize: number
     bindHost: string
     connectHost: string
+    connectAddress?: string
     connectHostExplicit: boolean
     connectHostSource: 'option' | 'env' | 'default'
     timeoutMs: number
@@ -64,6 +80,7 @@ export interface ZcrxSmokeReport {
   }
   warnings: Array<string>
   skippedReason?: string
+  trafficRoute: ZcrxTrafficRouteReport | null
   probe: ZcrxProbe | null
   queueCounters: ZcrxQueueCounterReport | null
   smokes: Array<ZcrxSmokeCaseReport>

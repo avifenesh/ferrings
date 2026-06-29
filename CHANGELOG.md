@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.41 - 2026-06-29
+
+- Hardened ZCRX hardware smoke validation so `ZCRX_CONNECT_HOST` must resolve
+  to an address whose `ip -json route get` device matches `ZCRX_INTERFACE`
+  before any receive traffic is accepted as hardware evidence.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.41` results on
+  Node 26 using 5,000 completed requests per case.
+
 ## 0.2.40 - 2026-06-29
 
 - Reframed the README around ferrings as a usable default `io_uring` TCP

@@ -148,10 +148,15 @@ backported to the exact running kernel build.
 
 `ZCRX_CONNECT_HOST` must be a concrete non-loopback host routed through the
 selected NIC path. Do not use `127.0.0.1`, `localhost`, `0.0.0.0`, or `::`.
+The smoke test resolves the host and requires `ip -json route get
+<resolved-address>` to report `dev: <ZCRX_INTERFACE>` before it starts traffic.
 
 The hardware smoke test starts HTTP, native TCP echo, and programmable TCP
 servers with `useZeroCopyReceive: true`, sends traffic through
-`ZCRX_CONNECT_HOST`, and requires `zcrxPackets` and `zcrxBytes` to increase.
+`ZCRX_CONNECT_HOST`, and requires `zcrxPackets`, `zcrxBytes`, and selected RX
+queue counters to increase when those queue counters are available. Its JSON
+report includes `trafficRoute` evidence with the resolved address, route
+command, route device, and selected interface.
 
 ## Release Verification
 
