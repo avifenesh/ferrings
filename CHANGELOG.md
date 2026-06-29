@@ -8,6 +8,8 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.27 - 2026-06-29
+
 - Hardened release workflow token permissions so validation/build jobs run with
   read-only repository access while npm provenance and GitHub release writes are
   scoped to the publish job.
