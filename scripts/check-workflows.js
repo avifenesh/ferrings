@@ -60,6 +60,40 @@ function checkWorkflowPolicy(workflowFiles) {
     /run:\s+npm run install:cargo-audit/,
     'security.yml must install cargo-audit through the pinned local helper'
   );
+  assertJobTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 25);
+  assertStepTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 'Install dependencies', 10);
+  assertStepTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 'Audit npm dependencies', 10);
+  assertStepTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 'Install cargo-audit', 10);
+  assertStepTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 'Audit Rust dependencies', 10);
+
+  const ciWorkflow = readWorkflow(workflowFiles, 'ci.yml');
+  assertJobTimeout(ciWorkflow, 'ci.yml', 'workflow-lint', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'workflow-lint', 'Check GitHub Actions workflows', 10);
+  assertJobTimeout(ciWorkflow, 'ci.yml', 'main-health', 30);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'main-health', 'Install Linux tools', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'main-health', 'Install dependencies', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'main-health', 'Build native binding', 15);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'main-health', 'Check main health', 20);
+  assertJobTimeout(ciWorkflow, 'ci.yml', 'linux-native', 45);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Install Linux tools', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Install dependencies', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Check Rust format', 5);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Check Rust lints', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Run test suite', 20);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Build release native binding', 15);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Check ZCRX hardware gate', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Restore release native binding', 15);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Check package contents', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Check native package metadata', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Smoke test installed tarball', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Smoke test optional platform package fallback', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-native', 'Collect generated native artifacts', 5);
+  assertJobTimeout(ciWorkflow, 'ci.yml', 'linux-target-artifacts', 45);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-target-artifacts', 'Install Zig for cross builds', 5);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-target-artifacts', 'Install cargo-zigbuild', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-target-artifacts', 'Install dependencies', 10);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-target-artifacts', 'Build native target', 30);
+  assertStepTimeout(ciWorkflow, 'ci.yml', 'linux-target-artifacts', 'Check native artifact', 10);
 
   const releaseWorkflow = readWorkflow(workflowFiles, 'release.yml');
   const releaseHeader = releaseWorkflow.split(/^jobs:\s*$/m)[0];
@@ -83,26 +117,26 @@ function checkWorkflowPolicy(workflowFiles) {
     /^    permissions:\n      contents: read\n/m,
     'release.yml validate job must be read-only'
   );
-  assertJobTimeout(releaseWorkflow, 'validate', 10);
+  assertJobTimeout(releaseWorkflow, 'release.yml', 'validate', 10);
   assert.match(
     jobBlock(releaseWorkflow, 'build-native'),
     /^    permissions:\n      contents: read\n/m,
     'release.yml build-native job must be read-only'
   );
-  assertJobTimeout(releaseWorkflow, 'build-native', 45);
+  assertJobTimeout(releaseWorkflow, 'release.yml', 'build-native', 45);
   assert.match(
     jobBlock(releaseWorkflow, 'build-native'),
     /if:\s*\$\{\{\s*needs\.validate\.outputs\.publication_state != 'published'\s*\}\}/,
     'release.yml build-native job must skip already-published verification reruns'
   );
-  assertStepTimeout(releaseWorkflow, 'build-native', 'Install Zig for cross builds', 5);
-  assertStepTimeout(releaseWorkflow, 'build-native', 'Install cargo-zigbuild', 10);
+  assertStepTimeout(releaseWorkflow, 'release.yml', 'build-native', 'Install Zig for cross builds', 5);
+  assertStepTimeout(releaseWorkflow, 'release.yml', 'build-native', 'Install cargo-zigbuild', 10);
   assert.match(
     jobBlock(releaseWorkflow, 'quality-gate'),
     /^    permissions:\n      contents: read\n/m,
     'release.yml quality-gate job must be read-only'
   );
-  assertJobTimeout(releaseWorkflow, 'quality-gate', 30);
+  assertJobTimeout(releaseWorkflow, 'release.yml', 'quality-gate', 30);
   assert.match(
     jobBlock(releaseWorkflow, 'quality-gate'),
     /run:\s+cargo fmt -- --check/,
@@ -118,19 +152,19 @@ function checkWorkflowPolicy(workflowFiles) {
     /run:\s+npm test/,
     'release.yml quality-gate job must run the full test suite'
   );
-  assertStepTimeout(releaseWorkflow, 'quality-gate', 'Run test suite', 15);
+  assertStepTimeout(releaseWorkflow, 'release.yml', 'quality-gate', 'Run test suite', 15);
   assert.match(
     jobBlock(releaseWorkflow, 'quality-gate'),
     /run:\s+npm run audit:deps/,
     'release.yml quality-gate job must run dependency audits'
   );
-  assertStepTimeout(releaseWorkflow, 'quality-gate', 'Audit dependencies', 15);
+  assertStepTimeout(releaseWorkflow, 'release.yml', 'quality-gate', 'Audit dependencies', 15);
   assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),
     /^    permissions:\n      contents: write\n      id-token: write\n/m,
     'release.yml package-and-publish job must be the only job with publish/release permissions'
   );
-  assertJobTimeout(releaseWorkflow, 'package-and-publish', 30);
+  assertJobTimeout(releaseWorkflow, 'release.yml', 'package-and-publish', 30);
   assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),
     /needs:\n      - validate\n      - quality-gate\n      - build-native/m,
@@ -151,15 +185,15 @@ function checkWorkflowPolicy(workflowFiles) {
     /name: Publish npm packages[\s\S]*run: node scripts\/publish-npm-packages\.js --tag/,
     'release.yml package-and-publish job must publish through the explicit package-set publisher'
   );
-  assertStepTimeout(releaseWorkflow, 'package-and-publish', 'Publish npm packages', 15);
+  assertStepTimeout(releaseWorkflow, 'release.yml', 'package-and-publish', 'Publish npm packages', 15);
   assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),
     /name: Verify published npm packages[\s\S]*run: npm run check:published -- --tag/,
     'release.yml package-and-publish job must verify published npm packages'
   );
-  assertStepTimeout(releaseWorkflow, 'package-and-publish', 'Verify published npm packages', 15);
-  assertStepTimeout(releaseWorkflow, 'package-and-publish', 'Smoke test registry install', 15);
-  assertStepTimeout(releaseWorkflow, 'package-and-publish', 'Create or update GitHub release', 5);
+  assertStepTimeout(releaseWorkflow, 'release.yml', 'package-and-publish', 'Verify published npm packages', 15);
+  assertStepTimeout(releaseWorkflow, 'release.yml', 'package-and-publish', 'Smoke test registry install', 15);
+  assertStepTimeout(releaseWorkflow, 'release.yml', 'package-and-publish', 'Create or update GitHub release', 5);
 }
 
 function readWorkflow(workflowFiles, name) {
@@ -199,19 +233,19 @@ function stepBlock(workflow, jobName, stepName) {
   return job.slice(start, bodyStart + nextStep);
 }
 
-function assertJobTimeout(workflow, jobName, minutes) {
+function assertJobTimeout(workflow, label, jobName, minutes) {
   assert.match(
     jobBlock(workflow, jobName),
     new RegExp(`^    timeout-minutes:\\s*${minutes}\\s*$`, 'm'),
-    `release.yml ${jobName} job must have timeout-minutes: ${minutes}`
+    `${label} ${jobName} job must have timeout-minutes: ${minutes}`
   );
 }
 
-function assertStepTimeout(workflow, jobName, stepName, minutes) {
+function assertStepTimeout(workflow, label, jobName, stepName, minutes) {
   assert.match(
     stepBlock(workflow, jobName, stepName),
     new RegExp(`^        timeout-minutes:\\s*${minutes}\\s*$`, 'm'),
-    `release.yml ${jobName} step ${stepName} must have timeout-minutes: ${minutes}`
+    `${label} ${jobName} step ${stepName} must have timeout-minutes: ${minutes}`
   );
 }
 

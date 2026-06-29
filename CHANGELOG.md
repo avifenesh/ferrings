@@ -18,6 +18,8 @@ may adjust APIs, defaults, or packaging.
   those bounds in place.
 - Bounded the workflow checker's actionlint download and child-process calls so
   workflow validation cannot hang indefinitely while bootstrapping tooling.
+- Added explicit CI and Security workflow job/step timeouts and made
+  workflow-policy checks enforce those runner bounds.
 
 ## 0.2.36 - 2026-06-29
 

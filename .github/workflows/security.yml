@@ -31,6 +31,7 @@ jobs:
   dependency-audit:
     name: Dependency audit
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     env:
       CARGO_TERM_COLOR: always
 
@@ -54,9 +55,11 @@ jobs:
           key: cargo-audit-0.22.2-${{ runner.os }}-${{ runner.arch }}
 
       - name: Install dependencies
+        timeout-minutes: 10
         run: npm ci --omit=optional
 
       - name: Audit npm dependencies
+        timeout-minutes: 10
         run: npm audit --omit=optional --audit-level=moderate
 
       - name: Install cargo-audit
@@ -64,4 +67,5 @@ jobs:
         run: npm run install:cargo-audit
 
       - name: Audit Rust dependencies
+        timeout-minutes: 10
         run: cargo audit

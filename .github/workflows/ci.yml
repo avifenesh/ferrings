@@ -14,6 +14,7 @@ jobs:
   workflow-lint:
     name: Workflow lint
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -25,11 +26,13 @@ jobs:
           node-version: 26
 
       - name: Check GitHub Actions workflows
+        timeout-minutes: 10
         run: npm run check:workflows
 
   main-health:
     name: Main health
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
 
     steps:
       - name: Checkout
@@ -45,22 +48,27 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux tools
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends strace
 
       - name: Install dependencies
+        timeout-minutes: 10
         run: npm ci --omit=optional
 
       - name: Build native binding
+        timeout-minutes: 15
         run: npm run build
 
       - name: Check main health
+        timeout-minutes: 20
         run: npm run check:main-health -- --full
 
   linux-native:
     name: Linux native / Node ${{ matrix.node-version }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -85,44 +93,57 @@ jobs:
           components: rustfmt, clippy
 
       - name: Install Linux tools
+        timeout-minutes: 10
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends strace
 
       - name: Install dependencies
+        timeout-minutes: 10
         run: npm ci --omit=optional
 
       - name: Check Rust format
+        timeout-minutes: 5
         run: cargo fmt -- --check
 
       - name: Check Rust lints
+        timeout-minutes: 10
         run: cargo clippy --all-targets -- -D warnings
 
       - name: Run test suite
+        timeout-minutes: 20
         run: npm test
 
       - name: Build release native binding
+        timeout-minutes: 15
         run: npm run build
 
       - name: Check ZCRX hardware gate
+        timeout-minutes: 10
         run: npm run test:zcrx
 
       - name: Restore release native binding
+        timeout-minutes: 15
         run: npm run build
 
       - name: Check package contents
+        timeout-minutes: 10
         run: npm pack --dry-run --json
 
       - name: Check native package metadata
+        timeout-minutes: 10
         run: npm run check:metadata && npm run check:native-packages
 
       - name: Smoke test installed tarball
+        timeout-minutes: 10
         run: node test/package-install-smoke.js
 
       - name: Smoke test optional platform package fallback
+        timeout-minutes: 10
         run: npm run check:platform-install
 
       - name: Collect generated native artifacts
+        timeout-minutes: 5
         run: |
           mkdir -p dist/native
           cp ferrings.*.node dist/native/
@@ -141,6 +162,7 @@ jobs:
   linux-target-artifacts:
     name: Linux target artifact / ${{ matrix.package }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -191,9 +213,11 @@ jobs:
         run: npm run install:cargo-zigbuild
 
       - name: Install dependencies
+        timeout-minutes: 10
         run: npm ci --omit=optional
 
       - name: Build native target
+        timeout-minutes: 30
         run: |
           set -euo pipefail
           args=(--release --strip --platform --target "${{ matrix.target }}" --js native.js --dts native.d.ts)
@@ -203,6 +227,7 @@ jobs:
           npx napi build "${args[@]}"
 
       - name: Check native artifact
+        timeout-minutes: 10
         run: |
           set -euo pipefail
           mkdir -p "artifacts/${{ matrix.package }}"
