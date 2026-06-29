@@ -1,0 +1,127 @@
+name: ZCRX Hardware Certification
+
+on:
+  workflow_dispatch:
+    inputs:
+      interface:
+        description: "NIC interface that owns the selected RX queue"
+        required: true
+        type: string
+      connect_host:
+        description: "Concrete non-loopback host routed through the selected NIC path"
+        required: true
+        type: string
+      rx_queue:
+        description: "RX queue to validate"
+        required: true
+        default: "0"
+        type: string
+      rx_buffer_size:
+        description: "ZCRX RX buffer size, or 0 for kernel default"
+        required: true
+        default: "0"
+        type: string
+      timeout_ms:
+        description: "Per-smoke timeout in milliseconds"
+        required: true
+        default: "5000"
+        type: string
+      require_rx_queue_stats:
+        description: "Require selected RX queue counters to increase"
+        required: true
+        default: true
+        type: boolean
+      allow_kernel_security_risk:
+        description: "Set only after verifying a distro backport for a flagged kernel"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  certify:
+    name: Certify ZCRX hardware path
+    runs-on: [self-hosted, linux, zcrx]
+    timeout-minutes: 30
+    env:
+      FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK: ${{ inputs.allow_kernel_security_risk && '1' || '' }}
+      ZCRX_CONNECT_HOST: ${{ inputs.connect_host }}
+      ZCRX_INTERFACE: ${{ inputs.interface }}
+      ZCRX_REQUIRE_RX_QUEUE_STATS: ${{ inputs.require_rx_queue_stats && '1' || '0' }}
+      ZCRX_RX_BUFFER_SIZE: ${{ inputs.rx_buffer_size }}
+      ZCRX_RX_QUEUE: ${{ inputs.rx_queue }}
+      ZCRX_TIMEOUT_MS: ${{ inputs.timeout_ms }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          cache: npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        timeout-minutes: 10
+        run: npm ci --omit=optional
+
+      - name: Check package metadata
+        timeout-minutes: 5
+        run: npm run check:metadata
+
+      - name: Build native binding
+        timeout-minutes: 15
+        run: npm run build:debug
+
+      - name: Check ZCRX smoke self-test
+        timeout-minutes: 5
+        run: node test/zcrx-hardware-smoke.js --self-test
+
+      - name: Check ZCRX doctor readiness
+        timeout-minutes: 10
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          node bin/ferrings.js doctor \
+            --interface "${ZCRX_INTERFACE}" \
+            --rx-queue "${ZCRX_RX_QUEUE}" \
+            --rx-buffer-size "${ZCRX_RX_BUFFER_SIZE}" \
+            --active \
+            --require-zcrx \
+            --require-ready \
+            --json | tee artifacts/zcrx-doctor.json
+
+      - name: Run ZCRX hardware traffic smoke
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          args=(
+            zcrx-smoke
+            --interface "${ZCRX_INTERFACE}"
+            --connect-host "${ZCRX_CONNECT_HOST}"
+            --rx-queue "${ZCRX_RX_QUEUE}"
+            --rx-buffer-size "${ZCRX_RX_BUFFER_SIZE}"
+            --timeout-ms "${ZCRX_TIMEOUT_MS}"
+            --report-path artifacts/zcrx-hardware-smoke.json
+            --json
+          )
+          if [[ "${ZCRX_REQUIRE_RX_QUEUE_STATS}" == "1" ]]; then
+            args+=(--require-rx-queue-stats)
+          fi
+          node bin/ferrings.js "${args[@]}" | tee artifacts/zcrx-hardware-smoke.stdout.json
+
+      - name: Upload ZCRX certification reports
+        if: always()
+        timeout-minutes: 5
+        uses: actions/upload-artifact@v7
+        with:
+          name: zcrx-certification-${{ github.run_id }}
+          path: artifacts/zcrx-*.json
+          if-no-files-found: ignore

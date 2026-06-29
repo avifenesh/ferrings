@@ -165,6 +165,13 @@ command, route device, selected interface, and any route blocker. Route-mismatch
 failures keep this evidence in the failed report so operators can see the
 actual egress device without rerunning ad hoc route commands.
 
+For repeatable CI-style certification, attach a self-hosted runner labeled
+`self-hosted`, `linux`, and `zcrx` to the repository and run the manual
+`ZCRX Hardware Certification` workflow. It builds the local binding, requires
+`doctor --active --require-zcrx --require-ready` to pass, runs the routed
+hardware traffic smoke, and uploads the doctor and smoke JSON reports as
+artifacts.
+
 ## Release Verification
 
 Before tagging:

@@ -401,6 +401,7 @@ npm test
 - CLI entrypoint: [`bin/ferrings.js`](bin/ferrings.js)
 - CI workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 - Release workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml)
+- ZCRX hardware certification workflow: [`.github/workflows/zcrx-hardware.yml`](.github/workflows/zcrx-hardware.yml)
 - Security workflow: [`.github/workflows/security.yml`](.github/workflows/security.yml)
 - Security policy: [`SECURITY.md`](SECURITY.md)
 - Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
@@ -425,6 +426,8 @@ npm run check:registry-install -- --version "$(node -p "require('./package.json'
 ```
 
 `check:release-ready -- --require-zcrx` requires `ZCRX_INTERFACE` and a non-loopback `ZCRX_CONNECT_HOST`, then runs `npm run test:zcrx`. Use this only on hardware where traffic can be routed through the selected NIC queue; the smoke test rejects hosts whose route device does not match `ZCRX_INTERFACE`.
+
+The manual `ZCRX Hardware Certification` workflow runs the same hard gate on a self-hosted runner labeled `self-hosted`, `linux`, and `zcrx`. Dispatch it with the target interface, RX queue, and concrete routed connect host when you have a NIC/kernel setup that should certify the zero-copy receive path. It uploads the doctor and hardware-smoke JSON reports as run artifacts.
 
 For host-level deployment checks, use `npx ferrings doctor --require-ready --json` for the default transport and add `--require-zcrx` only on hosts where ZCRX receive is required.
 

@@ -25,6 +25,11 @@ async function main() {
     .map((file) => path.join(workflowsDir, file))
     .sort();
   assert.ok(workflowFiles.length > 0, 'no GitHub Actions workflows found');
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, '.github', 'actionlint.yaml')),
+    true,
+    '.github/actionlint.yaml must declare custom self-hosted runner labels'
+  );
 
   const actionlint = process.env.ACTIONLINT_BIN || (await ensureActionlint());
   runChecked(actionlint, ['-version']);
@@ -205,6 +210,51 @@ function checkWorkflowPolicy(workflowFiles) {
   assertStepTimeout(releaseWorkflow, 'release.yml', 'package-and-publish', 'Verify published npm packages', 15);
   assertStepTimeout(releaseWorkflow, 'release.yml', 'package-and-publish', 'Smoke test registry install', 15);
   assertStepTimeout(releaseWorkflow, 'release.yml', 'package-and-publish', 'Create or update GitHub release', 5);
+
+  const zcrxWorkflow = readWorkflow(workflowFiles, 'zcrx-hardware.yml');
+  assert.match(
+    zcrxWorkflow,
+    /^  workflow_dispatch:\n/m,
+    'zcrx-hardware.yml must be manually dispatched on a capable self-hosted runner'
+  );
+  assert.match(
+    zcrxWorkflow,
+    /^permissions:\n  contents: read\n/m,
+    'zcrx-hardware.yml must be read-only'
+  );
+  assert.match(
+    jobBlock(zcrxWorkflow, 'certify'),
+    /^    runs-on: \[self-hosted, linux, zcrx\]\n/m,
+    'zcrx-hardware.yml must require a labeled self-hosted ZCRX runner'
+  );
+  assertJobTimeout(zcrxWorkflow, 'zcrx-hardware.yml', 'certify', 30);
+  assert.match(
+    jobBlock(zcrxWorkflow, 'certify'),
+    /FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK:\s+\$\{\{ inputs\.allow_kernel_security_risk && '1' \|\| '' \}\}/,
+    'zcrx-hardware.yml must make kernel security override explicit'
+  );
+  assert.match(
+    jobBlock(zcrxWorkflow, 'certify'),
+    /--require-zcrx[\s\S]*--require-ready/,
+    'zcrx-hardware.yml must hard-gate doctor readiness on ZCRX'
+  );
+  assert.match(
+    jobBlock(zcrxWorkflow, 'certify'),
+    /zcrx-smoke[\s\S]*--connect-host "\$\{ZCRX_CONNECT_HOST\}"/,
+    'zcrx-hardware.yml must run routed ZCRX traffic smoke'
+  );
+  assert.match(
+    jobBlock(zcrxWorkflow, 'certify'),
+    /--require-rx-queue-stats/,
+    'zcrx-hardware.yml must support selected RX queue counter evidence'
+  );
+  assertStepTimeout(zcrxWorkflow, 'zcrx-hardware.yml', 'certify', 'Install dependencies', 10);
+  assertStepTimeout(zcrxWorkflow, 'zcrx-hardware.yml', 'certify', 'Check package metadata', 5);
+  assertStepTimeout(zcrxWorkflow, 'zcrx-hardware.yml', 'certify', 'Build native binding', 15);
+  assertStepTimeout(zcrxWorkflow, 'zcrx-hardware.yml', 'certify', 'Check ZCRX smoke self-test', 5);
+  assertStepTimeout(zcrxWorkflow, 'zcrx-hardware.yml', 'certify', 'Check ZCRX doctor readiness', 10);
+  assertStepTimeout(zcrxWorkflow, 'zcrx-hardware.yml', 'certify', 'Run ZCRX hardware traffic smoke', 15);
+  assertStepTimeout(zcrxWorkflow, 'zcrx-hardware.yml', 'certify', 'Upload ZCRX certification reports', 5);
 }
 
 function readWorkflow(workflowFiles, name) {

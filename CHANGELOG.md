@@ -8,6 +8,10 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Added a manual ZCRX hardware certification workflow for self-hosted Linux
+  runners with a capable NIC path, plus workflow-policy checks and docs for the
+  repeatable `doctor --require-zcrx` and routed traffic-smoke gate.
+
 ## 0.2.48 - 2026-06-29
 
 - Hardened CLI value parsing so whitespace-only values and non-decimal numeric
