@@ -8,6 +8,8 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.31 - 2026-06-29
+
 - Added a post-publish `main-health` check that verifies the lockfile can
   install with optional native packages enabled, matching normal production
   installs after a version is published.

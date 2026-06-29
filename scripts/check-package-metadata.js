@@ -101,6 +101,7 @@ for (const [name, version] of Object.entries(rootPackage.optionalDependencies)) 
     new RegExp(`require\\('${escapeRegExp(name)}'\\)`),
     `native.js must include optional native package fallback ${name}`
   );
+  assertLockfileOptionalNativePackage(name);
 }
 
 const nativeLoaderVersions = [
@@ -122,6 +123,23 @@ function matchVersion(content, pattern, label) {
   const match = content.match(pattern);
   assert.ok(match, `${label} not found`);
   return match[1];
+}
+
+function assertLockfileOptionalNativePackage(name) {
+  const target = name.replace(/^ferrings-/, '');
+  const nativePackage = readJson(path.join(repoRoot, 'npm', target, 'package.json'));
+  const locked = lock.packages[`node_modules/${name}`];
+  assert.ok(locked, `package-lock must include optional native package ${name}`);
+  assert.equal(locked.version, rootPackage.version, `${name} lockfile version must match root version`);
+  assert.equal(locked.optional, true, `${name} lockfile entry must be optional`);
+  assert.deepEqual(locked.os, nativePackage.os, `${name} lockfile os must match native package`);
+  assert.deepEqual(locked.cpu, nativePackage.cpu, `${name} lockfile cpu must match native package`);
+  assert.deepEqual(locked.libc, nativePackage.libc, `${name} lockfile libc must match native package`);
+  assert.deepEqual(
+    locked.engines,
+    rootPackage.engines,
+    `${name} lockfile engines must match root package engines`
+  );
 }
 
 function repositoryHttpUrl(repositoryUrl) {

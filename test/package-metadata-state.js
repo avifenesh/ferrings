@@ -8,6 +8,7 @@ const path = require('node:path');
 const repoRoot = path.resolve(__dirname, '..');
 const rootPackage = require(path.join(repoRoot, 'package.json'));
 const packagePath = path.join(repoRoot, 'package.json');
+const lockPath = path.join(repoRoot, 'package-lock.json');
 const cargoTomlPath = path.join(repoRoot, 'Cargo.toml');
 const nativeLoaderPath = path.join(repoRoot, 'native.js');
 const readmePath = path.join(repoRoot, 'README.md');
@@ -19,6 +20,7 @@ assert.equal(clean.status, 0, `expected clean metadata\nstdout:\n${clean.stdout}
 assertNoLegacyFirstSlicePublicSurface();
 
 const originalPackage = fs.readFileSync(packagePath, 'utf8');
+const originalLock = fs.readFileSync(lockPath, 'utf8');
 try {
   const packageJson = JSON.parse(originalPackage);
   packageJson.cpu = ['x64'];
@@ -61,6 +63,17 @@ try {
   assert.match(stale.stderr, /public docs and package scripts must not use quick-proof naming/);
 } finally {
   fs.writeFileSync(packagePath, originalPackage);
+}
+
+try {
+  const lockJson = JSON.parse(originalLock);
+  delete lockJson.packages['node_modules/ferrings-linux-x64-gnu'];
+  fs.writeFileSync(lockPath, `${JSON.stringify(lockJson, null, 2)}\n`);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail when optional native lock entry is missing');
+  assert.match(stale.stderr, /package-lock must include optional native package ferrings-linux-x64-gnu/);
+} finally {
+  fs.writeFileSync(lockPath, originalLock);
 }
 
 
