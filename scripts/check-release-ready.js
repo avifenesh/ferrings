@@ -224,16 +224,28 @@ addCommandCheck({
 });
 
 checks.push({
-  name: 'ZCRX hardware proof configured',
+  name: 'ZCRX hardware receive proof',
   scope: 'external',
   optional: !requireZcrx,
   hardFail: requireZcrx,
   next: 'ZCRX_INTERFACE=<ifname> ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx',
   run: () => {
-    if (!process.env.ZCRX_INTERFACE) {
-      return fail('ZCRX_INTERFACE is not set; hardware receive proof has not run');
+    if (!requireZcrx) {
+      return fail('ZCRX hardware receive proof was not required or executed');
     }
-    return pass(`ZCRX_INTERFACE=${process.env.ZCRX_INTERFACE}`);
+    const environmentBlocker = zcrxEnvironmentBlocker();
+    if (environmentBlocker) {
+      return fail(environmentBlocker);
+    }
+    const result = run('npm', ['run', 'test:zcrx']);
+    if (result.status !== 0) {
+      return fail(
+        trimForDetail(result.stderr) ||
+          trimForDetail(result.stdout) ||
+          `ZCRX hardware smoke exited ${result.status}`
+      );
+    }
+    return pass(trimForDetail(result.stdout) || 'ZCRX hardware receive proof passed');
   }
 });
 
@@ -375,6 +387,30 @@ function releaseVersionBlockedDetail() {
     return `${rootPackage.name}@${rootPackage.version} publication state is ${publicationState.state}; resolve the registry state before retagging`;
   }
   return releaseStateCheck.detail || `${rootPackage.name}@${rootPackage.version} publication state could not be determined`;
+}
+
+function zcrxEnvironmentBlocker() {
+  if (!process.env.ZCRX_INTERFACE) {
+    return 'ZCRX_INTERFACE is not set; hardware receive proof cannot run';
+  }
+  if (!process.env.ZCRX_CONNECT_HOST) {
+    return 'ZCRX_CONNECT_HOST is not set; hardware receive proof must route traffic through the selected NIC path';
+  }
+  if (isLoopbackHost(process.env.ZCRX_CONNECT_HOST)) {
+    return `ZCRX_CONNECT_HOST=${process.env.ZCRX_CONNECT_HOST} is loopback; use a host routed through the selected NIC path`;
+  }
+  return '';
+}
+
+function isLoopbackHost(host) {
+  const normalized = String(host).trim().toLowerCase();
+  return (
+    normalized === 'localhost' ||
+    normalized === '::1' ||
+    normalized === '[::1]' ||
+    normalized === '0:0:0:0:0:0:0:1' ||
+    /^127(?:\.\d{1,3}){3}$/.test(normalized)
+  );
 }
 
 function pass(detail = '') {

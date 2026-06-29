@@ -8,6 +8,10 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Hardened `check:release-ready -- --require-zcrx` so it requires a
+  non-loopback hardware route and runs the ZCRX hardware smoke test instead of
+  accepting environment configuration as proof.
+
 ## 0.2.13 - 2026-06-29
 
 - Renamed the packaged quick benchmark bundle to `quick-proof` and exposed it

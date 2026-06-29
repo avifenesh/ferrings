@@ -36,10 +36,8 @@ fs.writeFileSync(
       if (command === process.execPath) {
         return node(commandArgs);
       }
-      if (command === 'npm' && commandArgs[0] === 'publish') {
-        return state === 'available'
-          ? done(0, '[{"filename":"ferrings.tgz"}]\\n')
-          : done(70, '', 'npm publish dry-run should not run for non-available versions\\n');
+      if (command === 'npm') {
+        return npm(commandArgs);
       }
       if (command === 'gh') {
         return done(0, '[{"name":"NPM_TOKEN"}]\\n');
@@ -85,6 +83,20 @@ fs.writeFileSync(
         return done(0, target + ' ok\\n');
       }
       return originalSpawnSync(process.execPath, args);
+    }
+
+    function npm(args) {
+      if (args[0] === 'publish') {
+        return state === 'available'
+          ? done(0, '[{"filename":"ferrings.tgz"}]\\n')
+          : done(70, '', 'npm publish dry-run should not run for non-available versions\\n');
+      }
+      if (args[0] === 'run' && args[1] === 'test:zcrx') {
+        return process.env.FERRINGS_TEST_ZCRX_SMOKE_STATUS === 'fail'
+          ? done(1, '', 'mock zcrx hardware smoke failed\\n')
+          : done(0, 'zcrx hardware smoke ok\\n');
+      }
+      return originalSpawnSync('npm', args);
     }
 
     function done(status, stdout = '', stderr = '') {
@@ -142,20 +154,73 @@ try {
   assert.equal(check(conflict, 'npm publish dry-run').ok, true);
   assert.match(check(conflict, 'npm publish dry-run').detail, /skipped because/);
 
+  const missingZcrxInterface = runScenario('available', { args: ['--require-zcrx'] });
+  assert.equal(check(missingZcrxInterface, 'ZCRX hardware receive proof').ok, false);
+  assert.equal(check(missingZcrxInterface, 'ZCRX hardware receive proof').hardFail, true);
+  assert.match(
+    check(missingZcrxInterface, 'ZCRX hardware receive proof').detail,
+    /ZCRX_INTERFACE is not set/
+  );
+
+  const missingZcrxConnectHost = runScenario('available', {
+    args: ['--require-zcrx'],
+    env: { ZCRX_INTERFACE: 'eth0' }
+  });
+  assert.equal(check(missingZcrxConnectHost, 'ZCRX hardware receive proof').ok, false);
+  assert.match(
+    check(missingZcrxConnectHost, 'ZCRX hardware receive proof').detail,
+    /ZCRX_CONNECT_HOST is not set/
+  );
+
+  const loopbackZcrxConnectHost = runScenario('available', {
+    args: ['--require-zcrx'],
+    env: { ZCRX_INTERFACE: 'eth0', ZCRX_CONNECT_HOST: '127.0.0.1' }
+  });
+  assert.equal(check(loopbackZcrxConnectHost, 'ZCRX hardware receive proof').ok, false);
+  assert.match(
+    check(loopbackZcrxConnectHost, 'ZCRX hardware receive proof').detail,
+    /loopback/
+  );
+
+  const failedZcrxSmoke = runScenario('available', {
+    args: ['--require-zcrx'],
+    env: {
+      ZCRX_INTERFACE: 'eth0',
+      ZCRX_CONNECT_HOST: '192.0.2.10',
+      FERRINGS_TEST_ZCRX_SMOKE_STATUS: 'fail'
+    }
+  });
+  assert.equal(check(failedZcrxSmoke, 'ZCRX hardware receive proof').ok, false);
+  assert.match(
+    check(failedZcrxSmoke, 'ZCRX hardware receive proof').detail,
+    /mock zcrx hardware smoke failed/
+  );
+
+  const passedZcrxSmoke = runScenario('available', {
+    args: ['--require-zcrx'],
+    env: { ZCRX_INTERFACE: 'eth0', ZCRX_CONNECT_HOST: '192.0.2.10' }
+  });
+  assert.equal(check(passedZcrxSmoke, 'ZCRX hardware receive proof').ok, true);
+  assert.match(
+    check(passedZcrxSmoke, 'ZCRX hardware receive proof').detail,
+    /zcrx hardware smoke ok/
+  );
+
   console.log('release-ready state ok');
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
-function runScenario(state) {
-  const result = spawnSync(process.execPath, ['--require', preload, script, '--json'], {
+function runScenario(state, options = {}) {
+  const result = spawnSync(process.execPath, ['--require', preload, script, '--json', ...(options.args || [])], {
     cwd: repoRoot,
     encoding: 'utf8',
     env: {
       ...process.env,
       FERRINGS_TEST_PUBLICATION_STATE: state,
       FERRINGS_TEST_HEAD_SHA: headSha,
-      FERRINGS_TEST_TAG_SHA: tagSha
+      FERRINGS_TEST_TAG_SHA: tagSha,
+      ...(options.env || {})
     },
     maxBuffer: 5 * 1024 * 1024
   });

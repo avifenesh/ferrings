@@ -397,6 +397,10 @@ npm run check:release-ready -- --full --require-zcrx
 npm run check:registry-install -- --version "$(node -p "require('./package.json').version")"
 ```
 
+`check:release-ready -- --require-zcrx` requires `ZCRX_INTERFACE` and a
+non-loopback `ZCRX_CONNECT_HOST`, then runs `npm run test:zcrx`. Use this only
+on hardware where traffic can be routed through the selected NIC queue.
+
 Tag pushes that match the package version build all native artifacts, run package checks, publish to npm with the repository `NPM_TOKEN` secret, verify the published root package, native packages, integrity metadata, provenance attestations, registry signatures, and dist-tag from the npm registry, and then create or update the GitHub release. Manual `workflow_dispatch` runs can also publish when `publish=true`.
 
 Release reruns are registry-aware: if the exact version is already published and passes `check:published`, the workflow skips the immutable `npm publish` call and keeps the registry verification step.
