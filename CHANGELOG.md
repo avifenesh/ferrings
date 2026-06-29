@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.42 - 2026-06-29
+
+- Preserved `trafficRoute` evidence in failed ZCRX hardware smoke reports when
+  `ZCRX_CONNECT_HOST` resolves to a route whose device does not match
+  `ZCRX_INTERFACE`, including the route blocker string in the public type.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.42` results on
+  Node 26 using 5,000 completed requests per case.
+
 ## 0.2.41 - 2026-06-29
 
 - Hardened ZCRX hardware smoke validation so `ZCRX_CONNECT_HOST` must resolve

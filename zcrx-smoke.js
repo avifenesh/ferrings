@@ -99,6 +99,11 @@ async function runZcrxHardwareSmoke(options = {}) {
     report.status = 'passed';
     return report;
   } catch (error) {
+    if (error && error.trafficRoute) {
+      report.trafficRoute = error.trafficRoute;
+      config.connectAddress = error.trafficRoute.resolvedAddress;
+      report.config.connectAddress = config.connectAddress;
+    }
     report.status = 'failed';
     report.error = errorForReport(error);
     error.report = report;
@@ -227,26 +232,17 @@ async function validateZcrxTrafficRoute(config) {
   }
 
   const lookup = readIpRouteGet(resolved.address);
-  return buildTrafficRouteReport(config, resolved, lookup);
+  const report = buildTrafficRouteReport(config, resolved, lookup);
+  if (!report.matchesInterface) {
+    throw routeValidationError(report.blocker, report);
+  }
+  return report;
 }
 
 function buildTrafficRouteReport(config, resolved, lookup) {
   const route = selectRouteWithDevice(lookup.routes);
   const routeDev = route && route.dev ? String(route.dev) : '';
-  if (!routeDev) {
-    throw new Error(
-      `could not determine route interface for ZCRX_CONNECT_HOST=${config.connectHost} ` +
-        `(${resolved.address}); ip route get returned no dev field`
-    );
-  }
-  if (routeDev !== config.interfaceName) {
-    throw new Error(
-      `ZCRX_CONNECT_HOST=${config.connectHost} (${resolved.address}) routes via ${routeDev}, ` +
-        `not selected ZCRX_INTERFACE=${config.interfaceName}`
-    );
-  }
-
-  return {
+  const report = {
     connectHost: config.connectHost,
     resolvedAddress: resolved.address,
     resolvedFamily: resolved.family,
@@ -254,9 +250,29 @@ function buildTrafficRouteReport(config, resolved, lookup) {
     command: lookup.command,
     interfaceName: config.interfaceName,
     routeDev,
-    matchesInterface: true,
+    matchesInterface: routeDev === config.interfaceName,
     route
   };
+  if (!routeDev) {
+    report.blocker =
+      `could not determine route interface for ZCRX_CONNECT_HOST=${config.connectHost} ` +
+      `(${resolved.address}); ip route get returned no dev field`;
+    return report;
+  }
+  if (routeDev !== config.interfaceName) {
+    report.blocker =
+      `ZCRX_CONNECT_HOST=${config.connectHost} (${resolved.address}) routes via ${routeDev}, ` +
+      `not selected ZCRX_INTERFACE=${config.interfaceName}`;
+    return report;
+  }
+
+  return report;
+}
+
+function routeValidationError(message, trafficRoute) {
+  const error = new Error(message);
+  error.trafficRoute = trafficRoute;
+  return error;
 }
 
 async function resolveConnectHostForRoute(host) {
@@ -672,22 +688,36 @@ NIC statistics:
   );
   assert.equal(routeReport.routeDev, 'eth0');
   assert.equal(routeReport.matchesInterface, true);
-  assert.throws(
-    () =>
-      buildTrafficRouteReport(
-        { connectHost: 'example.test', interfaceName: 'eth0' },
-        {
-          address: '192.0.2.10',
-          family: 4,
-          records: [{ address: '192.0.2.10', family: 4 }]
-        },
-        {
-          command: ['ip', '-json', 'route', 'get', '192.0.2.10'],
-          routes: [{ dst: '192.0.2.10', dev: 'eth1' }]
-        }
-      ),
-    /routes via eth1, not selected ZCRX_INTERFACE=eth0/
+  const mismatchReport = buildTrafficRouteReport(
+    { connectHost: 'example.test', interfaceName: 'eth0' },
+    {
+      address: '192.0.2.10',
+      family: 4,
+      records: [{ address: '192.0.2.10', family: 4 }]
+    },
+    {
+      command: ['ip', '-json', 'route', 'get', '192.0.2.10'],
+      routes: [{ dst: '192.0.2.10', dev: 'eth1' }]
+    }
   );
+  assert.equal(mismatchReport.routeDev, 'eth1');
+  assert.equal(mismatchReport.matchesInterface, false);
+  assert.match(mismatchReport.blocker, /routes via eth1, not selected ZCRX_INTERFACE=eth0/);
+  const missingDevReport = buildTrafficRouteReport(
+    { connectHost: 'example.test', interfaceName: 'eth0' },
+    {
+      address: '192.0.2.10',
+      family: 4,
+      records: [{ address: '192.0.2.10', family: 4 }]
+    },
+    {
+      command: ['ip', '-json', 'route', 'get', '192.0.2.10'],
+      routes: [{ dst: '192.0.2.10' }]
+    }
+  );
+  assert.equal(missingDevReport.routeDev, '');
+  assert.equal(missingDevReport.matchesInterface, false);
+  assert.match(missingDevReport.blocker, /returned no dev field/);
   const before = { counters: new Map([['rx_queue_0_packets', 10n], ['rx_queue_0_bytes', 800n]]) };
   const after = { counters: new Map([['rx_queue_0_packets', 12n], ['rx_queue_0_bytes', 936n]]) };
   const deltas = diffCounters(before, after);

@@ -566,6 +566,17 @@ function printZcrxSmokeReport(report) {
   console.log(`rx queue: ${report.config.rxQueue}`);
   console.log(`bind host: ${report.config.bindHost}`);
   console.log(`connect host: ${report.config.connectHost}`);
+  if (report.trafficRoute) {
+    console.log(`connect address: ${report.trafficRoute.resolvedAddress}`);
+    console.log(
+      `route device: ${report.trafficRoute.routeDev || '(none)'} ` +
+        `(${report.trafficRoute.matchesInterface ? 'matches interface' : 'does not match interface'})`
+    );
+    console.log(`route command: ${report.trafficRoute.command.join(' ')}`);
+    if (report.trafficRoute.blocker) {
+      console.log(`route blocker: ${report.trafficRoute.blocker}`);
+    }
+  }
   if (report.probe) {
     console.log(`active registration: ${report.probe.activeRegistrationResult || 'unknown'}`);
   }

@@ -156,7 +156,9 @@ servers with `useZeroCopyReceive: true`, sends traffic through
 `ZCRX_CONNECT_HOST`, and requires `zcrxPackets`, `zcrxBytes`, and selected RX
 queue counters to increase when those queue counters are available. Its JSON
 report includes `trafficRoute` evidence with the resolved address, route
-command, route device, and selected interface.
+command, route device, selected interface, and any route blocker. Route-mismatch
+failures keep this evidence in the failed report so operators can see the
+actual egress device without rerunning ad hoc route commands.
 
 ## Release Verification
 

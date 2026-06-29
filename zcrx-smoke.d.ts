@@ -50,6 +50,7 @@ export interface ZcrxTrafficRouteReport {
   interfaceName: string
   routeDev: string
   matchesInterface: boolean
+  blocker?: string
   route: Record<string, unknown>
 }
 
