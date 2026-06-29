@@ -90,6 +90,15 @@ assert.match(smokeWildcardConnectHost.error.message, /wildcard/);
 const smokeSelfTest = run(['zcrx-smoke', '--self-test']);
 assert.match(smokeSelfTest.stdout, /zcrx smoke self-test ok/);
 
+const badSmokeTimeout = run(['zcrx-smoke', '--timeout-ms', '0'], 64);
+assert.match(badSmokeTimeout.stderr, /--timeout-ms must be an integer between 1 and 2147483647/);
+
+const badSmokeQueue = run(['zcrx-smoke', '--rx-queue', '4294967296'], 64);
+assert.match(badSmokeQueue.stderr, /--rx-queue must be an integer between 0 and 4294967295/);
+
+const badProbeBuffer = run(['zcrx-probe', '--rx-buffer-size', '1.5'], 64);
+assert.match(badProbeBuffer.stderr, /--rx-buffer-size must be an integer between 0 and 4294967295/);
+
 const help = run(['-h']);
 assert.match(help.stdout, /Usage:/);
 

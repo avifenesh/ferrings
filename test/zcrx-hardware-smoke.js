@@ -1,5 +1,6 @@
 'use strict';
 
+const assert = require('node:assert/strict');
 const {
   runQueueStatsParserSelfTest,
   runZcrxHardwareSmoke
@@ -9,6 +10,18 @@ const {
   try {
     if (process.argv.includes('--self-test')) {
       runQueueStatsParserSelfTest();
+      await assert.rejects(
+        () => runZcrxHardwareSmoke({ rxQueue: -1 }),
+        /rxQueue must be an integer between 0 and 4294967295/
+      );
+      await assert.rejects(
+        () => runZcrxHardwareSmoke({ rxBufferSize: 1.5 }),
+        /rxBufferSize must be an integer between 0 and 4294967295/
+      );
+      await assert.rejects(
+        () => runZcrxHardwareSmoke({ timeoutMs: 0 }),
+        /timeoutMs must be an integer between 1 and 2147483647/
+      );
       console.log('zcrx queue stats parser self-test ok');
       return;
     }

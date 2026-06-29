@@ -13,6 +13,9 @@ const {
   zcrxProbe
 } = require('./');
 
+const UINT32_MAX = 0xffffffff;
+const MAX_TIMEOUT_MS = 0x7fffffff;
+
 async function runZcrxHardwareSmoke(options = {}) {
   const config = normalizeSmokeOptions(options);
   const report = baseReport(config);
@@ -113,17 +116,34 @@ function normalizeSmokeOptions(options) {
       : 'default';
   return {
     interfaceName: options.interfaceName || process.env.ZCRX_INTERFACE,
-    rxQueue: numberOrDefault(options.rxQueue, process.env.ZCRX_RX_QUEUE, 0),
-    rxBufferSize: numberOrDefault(
+    rxQueue: integerOrDefault(
+      'rxQueue',
+      options.rxQueue,
+      process.env.ZCRX_RX_QUEUE,
+      0,
+      0,
+      UINT32_MAX
+    ),
+    rxBufferSize: integerOrDefault(
+      'rxBufferSize',
       options.rxBufferSize,
       process.env.ZCRX_RX_BUFFER_SIZE,
-      0
+      0,
+      0,
+      UINT32_MAX
     ),
     bindHost: options.bindHost || process.env.ZCRX_BIND_HOST || '0.0.0.0',
     connectHost,
     connectHostExplicit: connectHostSource !== 'default',
     connectHostSource,
-    timeoutMs: numberOrDefault(options.timeoutMs, process.env.ZCRX_TIMEOUT_MS, 5000),
+    timeoutMs: integerOrDefault(
+      'timeoutMs',
+      options.timeoutMs,
+      process.env.ZCRX_TIMEOUT_MS,
+      5000,
+      1,
+      MAX_TIMEOUT_MS
+    ),
     requireRxQueueStats:
       options.requireRxQueueStats !== undefined
         ? Boolean(options.requireRxQueueStats)
@@ -133,10 +153,14 @@ function normalizeSmokeOptions(options) {
   };
 }
 
-function numberOrDefault(value, envValue, fallback) {
+function integerOrDefault(name, value, envValue, fallback, min, max) {
   const candidate = value !== undefined ? value : envValue;
   if (candidate === undefined || candidate === '') return fallback;
-  return Number(candidate);
+  const number = Number(candidate);
+  if (!Number.isInteger(number) || number < min || number > max) {
+    throw new RangeError(`${name} must be an integer between ${min} and ${max}`);
+  }
+  return number;
 }
 
 function nonEmptyString(value) {

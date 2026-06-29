@@ -6,6 +6,9 @@ const { capabilities, zcrxProbe } = require('..');
 const { runQueueStatsParserSelfTest, runZcrxHardwareSmoke } = require('../zcrx-smoke');
 const pkg = require('../package.json');
 
+const UINT32_MAX = 0xffffffff;
+const MAX_TIMEOUT_MS = 0x7fffffff;
+
 class CliError extends Error {
   constructor(message, exitCode) {
     super(message);
@@ -114,8 +117,8 @@ function runZcrxProbe(rawArgs) {
   const report = baseReport('zcrx-probe');
   report.capabilities = capabilities();
   const probeOptions = {
-    rxQueue: numberOption(options['rx-queue'], 'rx-queue'),
-    rxBufferSize: numberOption(options['rx-buffer-size'], 'rx-buffer-size'),
+    rxQueue: numberOption(options['rx-queue'], 'rx-queue', 0, UINT32_MAX),
+    rxBufferSize: numberOption(options['rx-buffer-size'], 'rx-buffer-size', 0, UINT32_MAX),
     activeRegistration: Boolean(options.active)
   };
 
@@ -178,11 +181,11 @@ async function runZcrxSmoke(rawArgs) {
   try {
     const report = await runZcrxHardwareSmoke({
       interfaceName: options.interface,
-      rxQueue: numberOption(options['rx-queue'], 'rx-queue'),
-      rxBufferSize: numberOption(options['rx-buffer-size'], 'rx-buffer-size'),
+      rxQueue: numberOption(options['rx-queue'], 'rx-queue', 0, UINT32_MAX),
+      rxBufferSize: numberOption(options['rx-buffer-size'], 'rx-buffer-size', 0, UINT32_MAX),
       bindHost: options['bind-host'],
       connectHost: options['connect-host'],
-      timeoutMs: numberOption(options['timeout-ms'], 'timeout-ms'),
+      timeoutMs: numberOption(options['timeout-ms'], 'timeout-ms', 1, MAX_TIMEOUT_MS),
       requireRxQueueStats: Boolean(options['require-rx-queue-stats']),
       reportPath: options['report-path']
     });
@@ -195,7 +198,9 @@ async function runZcrxSmoke(rawArgs) {
     if (error.report && (options.json || options.compact)) {
       printJson(error.report, options.compact);
     }
-    error.exitCode = 1;
+    if (!(error instanceof CliError)) {
+      error.exitCode = 1;
+    }
     throw error;
   }
 }
@@ -213,8 +218,8 @@ function buildDoctorReport(options) {
   const report = baseReport('doctor');
   const probeOptions = {
     interfaceName: options.interface,
-    rxQueue: numberOption(options['rx-queue'], 'rx-queue'),
-    rxBufferSize: numberOption(options['rx-buffer-size'], 'rx-buffer-size'),
+    rxQueue: numberOption(options['rx-queue'], 'rx-queue', 0, UINT32_MAX),
+    rxBufferSize: numberOption(options['rx-buffer-size'], 'rx-buffer-size', 0, UINT32_MAX),
     activeRegistration: Boolean(options.active)
   };
   report.capabilities = capabilities();
@@ -372,11 +377,11 @@ function normalizeFlagName(name) {
   return name;
 }
 
-function numberOption(value, name) {
+function numberOption(value, name, min = 0, max = Number.MAX_SAFE_INTEGER) {
   if (value === undefined) return undefined;
   const number = Number(value);
-  if (!Number.isInteger(number) || number < 0) {
-    throw new CliError(`--${name} must be a non-negative integer`, 64);
+  if (!Number.isInteger(number) || number < min || number > max) {
+    throw new CliError(`--${name} must be an integer between ${min} and ${max}`, 64);
   }
   return number;
 }

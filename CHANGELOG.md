@@ -29,6 +29,8 @@ may adjust APIs, defaults, or packaging.
 - Hardened the raw native ZCRX probe so invalid `rxQueue`, `rxBufferSize`, and
   empty `interfaceName` values are rejected before readiness probing or active
   registration checks.
+- Hardened `zcrx-smoke` and CLI numeric option parsing so invalid RX queue,
+  RX buffer size, and timeout values fail before hardware validation starts.
 
 ## 0.2.26 - 2026-06-29
 
