@@ -6,7 +6,7 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services: a typed CommonJS/ESM npm package with Rust/NAPI native binaries for Linux `x64`/`arm64`, a Node-style TCP facade, fixed-response HTTP, and lower-level raw/batched TCP APIs.
+`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services: a typed CommonJS/ESM npm package with Rust/NAPI native binaries for Linux `x64`/`arm64`, a Node-style TCP facade, optional TLS over Node's `TLSSocket`, fixed-response HTTP, and lower-level raw/batched TCP APIs.
 
 Use it when a Linux Node service is spending real time in the socket path. Accept, receive, send, shutdown, buffer ownership, and event batching run on a native `io_uring` worker while application code can stay in ordinary JavaScript callbacks.
 
@@ -55,6 +55,7 @@ Watch throughput, server syscalls per completed connection, and tail latency tog
 
 - Use ferrings for Linux Node services where TCP syscall count, socket-path overhead, or connection churn shows up in profiles.
 - Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
+- Use `createTlsServer` when clients should connect over TLS while the underlying accepted socket still uses the ferrings TCP transport.
 - Use raw or batched TCP events when the hot path can work with connection IDs and fewer JavaScript objects.
 - Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework would be unnecessary weight.
 - Keep ZCRX as an optional receive fast path on hosts where the kernel, NIC, queue setup, permissions, and traffic route support it.
@@ -179,6 +180,37 @@ server.listen(0, '127.0.0.1', (info) => {
 
 Use this for the most familiar server shape. The facade exposes `connection`, `data`, `close`, `write()`, `end()`, `destroy()`, `address()`, and `getConnections()`.
 
+### TLS TCP
+
+```js
+const fs = require('node:fs');
+const { createTlsServer } = require('ferrings');
+
+const server = createTlsServer(
+  {
+    key: fs.readFileSync('server-key.pem'),
+    cert: fs.readFileSync('server-cert.pem'),
+    host: '0.0.0.0',
+    port: 8443,
+    ALPNProtocols: ['http/1.1'],
+    handshakeTimeout: 120000,
+    useRecvBundle: true,
+    useZeroCopySend: true
+  },
+  (socket) => {
+    socket.on('data', (data) => socket.end(data));
+  }
+);
+
+server.on('tlsClientError', (error) => {
+  console.error('TLS handshake failed:', error.message);
+});
+
+server.listen();
+```
+
+Use this when careful clients need encrypted TCP. TLS is handled by Node's mature `tls.TLSSocket`; ferrings supplies the accepted TCP stream underneath. Top-level ferrings TCP options such as `host`, `port`, `bufferCount`, `useRecvBundle`, and `useZeroCopySend` are accepted next to TLS options. You can also put TCP tuning under `tcp` or `transport` if you want to keep certificate settings separate from transport settings.
+
 ### Raw TCP Events
 
 ```js
@@ -284,6 +316,11 @@ Common server options:
 | `useZeroCopySend` | `false` | all servers | Requests `IORING_OP_SEND_ZC`. |
 | `useRegisteredSendBuffer` | `false` | all servers | Requests fixed-buffer send mode. |
 | `useZeroCopyReceive` | `false` | all servers | Requests ZCRX; requires capable hardware and permissions. |
+
+`createTlsServer` accepts Node TLS server options such as `key`, `cert`, `ca`,
+`requestCert`, `rejectUnauthorized`, `ALPNProtocols`, `SNICallback`, and
+`handshakeTimeout`, plus the ferrings TCP options above. It emits
+`secureConnection`, `tlsClientError`, `clientError`, `listening`, and `close`.
 
 TCP queue options:
 
@@ -455,7 +492,7 @@ For a new release, bump the package version first; npm versions are immutable af
 - This is a native addon, so kernel support and process limits affect which fast paths are active.
 - The TCP facade follows the common Node server shape, but it is not a drop-in replacement for every `net.Server` behavior.
 - `UringHttpServer` is a fixed-response server, not an HTTP application framework.
-- TLS is not implemented.
+- TLS is implemented as optional Node `TLSSocket` encryption over the ferrings TCP facade; kernel TLS/offload is not implemented.
 - ZCRX requires specific NIC hardware, kernel support, queue setup, permissions, and routed traffic through the selected RX queue.
 - ZCRX hardware receive should be considered untested on any host that has not passed the ZCRX certification workflow or equivalent hard-gate commands.
 - Registered-buffer send can be unavailable even when the kernel supports other modern `io_uring` networking features; ferrings reports that through `capabilities().registeredSendBuffer`.

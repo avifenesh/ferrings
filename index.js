@@ -16,7 +16,9 @@ module.exports = {
   zcrxProbe,
   IoUringTcpConnection: tcpTransport.IoUringTcpConnection,
   IoUringTcpTransportServer: tcpTransport.IoUringTcpTransportServer,
-  createTcpServer: tcpTransport.createTcpServer
+  IoUringTlsTransportServer: tcpTransport.IoUringTlsTransportServer,
+  createTcpServer: tcpTransport.createTcpServer,
+  createTlsServer: tcpTransport.createTlsServer
 };
 
 function zcrxProbe(options) {

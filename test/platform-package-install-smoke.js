@@ -109,6 +109,8 @@ try {
       (error) => error && error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED'
     );
     assert.equal(typeof ferrings.createTcpServer, 'function');
+    assert.equal(typeof ferrings.createTlsServer, 'function');
+    assert.equal(typeof ferrings.IoUringTlsTransportServer, 'function');
     assert.equal(typeof ferrings.capabilities, 'function');
     const caps = ferrings.capabilities();
     assert.equal(typeof caps.ioUringAvailable, 'boolean');

@@ -8,7 +8,9 @@ const {
   zcrxProbe,
   IoUringTcpConnection,
   IoUringTcpTransportServer,
-  createTcpServer
+  IoUringTlsTransportServer,
+  createTcpServer,
+  createTlsServer
 } = ferrings;
 
 export {
@@ -19,7 +21,9 @@ export {
   zcrxProbe,
   IoUringTcpConnection,
   IoUringTcpTransportServer,
-  createTcpServer
+  IoUringTlsTransportServer,
+  createTcpServer,
+  createTlsServer
 };
 
 export default ferrings;

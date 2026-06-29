@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Added optional TLS server support through `createTlsServer`, using Node's
+  `tls.TLSSocket` over the ferrings TCP facade while preserving ferrings TCP
+  tuning options and exposing TLS handshake/client errors.
 - Added a manual ZCRX hardware certification workflow for self-hosted Linux
   runners with a capable NIC path, plus workflow-policy checks and docs for the
   repeatable `doctor --require-zcrx` and routed traffic-smoke gate.

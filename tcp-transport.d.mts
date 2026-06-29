@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events'
+import type { TLSSocket, TlsOptions } from 'node:tls'
 import type { ServerInfo, TcpServerOptions, UringTcpServer as NativeUringTcpServer } from './native.js'
 
 export interface IoUringTcpConnection extends EventEmitter {
@@ -55,6 +56,47 @@ export interface IoUringTcpTransportServerConstructor {
   readonly prototype: IoUringTcpTransportServer
 }
 
+export type IoUringTlsServerOptions =
+  Omit<TlsOptions, keyof TcpServerOptions | 'server'> &
+  TcpServerOptions & {
+    tcp?: TcpServerOptions | undefined
+    transport?: TcpServerOptions | undefined
+  }
+
+export interface IoUringTlsTransportServer extends EventEmitter {
+  start(callback?: (info: ServerInfo) => unknown): ServerInfo
+  start(options?: TcpServerOptions | undefined | null, callback?: (info: ServerInfo) => unknown): ServerInfo
+  listen(callback?: (info: ServerInfo) => unknown): this
+  listen(options?: TcpServerOptions | undefined | null, callback?: (info: ServerInfo) => unknown): this
+  listen(port: number, callback?: (info: ServerInfo) => unknown): this
+  listen(port: number, host: string, callback?: (info: ServerInfo) => unknown): this
+  listen(port: number, host: string, backlog: number, callback?: (info: ServerInfo) => unknown): this
+  listen(port: number, backlog: number, callback?: (info: ServerInfo) => unknown): this
+  close(callback?: () => unknown): this
+  stop(): void
+  info(): ServerInfo | null
+  address(): { address: string, family: 'IPv4' | 'IPv6', port: number } | null
+  connections(): Array<TLSSocket>
+  getConnections(callback: (err: Error | null, count: number) => unknown): this
+  ref(): this
+  unref(): this
+  on(event: 'secureConnection', listener: (connection: TLSSocket) => void): this
+  on(event: 'tlsClientError', listener: (error: Error, connection: TLSSocket) => void): this
+  on(event: 'clientError', listener: (error: Error, connection: TLSSocket) => void): this
+  on(event: 'listening', listener: (info: ServerInfo) => void): this
+  on(event: 'close', listener: () => void): this
+  on(event: string | symbol, listener: (...args: Array<any>) => void): this
+}
+
+export interface IoUringTlsTransportServerConstructor {
+  new(
+    options?: IoUringTlsServerOptions | undefined | null,
+    secureConnectionListener?: (connection: TLSSocket) => unknown
+  ): IoUringTlsTransportServer
+  new(secureConnectionListener?: (connection: TLSSocket) => unknown): IoUringTlsTransportServer
+  readonly prototype: IoUringTlsTransportServer
+}
+
 export type IoUringTcpBatchSend =
   | {
       connection: IoUringTcpConnection
@@ -70,6 +112,7 @@ export type IoUringTcpBatchSend =
 export interface TcpTransportExports {
   IoUringTcpConnection: IoUringTcpConnectionConstructor
   IoUringTcpTransportServer: IoUringTcpTransportServerConstructor
+  IoUringTlsTransportServer: IoUringTlsTransportServerConstructor
   createTcpServer(
     options?: TcpServerOptions | undefined | null,
     connectionListener?: (connection: IoUringTcpConnection) => unknown
@@ -77,6 +120,13 @@ export interface TcpTransportExports {
   createTcpServer(
     connectionListener?: (connection: IoUringTcpConnection) => unknown
   ): IoUringTcpTransportServer
+  createTlsServer(
+    options?: IoUringTlsServerOptions | undefined | null,
+    secureConnectionListener?: (connection: TLSSocket) => unknown
+  ): IoUringTlsTransportServer
+  createTlsServer(
+    secureConnectionListener?: (connection: TLSSocket) => unknown
+  ): IoUringTlsTransportServer
 }
 
 export default function createTcpTransportExports(

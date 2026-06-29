@@ -1,6 +1,40 @@
 'use strict';
 
 const { EventEmitter } = require('node:events');
+const tls = require('node:tls');
+const { Duplex } = require('node:stream');
+
+const TCP_OPTION_KEYS = new Set([
+  'host',
+  'port',
+  'backlog',
+  'queueDepth',
+  'bufferCount',
+  'bufferSize',
+  'maxConnections',
+  'idleTimeoutMs',
+  'tcpNoDelay',
+  'reusePort',
+  'tcpDeferAcceptSeconds',
+  'socketRecvBufferSize',
+  'socketSendBufferSize',
+  'commandQueueCapacity',
+  'eventQueueCapacity',
+  'eventBatchSize',
+  'sendQueueCapacity',
+  'useRegisteredSendBuffer',
+  'useRecvBundle',
+  'useZeroCopySend',
+  'sendBufferCount',
+  'sendBufferSize',
+  'useZeroCopyReceive',
+  'zcrxInterfaceName',
+  'zcrxRxQueue',
+  'zcrxRxBufferSize'
+]);
+
+const TLS_TRANSPORT_OPTION_KEYS = new Set(['tcp', 'transport']);
+const DEFAULT_TLS_HANDSHAKE_TIMEOUT_MS = 120000;
 
 function createTcpTransportExports(UringTcpServer) {
   class IoUringTcpConnection extends EventEmitter {
@@ -355,11 +389,275 @@ function createTcpTransportExports(UringTcpServer) {
     }
   }
 
+  class IoUringTlsTransportServer extends EventEmitter {
+    constructor(options, secureConnectionListener) {
+      super();
+      if (typeof options === 'function') {
+        secureConnectionListener = options;
+        options = undefined;
+      }
+      if (options !== undefined && options !== null && !isPlainObject(options)) {
+        throw new TypeError('TLS server options must be an object');
+      }
+      if (
+        secureConnectionListener !== undefined &&
+        secureConnectionListener !== null &&
+        typeof secureConnectionListener !== 'function'
+      ) {
+        throw new TypeError('secureConnectionListener must be a function');
+      }
+
+      const { tcpOptions, tlsOptions } = splitTlsServerOptions(options);
+      this._tcpOptions = tcpOptions;
+      this._tlsOptions = tlsOptions;
+      this._tcpServer = null;
+      this._tlsSockets = new Set();
+      this._closed = true;
+
+      if (secureConnectionListener) {
+        this.on('secureConnection', secureConnectionListener);
+      }
+    }
+
+    start(...args) {
+      if (this._tcpServer) {
+        throw new Error('server is already running');
+      }
+      const { callback, args: tcpArgs } = extractTrailingCallback(args);
+      return this._startTcpServer('start', tcpArgs, callback);
+    }
+
+    listen(...args) {
+      if (this._tcpServer) {
+        throw new Error('server is already running');
+      }
+      const { callback, args: tcpArgs } = extractTrailingCallback(args);
+      this._startTcpServer('listen', tcpArgs, callback);
+      return this;
+    }
+
+    close(callback) {
+      if (callback !== undefined && callback !== null && typeof callback !== 'function') {
+        throw new TypeError('callback must be a function');
+      }
+      if (!this._tcpServer) {
+        if (callback) callback();
+        return this;
+      }
+
+      const tcpServer = this._tcpServer;
+      this._tcpServer = null;
+      this._closed = true;
+
+      for (const socket of [...this._tlsSockets]) {
+        socket.destroy();
+      }
+      this._tlsSockets.clear();
+      tcpServer.close(callback);
+      return this;
+    }
+
+    stop() {
+      this.close();
+    }
+
+    info() {
+      return this._tcpServer ? this._tcpServer.info() : null;
+    }
+
+    address() {
+      return this._tcpServer ? this._tcpServer.address() : null;
+    }
+
+    connections() {
+      return [...this._tlsSockets];
+    }
+
+    getConnections(callback) {
+      if (typeof callback !== 'function') {
+        throw new TypeError('callback must be a function');
+      }
+      process.nextTick(() => {
+        callback(null, this._tlsSockets.size);
+      });
+      return this;
+    }
+
+    ref() {
+      if (this._tcpServer) this._tcpServer.ref();
+      return this;
+    }
+
+    unref() {
+      if (this._tcpServer) this._tcpServer.unref();
+      return this;
+    }
+
+    _startTcpServer(method, args, callback) {
+      const tcpServer = new IoUringTcpTransportServer(this._tcpOptions, (connection) => {
+        this._handleTcpConnection(connection);
+      });
+      tcpServer.on('close', () => {
+        this._closed = true;
+        this.emit('close');
+      });
+
+      this._tcpServer = tcpServer;
+      this._closed = false;
+      const startArgs = [...args, (info) => {
+        if (callback) callback(info);
+        this.emit('listening', info);
+      }];
+
+      try {
+        const result = tcpServer[method](...startArgs);
+        return method === 'start' ? result : this;
+      } catch (error) {
+        this._tcpServer = null;
+        this._closed = true;
+        try {
+          tcpServer.close();
+        } catch (closeError) {
+          attachCause(error, closeError);
+        }
+        throw error;
+      }
+    }
+
+    _handleTcpConnection(connection) {
+      if (this._closed) {
+        connection.destroy();
+        return;
+      }
+
+      const duplex = new IoUringConnectionDuplex(connection);
+      const tlsOptions = {
+        ...this._tlsOptions,
+        isServer: true
+      };
+      const secureSocket = new tls.TLSSocket(duplex, tlsOptions);
+      this._tlsSockets.add(secureSocket);
+      let secure = false;
+      let handshakeTimer = null;
+      const handshakeTimeout = tlsOptions.handshakeTimeout ?? DEFAULT_TLS_HANDSHAKE_TIMEOUT_MS;
+
+      const clearHandshakeTimer = () => {
+        if (handshakeTimer) {
+          clearTimeout(handshakeTimer);
+          handshakeTimer = null;
+        }
+      };
+
+      if (handshakeTimeout > 0) {
+        handshakeTimer = setTimeout(() => {
+          const error = new Error('TLS handshake timeout');
+          error.code = 'ERR_TLS_HANDSHAKE_TIMEOUT';
+          this.emit('tlsClientError', error, secureSocket);
+          secureSocket.destroy(error);
+        }, handshakeTimeout);
+        if (typeof handshakeTimer.unref === 'function') {
+          handshakeTimer.unref();
+        }
+      }
+
+      secureSocket.once('secure', () => {
+        secure = true;
+        clearHandshakeTimer();
+        try {
+          this.emit('secureConnection', secureSocket);
+        } catch (error) {
+          secureSocket.destroy(error);
+          throw error;
+        }
+      });
+      secureSocket.once('close', () => {
+        clearHandshakeTimer();
+        this._tlsSockets.delete(secureSocket);
+      });
+      secureSocket.on('error', (error) => {
+        clearHandshakeTimer();
+        if (!secure) {
+          this.emit('tlsClientError', error, secureSocket);
+        } else {
+          this.emit('clientError', error, secureSocket);
+        }
+      });
+    }
+  }
+
+  class IoUringConnectionDuplex extends Duplex {
+    constructor(connection) {
+      super({ allowHalfOpen: false });
+      this._connection = connection;
+      this.id = connection.id;
+      this.remoteAddress = connection.remoteAddress;
+      this.remoteFamily = connection.remoteFamily;
+      this.remotePort = connection.remotePort;
+
+      connection.on('data', (data) => {
+        if (!this.destroyed) {
+          this.push(data);
+        }
+      });
+      connection.on('close', () => {
+        if (!this.destroyed) {
+          this.push(null);
+          this.destroy();
+        }
+      });
+    }
+
+    _read() {}
+
+    _write(chunk, _encoding, callback) {
+      if (this.destroyed || this._connection.destroyed) {
+        callback(new Error('connection is closed'));
+        return;
+      }
+      try {
+        const accepted = this._connection.write(toBuffer(chunk));
+        if (accepted) {
+          callback();
+        } else {
+          callback(new Error('native send queue rejected TLS data'));
+        }
+      } catch (error) {
+        callback(error);
+      }
+    }
+
+    _final(callback) {
+      try {
+        if (!this._connection.destroyed) {
+          this._connection.end();
+        }
+        callback();
+      } catch (error) {
+        callback(error);
+      }
+    }
+
+    _destroy(error, callback) {
+      try {
+        if (!this._connection.destroyed) {
+          this._connection.destroy();
+        }
+        callback(error);
+      } catch (closeError) {
+        callback(error || closeError);
+      }
+    }
+  }
+
   return {
     IoUringTcpConnection,
     IoUringTcpTransportServer,
+    IoUringTlsTransportServer,
     createTcpServer(options, connectionListener) {
       return new IoUringTcpTransportServer(options, connectionListener);
+    },
+    createTlsServer(options, secureConnectionListener) {
+      return new IoUringTlsTransportServer(options, secureConnectionListener);
     }
   };
 }
@@ -389,6 +687,15 @@ function parseStartArgs(baseOptions, args) {
   }
   Object.assign(options, values[0]);
   return { options: normalizeListenOptions(options), callback };
+}
+
+function extractTrailingCallback(args) {
+  const values = [...args];
+  let callback;
+  if (typeof values[values.length - 1] === 'function') {
+    callback = values.pop();
+  }
+  return { args: values, callback };
 }
 
 function parseListenArgs(baseOptions, args) {
@@ -568,6 +875,33 @@ function normalizeBatchSends(sends, server) {
     connections,
     hasDestroyedConnection
   };
+}
+
+function splitTlsServerOptions(options) {
+  const tcpOptions = {};
+  const tlsOptions = {};
+  if (options === undefined || options === null) {
+    return { tcpOptions, tlsOptions };
+  }
+
+  for (const [key, value] of Object.entries(options)) {
+    if (TCP_OPTION_KEYS.has(key)) {
+      tcpOptions[key] = value;
+    } else if (!TLS_TRANSPORT_OPTION_KEYS.has(key)) {
+      tlsOptions[key] = value;
+    }
+  }
+
+  for (const key of TLS_TRANSPORT_OPTION_KEYS) {
+    const nested = options[key];
+    if (nested === undefined || nested === null) continue;
+    if (!isPlainObject(nested)) {
+      throw new TypeError(`${key} TLS transport options must be an object`);
+    }
+    Object.assign(tcpOptions, nested);
+  }
+
+  return { tcpOptions, tlsOptions };
 }
 
 function toBuffer(data) {

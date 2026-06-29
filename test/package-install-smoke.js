@@ -248,6 +248,8 @@ try {
     const ferrings = require('ferrings');
     assert.equal(typeof ferrings.UringTcpServer, 'function');
     assert.equal(typeof ferrings.createTcpServer, 'function');
+    assert.equal(typeof ferrings.createTlsServer, 'function');
+    assert.equal(typeof ferrings.IoUringTlsTransportServer, 'function');
     assert.equal(typeof ferrings.capabilities, 'function');
     const server = ferrings.createTcpServer((connection) => {
       assert.equal(connection.remoteAddress, '127.0.0.1');
@@ -343,6 +345,8 @@ try {
         capabilities,
         createTcpServer,
         IoUringTcpTransportServer,
+        createTlsServer,
+        IoUringTlsTransportServer,
         zcrxProbe as rootZcrxProbe
       } from 'ferrings';
       import native, {
@@ -354,8 +358,10 @@ try {
       } from 'ferrings/native.js';
 
       assert.equal(ferrings.createTcpServer, createTcpServer);
+      assert.equal(ferrings.createTlsServer, createTlsServer);
       assert.equal(ferrings.UringTcpServer, UringTcpServer);
       assert.equal(ferrings.IoUringTcpTransportServer, IoUringTcpTransportServer);
+      assert.equal(ferrings.IoUringTlsTransportServer, IoUringTlsTransportServer);
       assert.equal(ferrings.zcrxProbe, rootZcrxProbe);
       assert.equal(native.UringHttpServer, UringHttpServer);
       assert.equal(native.zcrxProbe, zcrxProbe);
@@ -547,8 +553,10 @@ function assertInstalledTypeSurface(appDir) {
       import {
         UringTcpServer,
         createTcpServer,
+        createTlsServer,
         capabilities,
         type IoUringTcpConnection,
+        type IoUringTlsServerOptions,
         type ServerInfo,
         type TcpEvent,
         type TcpServerOptions
@@ -587,6 +595,18 @@ function assertInstalledTypeSurface(appDir) {
         const backend: string = info.backend;
         void backend;
       });
+
+      const tlsOptions: IoUringTlsServerOptions = {
+        key: Buffer.from('key'),
+        cert: Buffer.from('cert'),
+        host: '127.0.0.1',
+        port: 0,
+        tcp: { useZeroCopySend: true }
+      };
+      const tlsFacade = createTlsServer(tlsOptions, (connection) => {
+        connection.write('typed-secure');
+      });
+      void tlsFacade;
 
       const raw = new UringTcpServer(tcpOptions);
       const rawInfo: ServerInfo = raw.start((event: TcpEvent) => {
@@ -650,8 +670,10 @@ function assertInstalledTypeSurface(appDir) {
       import ferrings, {
         UringTcpServer,
         createTcpServer,
+        createTlsServer,
         capabilities,
         type IoUringTcpConnection,
+        type IoUringTlsServerOptions,
         type ServerInfo,
         type TcpEvent,
         type TcpServerOptions
@@ -679,6 +701,17 @@ function assertInstalledTypeSurface(appDir) {
       const maybeInfo: ServerInfo | null = facade.info();
       void maybeInfo;
 
+      const tlsOptions: IoUringTlsServerOptions = {
+        key: Buffer.from('key'),
+        cert: Buffer.from('cert'),
+        host: '127.0.0.1',
+        port: 0
+      };
+      const tlsFacade = createTlsServer(tlsOptions, (connection) => {
+        connection.write('esm-secure');
+      });
+      void tlsFacade;
+
       const raw = new UringTcpServer(tcpOptions);
       const rawInfo: ServerInfo = raw.start((event: TcpEvent) => {
         if (event.data) {
@@ -698,6 +731,7 @@ function assertInstalledTypeSurface(appDir) {
       const ready: boolean = caps.ioUringAvailable && nativeCaps.ioUringAvailable;
       const probe: ZcrxProbe = zcrxProbe({ interfaceName: 'lo' });
       const defaultCreateTcpServer: typeof createTcpServer = ferrings.createTcpServer;
+      const defaultCreateTlsServer: typeof createTlsServer = ferrings.createTlsServer;
       const defaultNativeProbe: typeof zcrxProbe = native.zcrxProbe;
       const defaultNativeJsProbe: typeof zcrxProbe = nativeJs.zcrxProbe;
       const transportFactory: (server: typeof UringTcpServer) => TcpTransportExports =
@@ -710,6 +744,7 @@ function assertInstalledTypeSurface(appDir) {
       void ready;
       void probe;
       void defaultCreateTcpServer;
+      void defaultCreateTlsServer;
       void defaultNativeProbe;
       void defaultNativeJsProbe;
       void transportFactory;

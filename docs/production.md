@@ -105,6 +105,42 @@ Tune from counters rather than from defaults alone. Larger `queueDepth`,
 `bufferCount`, `sendBufferCount`, and fixed buffers can require a higher locked
 memory limit.
 
+For encrypted clients, use the optional TLS facade. TLS is handled by Node's
+`tls.TLSSocket`; ferrings supplies the accepted TCP stream underneath:
+
+```js
+const fs = require('node:fs');
+const { createTlsServer } = require('ferrings');
+
+const server = createTlsServer(
+  {
+    key: fs.readFileSync('/etc/ferrings/server-key.pem'),
+    cert: fs.readFileSync('/etc/ferrings/server-cert.pem'),
+    host: '0.0.0.0',
+    port: 8443,
+    ALPNProtocols: ['http/1.1'],
+    handshakeTimeout: 120000,
+    useRecvBundle: true,
+    useZeroCopySend: true
+  },
+  (socket) => {
+    socket.on('data', (data) => {
+      socket.end(data);
+    });
+  }
+);
+
+server.on('tlsClientError', (error) => {
+  console.warn('TLS client error', error.message);
+});
+
+server.listen();
+```
+
+Treat TLS certificate rotation, SNI, ALPN, client-certificate policy, and
+`tlsClientError` telemetry the same way you would for a Node `tls.Server`.
+Kernel TLS/offload is not part of this path.
+
 ## Benchmarking A Host
 
 Run same-host comparisons before claiming a production win:

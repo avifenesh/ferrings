@@ -1,13 +1,16 @@
 import {
   IoUringTcpConnection,
   IoUringTcpTransportServer,
+  IoUringTlsTransportServer,
   UringHttpServer,
   UringTcpEchoServer,
   UringTcpServer,
   capabilities,
   createTcpServer,
+  createTlsServer,
   zcrxProbe,
   type Capabilities,
+  type IoUringTlsServerOptions,
   type ServerInfo,
   type ServerOptions,
   type TcpEvent,
@@ -103,6 +106,35 @@ const facadeCloseAccepted: boolean = server.sendBatchAndClose([
 ]);
 void facadeSendAccepted;
 void facadeCloseAccepted;
+
+const tlsOptions: IoUringTlsServerOptions = {
+  key: Buffer.from('key'),
+  cert: Buffer.from('cert'),
+  host: '127.0.0.1',
+  port: 0,
+  ALPNProtocols: ['h2', 'http/1.1'],
+  handshakeTimeout: 1000,
+  tcp: {
+    useZeroCopySend: true
+  }
+};
+const tlsServer: IoUringTlsTransportServer = createTlsServer(tlsOptions, (connection) => {
+  const authorized: boolean = connection.authorized;
+  connection.write('secure');
+  void authorized;
+});
+tlsServer.on('secureConnection', (connection) => {
+  connection.end('done');
+});
+tlsServer.on('tlsClientError', (error, connection) => {
+  const encrypted: boolean = connection.encrypted;
+  void error;
+  void encrypted;
+});
+tlsServer.listen(0, '127.0.0.1', (info: ServerInfo) => {
+  const port: number = info.port;
+  void port;
+});
 
 const raw = new UringTcpServer(tcpOptions);
 const rawInfo: ServerInfo = raw.start((event: TcpEvent) => {
