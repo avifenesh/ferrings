@@ -8,9 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.39 - 2026-06-29
+
 - Tightened the README opening so the benchmark results appear immediately after
   the installable transport summary, with ZCRX kept as an optional host-gated
   receive path.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.39` results on
+  Node 26 using 5,000 completed requests per case.
 
 ## 0.2.38 - 2026-06-29
 
