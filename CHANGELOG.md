@@ -8,9 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.24 - 2026-06-29
+
 - Rewrote the README first screen so ferrings is presented as a usable npm
   transport with install, a minimal server, and benchmark evidence before the
   longer API reference.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.24` results on
+  Node 26.
 
 ## 0.2.23 - 2026-06-29
 
