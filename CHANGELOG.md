@@ -16,6 +16,8 @@ may adjust APIs, defaults, or packaging.
 - Added explicit Release workflow timeouts for quality, publish, registry
   verification, and GitHub release steps, with workflow-policy checks to keep
   those bounds in place.
+- Bounded the workflow checker's actionlint download and child-process calls so
+  workflow validation cannot hang indefinitely while bootstrapping tooling.
 
 ## 0.2.36 - 2026-06-29
 

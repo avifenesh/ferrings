@@ -10,6 +10,8 @@ const { spawnSync } = require('node:child_process');
 const repoRoot = path.resolve(__dirname, '..');
 const version = process.env.ACTIONLINT_VERSION || '1.7.12';
 const workflowsDir = path.join(repoRoot, '.github', 'workflows');
+const downloadTimeoutMs = positiveIntegerEnv('ACTIONLINT_DOWNLOAD_TIMEOUT_MS', 120000);
+const commandTimeoutMs = positiveIntegerEnv('ACTIONLINT_COMMAND_TIMEOUT_MS', 120000);
 
 main().catch((error) => {
   console.error(error);
@@ -281,29 +283,45 @@ function download(url, redirects = 0) {
     return Promise.reject(new Error(`too many redirects while downloading ${url}`));
   }
   return new Promise((resolve, reject) => {
-    https
-      .get(url, (response) => {
-        const status = response.statusCode || 0;
-        if ([301, 302, 303, 307, 308].includes(status)) {
-          response.resume();
-          const location = response.headers.location;
-          if (!location) {
-            reject(new Error(`redirect without location for ${url}`));
-            return;
-          }
-          resolve(download(new URL(location, url).toString(), redirects + 1));
+    let settled = false;
+    let timer;
+    const settle = (fn, value) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+
+    const request = https.get(url, (response) => {
+      const status = response.statusCode || 0;
+      if ([301, 302, 303, 307, 308].includes(status)) {
+        response.resume();
+        const location = response.headers.location;
+        if (!location) {
+          settle(reject, new Error(`redirect without location for ${url}`));
           return;
         }
-        if (status < 200 || status >= 300) {
-          response.resume();
-          reject(new Error(`download failed ${status} for ${url}`));
-          return;
-        }
-        const chunks = [];
-        response.on('data', (chunk) => chunks.push(chunk));
-        response.on('end', () => resolve(Buffer.concat(chunks)));
-      })
-      .on('error', reject);
+        settle(resolve, download(new URL(location, url).toString(), redirects + 1));
+        return;
+      }
+      if (status < 200 || status >= 300) {
+        response.resume();
+        settle(reject, new Error(`download failed ${status} for ${url}`));
+        return;
+      }
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.on('end', () => settle(resolve, Buffer.concat(chunks)));
+      response.on('error', (error) => settle(reject, error));
+    });
+
+    timer = setTimeout(() => {
+      settle(reject, new Error(`timed out after ${downloadTimeoutMs}ms while downloading ${url}`));
+      request.destroy();
+    }, downloadTimeoutMs);
+    request.on('error', (error) => settle(reject, error));
   });
 }
 
@@ -312,6 +330,7 @@ function runChecked(command, args) {
     cwd: repoRoot,
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
+    timeout: commandTimeoutMs,
     stdio: ['ignore', 'pipe', 'pipe']
   });
   if (result.error) {
@@ -326,4 +345,16 @@ function runChecked(command, args) {
   if (result.status !== 0) {
     throw new Error(`${path.basename(command)} exited ${result.status}`);
   }
+}
+
+function positiveIntegerEnv(name, fallback) {
+  const value = process.env[name];
+  if (value === undefined || value === '') {
+    return fallback;
+  }
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    throw new Error(`${name} must be a positive integer`);
+  }
+  return parsed;
 }
