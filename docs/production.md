@@ -43,7 +43,8 @@ the matching native package exists under `node_modules/`.
 `npx ferrings --version` and `npx ferrings --help` do not require the native
 binding to load. If optional native dependencies are missing,
 `npx ferrings doctor --json` returns a structured `nativeLoadError` report with
-`verdict: "native-load-blocked"` so install diagnostics can still run.
+`verdict: "native-load-blocked"` and a `loadErrors` array with the attempted
+NAPI loader paths/packages, so install diagnostics can still run.
 
 ## Runtime Counters
 

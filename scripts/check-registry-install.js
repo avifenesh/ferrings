@@ -424,6 +424,22 @@ function runCliSmoke(cwd) {
         assert.equal(missingDoctor.defaultReady, false);
         assert.equal(missingDoctor.verdict, 'native-load-blocked');
         assert.equal(missingDoctor.nativeLoadError.code, 'FERRINGS_NATIVE_LOAD_FAILED');
+        if (versionAtLeast(version, '0.2.38')) {
+          assert.ok(
+            Array.isArray(missingDoctor.nativeLoadError.loadErrors),
+            'native load diagnostics must expose generated loader attempts'
+          );
+          assert.ok(
+            missingDoctor.nativeLoadError.loadErrors.some(
+              (attempt) =>
+                attempt.code === 'MODULE_NOT_FOUND' &&
+                new RegExp(`${target.packageName}|${escapeRegExp(target.nativeFile)}`).test(
+                  attempt.message
+                )
+            ),
+            'native load diagnostics must include the missing platform binding attempt'
+          );
+        }
 
         const required = runWithStatus(
           process.execPath,
@@ -568,4 +584,8 @@ function semverParts(value) {
     .split(/[.-]/)
     .slice(0, 3)
     .map((part) => Number.parseInt(part, 10) || 0);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

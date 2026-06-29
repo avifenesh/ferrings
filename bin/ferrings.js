@@ -627,6 +627,9 @@ function nativeLoadErrorForReport(error) {
   if (error && Array.isArray(error.nativePackages)) {
     report.nativePackages = error.nativePackages;
   }
+  if (error && Array.isArray(error.loadErrors)) {
+    report.loadErrors = error.loadErrors.map(nativeLoadAttemptForReport);
+  }
   if (error && error.cause) {
     report.cause = {
       name: error.cause.name || 'Error',
@@ -637,6 +640,19 @@ function nativeLoadErrorForReport(error) {
     }
   }
   return report;
+}
+
+function nativeLoadAttemptForReport(error) {
+  const attempt = {
+    name: error && error.name ? error.name : 'Error',
+    message: firstLine(error && error.message ? error.message : String(error))
+  };
+  for (const field of ['code', 'errno', 'syscall', 'path']) {
+    if (error && error[field] !== undefined) {
+      attempt[field] = error[field];
+    }
+  }
+  return attempt;
 }
 
 function firstLine(value) {

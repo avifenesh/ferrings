@@ -142,9 +142,9 @@ The root package installs the matching optional native package for the current L
 
 The root package ships JavaScript, TypeScript declarations, docs, examples, and benchmarks. Native binaries live in the platform packages above, so the loader path is the same on every supported target.
 
-If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, supported native package names, and the original loader error.
+If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, supported native package names, the original loader error, and a structured `loadErrors` list with the generated NAPI loader attempts.
 
-The CLI keeps version/help diagnostics available without a native binding. When optional native dependencies are missing, `ferrings doctor --json` reports `verdict: "native-load-blocked"` with a `nativeLoadError` object instead of failing before it can explain the install problem.
+The CLI keeps version/help diagnostics available without a native binding. When optional native dependencies are missing, `ferrings doctor --json` reports `verdict: "native-load-blocked"` with a `nativeLoadError` object and loader-attempt details instead of failing before it can explain the install problem.
 
 ## Mental Model
 

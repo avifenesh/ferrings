@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Added structured native-loader attempt diagnostics to
+  `FerringsNativeLoadError`, `ferrings doctor --json`, package-install smoke
+  coverage, and future registry-install verification.
 - Enforced Clippy's `undocumented_unsafe_blocks` lint and documented the safety
   invariants around native FFI, mmap, fd ownership, provided-buffer rings, and
   io_uring submission helpers.

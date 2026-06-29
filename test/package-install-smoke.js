@@ -184,6 +184,18 @@ try {
       assert.equal(missingDoctor.verdict, 'native-load-blocked');
       assert.equal(missingDoctor.nativeLoadError.code, 'FERRINGS_NATIVE_LOAD_FAILED');
       assert.ok(
+        Array.isArray(missingDoctor.nativeLoadError.loadErrors),
+        'doctor nativeLoadError must expose loader attempts'
+      );
+      assert.ok(
+        missingDoctor.nativeLoadError.loadErrors.some(
+          (attempt) =>
+            attempt.code === 'MODULE_NOT_FOUND' &&
+            /ferrings-linux-x64-gnu|ferrings\.linux-x64-gnu\.node/.test(attempt.message)
+        ),
+        'doctor nativeLoadError must include the missing platform binding attempt'
+      );
+      assert.ok(
         missingDoctor.blockers.some((blocker) => /could not load its native Linux binding/.test(blocker))
       );
       assert.match(missingDoctor.nextCommand, /optional dependencies enabled/);
@@ -212,7 +224,16 @@ try {
           assert.match(error.message, /ferrings-linux-x64-gnu/);
           assert.match(error.message, /optional dependencies enabled/);
           assert.match(error.message, /Original loader error:/);
+          assert.match(error.message, /Native loader attempts:/);
           assert.ok(error.cause);
+          assert.ok(Array.isArray(error.loadErrors));
+          assert.ok(
+            error.loadErrors.some(
+              (attempt) =>
+                attempt.code === 'MODULE_NOT_FOUND' &&
+                /ferrings-linux-x64-gnu|ferrings\\.linux-x64-gnu\\.node/.test(attempt.message)
+            )
+          );
         }
       `;
       run(process.execPath, ['-e', diagnosticScript], {
