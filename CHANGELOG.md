@@ -13,6 +13,9 @@ may adjust APIs, defaults, or packaging.
   scoped to the publish job.
 - Added TCP facade `listen()` validation for invalid host, port, and backlog
   inputs so common deployment misconfiguration fails before native startup.
+- Added root `zcrxProbe()` option validation so invalid queue, buffer-size,
+  interface, and active-registration inputs cannot be silently coerced before
+  probing.
 
 ## 0.2.26 - 2026-06-29
 

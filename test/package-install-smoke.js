@@ -271,7 +271,8 @@ try {
         UringTcpServer,
         capabilities,
         createTcpServer,
-        IoUringTcpTransportServer
+        IoUringTcpTransportServer,
+        zcrxProbe as rootZcrxProbe
       } from 'ferrings';
       import native, {
         UringHttpServer,
@@ -284,10 +285,15 @@ try {
       assert.equal(ferrings.createTcpServer, createTcpServer);
       assert.equal(ferrings.UringTcpServer, UringTcpServer);
       assert.equal(ferrings.IoUringTcpTransportServer, IoUringTcpTransportServer);
+      assert.equal(ferrings.zcrxProbe, rootZcrxProbe);
       assert.equal(native.UringHttpServer, UringHttpServer);
       assert.equal(native.zcrxProbe, zcrxProbe);
       assert.equal(nativeJs.UringTcpEchoServer, UringTcpEchoServer);
       assert.equal(typeof capabilities().ioUringAvailable, 'boolean');
+      assert.throws(
+        () => rootZcrxProbe({ rxQueue: -1 }),
+        /zcrxProbe rxQueue must be an integer between 0 and 4294967295/
+      );
 
       const server = createTcpServer((connection) => {
         connection.on('data', (data) => {

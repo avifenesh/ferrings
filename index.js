@@ -12,10 +12,15 @@ const tcpTransport = require('./tcp-transport')(nativeBinding.UringTcpServer);
 
 module.exports = {
   ...nativeBinding,
+  zcrxProbe,
   IoUringTcpConnection: tcpTransport.IoUringTcpConnection,
   IoUringTcpTransportServer: tcpTransport.IoUringTcpTransportServer,
   createTcpServer: tcpTransport.createTcpServer
 };
+
+function zcrxProbe(options) {
+  return nativeBinding.zcrxProbe(normalizeZcrxProbeOptions(options));
+}
 
 function loadNativeBinding() {
   try {
@@ -95,4 +100,47 @@ function expectedNativePackages(target) {
     return [`ferrings-linux-${target.arch}-${target.libc}`];
   }
   return [`ferrings-linux-${target.arch}-gnu`, `ferrings-linux-${target.arch}-musl`];
+}
+
+function normalizeZcrxProbeOptions(options) {
+  if (options === undefined || options === null) return options;
+  if (!isPlainObject(options)) {
+    throw new TypeError('zcrxProbe options must be an object');
+  }
+
+  const normalized = { ...options };
+  if (normalized.interfaceName !== undefined && normalized.interfaceName !== null) {
+    if (
+      typeof normalized.interfaceName !== 'string' ||
+      normalized.interfaceName.length === 0
+    ) {
+      throw new TypeError('zcrxProbe interfaceName must be a non-empty string');
+    }
+  }
+  if (normalized.rxQueue !== undefined && normalized.rxQueue !== null) {
+    normalized.rxQueue = uint32Option('zcrxProbe rxQueue', normalized.rxQueue);
+  }
+  if (normalized.rxBufferSize !== undefined && normalized.rxBufferSize !== null) {
+    normalized.rxBufferSize = uint32Option('zcrxProbe rxBufferSize', normalized.rxBufferSize);
+  }
+  if (normalized.activeRegistration !== undefined && normalized.activeRegistration !== null) {
+    if (typeof normalized.activeRegistration !== 'boolean') {
+      throw new TypeError('zcrxProbe activeRegistration must be a boolean');
+    }
+  }
+  return normalized;
+}
+
+function uint32Option(name, value) {
+  if (typeof value !== 'number') {
+    throw new TypeError(`${name} must be a number`);
+  }
+  if (!Number.isInteger(value) || value < 0 || value > 0xffffffff) {
+    throw new RangeError(`${name} must be an integer between 0 and 4294967295`);
+  }
+  return value;
+}
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }

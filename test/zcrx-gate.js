@@ -72,6 +72,35 @@ assert.ok(invalidBufferProbe.blockers.some((blocker) => /rxBufferSize/i.test(blo
 assert.match(invalidBufferProbe.activeRegistrationResult, /rxBufferSize/i);
 
 assert.throws(
+  () => zcrxProbe({ rxQueue: -1 }),
+  /zcrxProbe rxQueue must be an integer between 0 and 4294967295/
+);
+assert.throws(
+  () => zcrxProbe({ rxQueue: 1.5 }),
+  /zcrxProbe rxQueue must be an integer between 0 and 4294967295/
+);
+assert.throws(
+  () => zcrxProbe({ rxQueue: 'bad' }),
+  /zcrxProbe rxQueue must be a number/
+);
+assert.throws(
+  () => zcrxProbe({ rxBufferSize: -1 }),
+  /zcrxProbe rxBufferSize must be an integer between 0 and 4294967295/
+);
+assert.throws(
+  () => zcrxProbe({ interfaceName: '' }),
+  /zcrxProbe interfaceName must be a non-empty string/
+);
+assert.throws(
+  () => zcrxProbe({ activeRegistration: 'yes' }),
+  /zcrxProbe activeRegistration must be a boolean/
+);
+assert.throws(
+  () => zcrxProbe([]),
+  /zcrxProbe options must be an object/
+);
+
+assert.throws(
   () => new UringHttpServer({ useZeroCopyReceive: true, zcrxRxBufferSize: 1 }),
   /zcrxRxBufferSize must be 0 or at least 512 bytes/i
 );
