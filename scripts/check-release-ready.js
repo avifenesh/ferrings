@@ -399,18 +399,30 @@ function zcrxEnvironmentBlocker() {
   if (isLoopbackHost(process.env.ZCRX_CONNECT_HOST)) {
     return `ZCRX_CONNECT_HOST=${process.env.ZCRX_CONNECT_HOST} is loopback; use a host routed through the selected NIC path`;
   }
+  if (isWildcardHost(process.env.ZCRX_CONNECT_HOST)) {
+    return `ZCRX_CONNECT_HOST=${process.env.ZCRX_CONNECT_HOST} is a wildcard bind address; use a concrete host routed through the selected NIC path`;
+  }
   return '';
 }
 
+function normalizeHostForRoute(host) {
+  return String(host).trim().toLowerCase().replace(/^\[(.*)\]$/, '$1').replace(/\.$/, '');
+}
+
 function isLoopbackHost(host) {
-  const normalized = String(host).trim().toLowerCase();
+  const normalized = normalizeHostForRoute(host);
   return (
     normalized === 'localhost' ||
     normalized === '::1' ||
-    normalized === '[::1]' ||
     normalized === '0:0:0:0:0:0:0:1' ||
-    /^127(?:\.\d{1,3}){3}$/.test(normalized)
+    /^127(?:\.\d{1,3}){0,3}$/.test(normalized) ||
+    /^::ffff:127(?:\.\d{1,3}){0,3}$/.test(normalized)
   );
+}
+
+function isWildcardHost(host) {
+  const normalized = normalizeHostForRoute(host);
+  return normalized === '0.0.0.0' || normalized === '::' || normalized === '0:0:0:0:0:0:0:0';
 }
 
 function pass(detail = '') {

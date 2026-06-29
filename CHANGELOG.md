@@ -8,6 +8,17 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.19 - 2026-06-29
+
+- Rewrote the README opening so ferrings is presented as a usable transport,
+  with benchmark evidence visible before installation.
+- Hardened ZCRX hardware smoke validation so selecting an interface requires a
+  concrete non-loopback `ZCRX_CONNECT_HOST` routed through the selected NIC path.
+- Added CLI and release-gate coverage for missing, loopback, and wildcard ZCRX
+  connect-host configuration.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.19` results on
+  Node 26.
+
 ## 0.2.18 - 2026-06-29
 
 - Removed the native binary from the root package tarball so all supported

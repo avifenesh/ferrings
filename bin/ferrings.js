@@ -494,7 +494,7 @@ Options:
   --active           Attempt short-lived active ZCRX IFQ registration.
   --all              Probe every interface under /sys/class/net.
   --require-ready    Exit 2 when selected ZCRX probes are not ready.
-  --connect-host     Host used by client traffic for zcrx-smoke.
+  --connect-host     Required when --interface is set; must be non-loopback traffic routed through the selected NIC path.
   --bind-host        Host used by zcrx-smoke servers; defaults to 0.0.0.0.
   --timeout-ms       Per-request zcrx-smoke timeout.
   --report-path      Write the zcrx-smoke JSON report to a file.

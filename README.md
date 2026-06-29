@@ -6,44 +6,50 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Ready-to-use Linux `io_uring` TCP transport for Node.js services, built in Rust with napi-rs and published as native npm packages for x64/arm64 Linux.
+Usable Linux `io_uring` TCP transport for Node.js services, built in Rust with napi-rs and shipped as native npm packages for x64/arm64 Linux.
 
-ferrings ships a real TCP server surface while moving accept, receive, send, and shutdown work out of libuv's epoll path and into a Rust `io_uring` worker. The default path uses multishot accept/recv and provided receive buffers on ordinary recent Linux kernels; ZCRX is an optional hardware-gated receive path, not a requirement for the current gains.
+ferrings gives Node applications a real TCP server surface backed by an `io_uring` worker instead of libuv's epoll socket path. Use it when connection churn, syscall count, or JavaScript callback overhead is part of the bottleneck. The default path uses multishot accept/recv and provided receive buffers on ordinary recent Linux kernels; ZCRX is an optional hardware-gated receive path.
+
+```bash
+npm install ferrings
+```
+
+Current benchmark snapshot: **1.92x** fixed-response HTTP throughput, **1.92x** native TCP echo throughput, and roughly half the server syscalls per completed connection versus Node's built-in transports on the same host.
 
 ## Benchmarks
 
-Benchmarks are first because ferrings exists to reduce syscall pressure on busy Linux TCP servers. In the current Node 26 run, the `io_uring` path delivered **1.74x** fixed-response HTTP throughput and **2.22x** native TCP echo throughput while cutting server syscalls per completed connection by roughly half. The Node-style TCP facade still improves throughput and syscall count, with the expected JavaScript callback tail-latency tradeoff.
+ferrings is benchmarked against Node's built-in `http` and `net` servers on the same machine, with the same request count and concurrency. The useful signal is the paired comparison: what changes when the socket path moves to `io_uring`.
 
 | Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | **1.74x** | **11% lower** | **51% fewer** |
-| TCP echo | Node `net` | native echo worker | **2.22x** | **2% lower** | **53% fewer** |
-| TCP echo | Node `net` | Node-style TCP facade | **1.76x** | 67% higher | **38% fewer** |
-| TCP echo | Node `net` | facade batch send | **1.83x** | 11% higher | **38% fewer** |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | **1.92x** | **47% lower** | **51% fewer** |
+| TCP echo | Node `net` | native echo worker | **1.92x** | 24% higher | **52% fewer** |
+| TCP echo | Node `net` | Node-style TCP facade | **1.47x** | 32% higher | **37% fewer** |
+| TCP echo | Node `net` | facade batch send | **1.67x** | 36% higher | **38% fewer** |
 
-Measured on 2026-06-29 with `ferrings@0.2.18`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; the useful signal is the same-host comparison against Node's built-in transports.
+Measured on 2026-06-29 with `ferrings@0.2.19`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
 
-Detailed results:
+Detailed results from the README run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 4,952 | 10.575 | 38.902 | 43.812 | 11.580 | libuv/epoll |
-| ferrings HTTP | 8,630 | 5.241 | 24.561 | 39.001 | 5.649 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 7,500 | 7.920 | 12.237 | 14.689 | 11.108 | libuv/epoll |
-| ferrings native TCP echo | 16,623 | 3.009 | 12.609 | 14.439 | 5.199 | native echo worker + provided buffers |
-| ferrings TCP facade | 13,177 | 3.466 | 22.503 | 24.517 | 6.890 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 13,739 | 3.437 | 14.213 | 16.352 | 6.922 | JS facade + batched native events/sends |
+| Node `http` | 4,656 | 11.144 | 36.834 | 44.485 | 11.809 | libuv/epoll |
+| ferrings HTTP | 8,941 | 5.472 | 22.436 | 23.678 | 5.747 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 7,730 | 7.510 | 12.693 | 17.774 | 11.063 | libuv/epoll |
+| ferrings native TCP echo | 14,838 | 3.003 | 20.622 | 22.121 | 5.280 | native echo worker + provided buffers |
+| ferrings TCP facade | 11,338 | 3.844 | 21.718 | 23.485 | 6.952 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 12,939 | 3.388 | 22.540 | 24.163 | 6.876 | JS facade + batched native events/sends |
 
 Reproduce the table:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.18.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.19.json \
 npm run bench:syscalls
 ```
 
-Run the benchmarks on the host class you plan to deploy. TCP tail latency depends on the selected API surface, payload shape, kernel, NIC path, and queue settings; the syscall-count delta is the part to watch when comparing against Node's built-in transports.
+Watch both throughput and syscall count. Tail latency depends on API surface, payload size, kernel, NIC path, queue settings, and how much work your JavaScript callback performs.
 
 ## Installation
 
@@ -51,14 +57,14 @@ Run the benchmarks on the host class you plan to deploy. TCP tail latency depend
 npm install ferrings
 ```
 
-Requirements:
+Supported runtime targets:
 
 - Linux
 - Node.js `>=22`
 - `x64` or `arm64`
 - glibc or musl
 
-CI tests Node 22, 24, and 26 on Linux. Per the [Node.js release schedule](https://nodejs.org/en/about/previous-releases), Node 26 is current, Node 24 and 22 are LTS, and Node 20 is EOL.
+CI tests Node 22, 24, and 26 on Linux. Per the [Node.js release schedule](https://nodejs.org/en/about/previous-releases), Node 26 is Current, Node 24 and 22 are LTS, and Node 20 is EOL.
 
 The root package installs the matching optional native package for the current Linux target:
 
@@ -67,9 +73,9 @@ The root package installs the matching optional native package for the current L
 - `ferrings-linux-arm64-gnu`
 - `ferrings-linux-arm64-musl`
 
-The root package ships JavaScript, TypeScript declarations, docs, examples, and benchmarks. Native binaries live in the platform packages above so installs use the same dynamic package path on every supported target.
+The root package ships JavaScript, TypeScript declarations, docs, examples, and benchmarks. Native binaries live in the platform packages above, so the loader path is the same on every supported target.
 
-If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, the supported native package names, and the original loader error.
+If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, supported native package names, and the original loader error.
 
 ## Quick Start
 
@@ -118,43 +124,17 @@ Run it:
 node quickstart.js
 ```
 
-It prints `echo:hello`. Application code handles normal JavaScript callbacks; ferrings handles the socket lifecycle, multishot receive path, sends, and shutdown on the native worker.
+It prints `echo:hello`. Application code stays in normal JavaScript callbacks; ferrings handles accept, receive, send, shutdown, and buffer management on the native worker.
 
-## When To Use Ferrings
+## Use Cases
 
-- Use ferrings when you run Linux Node services and TCP syscall count, tail latency, or high connection concurrency are part of the scaling problem.
-- Use the Node-style TCP facade when you want familiar JavaScript callbacks over a native `io_uring` transport.
-- Use raw or batched TCP events when callback overhead matters and your server can process connection IDs directly.
-- Use `UringHttpServer` for fixed health, readiness, or simple edge responses where a full HTTP framework would be unnecessary.
-- Use the ZCRX path only on hosts with the required kernel, NIC, queue, and routing setup; the normal multishot/provided-buffer path does not depend on it.
+- Use ferrings when Linux Node services are limited by TCP syscall count, high connection churn, or socket-path overhead.
+- Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
+- Use raw or batched TCP events when callback overhead matters and your service can work with connection IDs directly.
+- Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework is unnecessary.
+- Use ZCRX only on hosts where the kernel, NIC, queue setup, permissions, and traffic route pass the readiness checks.
 
-## What You Get
-
-- A Node-style TCP server facade with `connection`, `data`, `close`, `write()`, `end()`, `destroy()`, `address()`, and `getConnections()`.
-- Raw and batched TCP event APIs for lower callback overhead.
-- Multishot accept/recv with provided receive buffers on ordinary recent Linux kernels.
-- Optional recv-bundle, zero-copy send, registered send-buffer, and ZCRX paths with capability reporting.
-- A fixed-response HTTP server for health checks and simple edge-style responses.
-- A native TCP echo server for isolating the native transport path.
-- CLI and API probes for runtime capabilities, ZCRX readiness, and installed-package health.
-- Native npm packages for x64/arm64 glibc/musl Linux targets.
-
-The main deployment path is multishot accept/recv with provided buffers. ZCRX is an advanced hardware-gated receive path for capable NICs.
-
-## How It Works
-
-ferrings creates the listening socket directly with `socket`, `bind`, and `listen`, then drives accepts, receives, sends, and shutdown from a Rust worker thread with `io_uring`.
-
-The default receive path uses multishot accept, multishot recv, and provided buffers. JavaScript still owns the application surface:
-
-- Native-to-JS events are delivered through NAPI thread-safe callbacks.
-- JS-to-native writes go through a bounded command queue and an `eventfd` wakeup.
-- The Node-style facade exposes `connection`, `data`, `close`, `write()`, `end()`, `destroy()`, `address()`, and `getConnections()`.
-- Lower-level APIs expose connection IDs, batched events, batched sends, server counters, and active capability probes.
-
-ZCRX is separate and explicitly gated because it needs kernel support, NIC header/data split, RX queue setup, flow steering or RSS isolation, and permissions.
-
-## API
+## API Choices
 
 ### Node-Style TCP
 
@@ -170,7 +150,7 @@ server.listen(0, '127.0.0.1', (info) => {
 });
 ```
 
-Use this for a familiar Node server shape over the native transport.
+Use this for the most familiar server shape. The facade exposes `connection`, `data`, `close`, `write()`, `end()`, `destroy()`, `address()`, and `getConnections()`.
 
 ### Raw TCP Events
 
@@ -193,7 +173,7 @@ const info = server.start((event) => {
 console.log(`tcp://${info.host}:${info.port}`);
 ```
 
-Use this when you want direct event objects and explicit connection IDs.
+Use this when direct event objects and explicit connection IDs fit your service better than per-connection JavaScript objects.
 
 ### Batched TCP Events And Sends
 
@@ -217,7 +197,7 @@ const info = server.startBatch((events) => {
 console.log(`tcp://${info.host}:${info.port}`);
 ```
 
-Use this when JS callback overhead matters and events can be processed in batches.
+Use this for hot paths where native event batching is worth a less Node-like shape.
 
 ### Fixed-Response HTTP
 
@@ -252,7 +232,20 @@ const info = server.start();
 console.log(`tcp://${info.host}:${info.port}`);
 ```
 
-Use this to isolate the native TCP path from JavaScript event delivery.
+Use this to isolate the native TCP path from JavaScript event delivery when benchmarking or checking host behavior.
+
+## How It Works
+
+ferrings creates the listening socket directly with `socket`, `bind`, and `listen`, then drives accepts, receives, sends, and shutdown from a Rust worker thread with `io_uring`.
+
+The normal receive path uses multishot accept, multishot recv, and provided buffers. JavaScript owns the application API:
+
+- Native-to-JS events are delivered through NAPI thread-safe callbacks.
+- JS-to-native writes go through a bounded command queue and an `eventfd` wakeup.
+- Lower-level APIs expose connection IDs, batched events, batched sends, server counters, and active capability probes.
+- `ServerInfo` exposes accepted/closed/rejected connections, bytes sent/received, queue drops, receive buffer starvation, recv-bundle counters, zero-copy send counters, fixed-send misses, and ZCRX packet counters.
+
+ZCRX is separate because it needs kernel support, NIC header/data split, RX queue setup, flow steering or RSS isolation, routed traffic, and permissions.
 
 ## Capabilities And Doctor
 
@@ -275,6 +268,8 @@ npx ferrings capabilities --json
 npx ferrings doctor --interface eth0 --rx-queue 0 --active --json
 npx ferrings zcrx-probe --interface eth0 --rx-queue 0 --active --json
 ```
+
+`capabilities()` reports kernel and `io_uring` fast-path availability, including multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, registered-buffer send, ZCRX opcode support, CQE32 ring setup, and fast poll.
 
 ## Configuration
 
@@ -311,11 +306,9 @@ TCP queue options:
 | `sendBufferCount` | `256` | Fixed-send pool slot count. |
 | `sendBufferSize` | `2048` | Fixed-send pool slot size. |
 
-All servers expose live counters through `ServerInfo`, including accepted/closed/rejected connections, bytes sent/received, queue drops, receive buffer starvations, recv-bundle counters, zero-copy send counters, fixed-send misses, and ZCRX packet counters.
-
 ## ZCRX
 
-ZCRX support is implemented as a gated transport path for hosts with the right kernel, permissions, NIC support, header/data split, and flow steering/RSS isolation. Most deployments should start with the default multishot/provided-buffer receive path and enable ZCRX only after the probe and hardware smoke test pass.
+ZCRX is implemented as a gated receive path for hosts with the right kernel, permissions, NIC support, header/data split, RX queue setup, and flow steering or RSS isolation. Most deployments should start with the normal multishot/provided-buffer path and enable ZCRX only after the probe and hardware smoke test pass.
 
 ```bash
 node bin/ferrings.js zcrx-probe --interface eth0 --rx-queue 0 --active --json
@@ -324,7 +317,7 @@ ZCRX_INTERFACE=eth0 ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx
 
 `test:zcrx` starts the HTTP, native TCP echo, and programmable TCP servers with `useZeroCopyReceive: true`, drives traffic through `ZCRX_CONNECT_HOST`, and requires `ServerInfo.zcrxPackets` and `zcrxBytes` to increase.
 
-For a real NIC receive validation, avoid `127.0.0.1`; route packets through the selected NIC queue, usually from a second host or a network namespace.
+For real NIC receive validation, `ZCRX_CONNECT_HOST` must be a concrete non-loopback host routed through the selected NIC queue. Do not use `127.0.0.1`, `localhost`, `0.0.0.0`, or `::` for that check.
 
 ## Benchmarking
 
@@ -401,9 +394,7 @@ npm run check:release-ready -- --full --require-zcrx
 npm run check:registry-install -- --version "$(node -p "require('./package.json').version")"
 ```
 
-`check:release-ready -- --require-zcrx` requires `ZCRX_INTERFACE` and a
-non-loopback `ZCRX_CONNECT_HOST`, then runs `npm run test:zcrx`. Use this only
-on hardware where traffic can be routed through the selected NIC queue.
+`check:release-ready -- --require-zcrx` requires `ZCRX_INTERFACE` and a non-loopback `ZCRX_CONNECT_HOST`, then runs `npm run test:zcrx`. Use this only on hardware where traffic can be routed through the selected NIC queue.
 
 Tag pushes that match the package version build all native artifacts, run package checks, publish to npm with the repository `NPM_TOKEN` secret, verify the published root package, native packages, integrity metadata, provenance attestations, registry signatures, and dist-tag from the npm registry, and then create or update the GitHub release. Manual `workflow_dispatch` runs can also publish when `publish=true`.
 
@@ -416,7 +407,7 @@ npm run check:published -- --tag latest --verify-tarballs
 npm run check:main-health
 ```
 
-`check:published --verify-tarballs` verifies registry metadata, provenance, signatures, dist-tags, and the downloaded npm tarball contents for the root package and every native package.
+`check:published --verify-tarballs` verifies registry metadata, provenance, signatures, dist-tags, and downloaded npm tarball contents for the root package and every native package.
 
 For a new release, bump the package version first; npm versions are immutable after publication, so `check:release-ready` is a release gate rather than a normal post-release main-branch check. Use `check:main-health` when validating current `main` after a release or docs/tooling follow-up.
 

@@ -30,6 +30,11 @@ async function runZcrxHardwareSmoke(options = {}) {
       return report;
     }
 
+    const routeBlocker = zcrxTrafficRouteBlocker(config);
+    if (routeBlocker) {
+      throw new Error(routeBlocker);
+    }
+
     const probe = zcrxProbe({
       interfaceName: config.interfaceName,
       rxQueue: config.rxQueue,
@@ -98,6 +103,14 @@ async function runZcrxHardwareSmoke(options = {}) {
 }
 
 function normalizeSmokeOptions(options) {
+  const optionConnectHost = nonEmptyString(options.connectHost);
+  const envConnectHost = nonEmptyString(process.env.ZCRX_CONNECT_HOST);
+  const connectHost = optionConnectHost || envConnectHost || '127.0.0.1';
+  const connectHostSource = optionConnectHost
+    ? 'option'
+    : envConnectHost
+      ? 'env'
+      : 'default';
   return {
     interfaceName: options.interfaceName || process.env.ZCRX_INTERFACE,
     rxQueue: numberOrDefault(options.rxQueue, process.env.ZCRX_RX_QUEUE, 0),
@@ -107,11 +120,9 @@ function normalizeSmokeOptions(options) {
       0
     ),
     bindHost: options.bindHost || process.env.ZCRX_BIND_HOST || '0.0.0.0',
-    connectHost:
-      options.connectHost ||
-      process.env.ZCRX_CONNECT_HOST ||
-      process.env.ZCRX_BIND_HOST ||
-      '127.0.0.1',
+    connectHost,
+    connectHostExplicit: connectHostSource !== 'default',
+    connectHostSource,
     timeoutMs: numberOrDefault(options.timeoutMs, process.env.ZCRX_TIMEOUT_MS, 5000),
     requireRxQueueStats:
       options.requireRxQueueStats !== undefined
@@ -128,6 +139,12 @@ function numberOrDefault(value, envValue, fallback) {
   return Number(candidate);
 }
 
+function nonEmptyString(value) {
+  if (value === undefined || value === null) return '';
+  const text = String(value).trim();
+  return text.length > 0 ? text : '';
+}
+
 function baseReport(config) {
   return {
     status: 'running',
@@ -139,6 +156,8 @@ function baseReport(config) {
       rxBufferSize: config.rxBufferSize,
       bindHost: config.bindHost,
       connectHost: config.connectHost,
+      connectHostExplicit: config.connectHostExplicit,
+      connectHostSource: config.connectHostSource,
       timeoutMs: config.timeoutMs,
       requireRxQueueStats: config.requireRxQueueStats
     },
@@ -147,6 +166,39 @@ function baseReport(config) {
     queueCounters: null,
     smokes: []
   };
+}
+
+function zcrxTrafficRouteBlocker(config) {
+  if (!config.connectHostExplicit) {
+    return 'ZCRX_CONNECT_HOST is not set; pass --connect-host or set ZCRX_CONNECT_HOST to a host routed through the selected NIC path';
+  }
+  if (isLoopbackHost(config.connectHost)) {
+    return `ZCRX_CONNECT_HOST=${config.connectHost} is loopback; use a host routed through the selected NIC path`;
+  }
+  if (isWildcardHost(config.connectHost)) {
+    return `ZCRX_CONNECT_HOST=${config.connectHost} is a wildcard bind address; use a concrete host routed through the selected NIC path`;
+  }
+  return '';
+}
+
+function normalizeHostForRoute(host) {
+  return String(host).trim().toLowerCase().replace(/^\[(.*)\]$/, '$1').replace(/\.$/, '');
+}
+
+function isLoopbackHost(host) {
+  const normalized = normalizeHostForRoute(host);
+  return (
+    normalized === 'localhost' ||
+    normalized === '::1' ||
+    normalized === '0:0:0:0:0:0:0:1' ||
+    /^127(?:\.\d{1,3}){0,3}$/.test(normalized) ||
+    /^::ffff:127(?:\.\d{1,3}){0,3}$/.test(normalized)
+  );
+}
+
+function isWildcardHost(host) {
+  const normalized = normalizeHostForRoute(host);
+  return normalized === '0.0.0.0' || normalized === '::' || normalized === '0:0:0:0:0:0:0:0';
 }
 
 function parseEthtoolStats(output) {
@@ -435,6 +487,16 @@ NIC statistics:
   assert.equal(isSelectedRxQueueCounter('rx_queue_0_drops', 0), false);
   assert.equal(isSelectedRxQueueCounter('rx_queue_1_packets', 0), false);
   assert.equal(isSelectedRxQueueCounter('tx_queue_0_packets', 0), false);
+  assert.equal(isLoopbackHost('localhost'), true);
+  assert.equal(isLoopbackHost('localhost.'), true);
+  assert.equal(isLoopbackHost('127.0.0.1'), true);
+  assert.equal(isLoopbackHost('127.1'), true);
+  assert.equal(isLoopbackHost('[::1]'), true);
+  assert.equal(isLoopbackHost('::ffff:127.0.0.1'), true);
+  assert.equal(isWildcardHost('0.0.0.0'), true);
+  assert.equal(isWildcardHost('[::]'), true);
+  assert.equal(isLoopbackHost('192.0.2.10'), false);
+  assert.equal(isWildcardHost('192.0.2.10'), false);
   const before = { counters: new Map([['rx_queue_0_packets', 10n], ['rx_queue_0_bytes', 800n]]) };
   const after = { counters: new Map([['rx_queue_0_packets', 12n], ['rx_queue_0_bytes', 936n]]) };
   const deltas = diffCounters(before, after);

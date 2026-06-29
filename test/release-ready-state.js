@@ -182,6 +182,16 @@ try {
     /loopback/
   );
 
+  const wildcardZcrxConnectHost = runScenario('available', {
+    args: ['--require-zcrx'],
+    env: { ZCRX_INTERFACE: 'eth0', ZCRX_CONNECT_HOST: '0.0.0.0' }
+  });
+  assert.equal(check(wildcardZcrxConnectHost, 'ZCRX hardware receive validation').ok, false);
+  assert.match(
+    check(wildcardZcrxConnectHost, 'ZCRX hardware receive validation').detail,
+    /wildcard bind address/
+  );
+
   const failedZcrxSmoke = runScenario('available', {
     args: ['--require-zcrx'],
     env: {

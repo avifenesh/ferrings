@@ -61,6 +61,27 @@ const smokeSkipped = JSON.parse(run(['zcrx-smoke', '--json']).stdout);
 assert.equal(smokeSkipped.status, 'skipped');
 assert.match(smokeSkipped.skippedReason, /ZCRX_INTERFACE|--interface/);
 
+const smokeMissingConnectHost = JSON.parse(
+  run(['zcrx-smoke', '--interface', 'lo', '--json'], 1).stdout
+);
+assert.equal(smokeMissingConnectHost.status, 'failed');
+assert.match(smokeMissingConnectHost.error.message, /ZCRX_CONNECT_HOST|--connect-host/);
+assert.equal(smokeMissingConnectHost.config.connectHostExplicit, false);
+
+const smokeLoopbackConnectHost = JSON.parse(
+  run(['zcrx-smoke', '--interface', 'lo', '--connect-host', '127.0.0.1', '--json'], 1)
+    .stdout
+);
+assert.equal(smokeLoopbackConnectHost.status, 'failed');
+assert.match(smokeLoopbackConnectHost.error.message, /loopback/);
+
+const smokeWildcardConnectHost = JSON.parse(
+  run(['zcrx-smoke', '--interface', 'lo', '--connect-host', '0.0.0.0', '--json'], 1)
+    .stdout
+);
+assert.equal(smokeWildcardConnectHost.status, 'failed');
+assert.match(smokeWildcardConnectHost.error.message, /wildcard/);
+
 const smokeSelfTest = run(['zcrx-smoke', '--self-test']);
 assert.match(smokeSelfTest.stdout, /zcrx smoke self-test ok/);
 
