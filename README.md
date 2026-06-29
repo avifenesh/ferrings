@@ -6,15 +6,22 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Linux `io_uring` TCP transport for production Node.js services, built in Rust with napi-rs and shipped on npm as platform-native packages.
+Linux `io_uring` TCP transport for production Node.js services that need lower socket overhead without leaving JavaScript.
 
 ## Benchmarks
 
-Benchmarks are the first section because ferrings is a shipped transport package. The reason to install it is measurable socket-path improvement while keeping the service in Node.
+ferrings is useful when the Node service is already shaped correctly, but the Linux TCP path is spending too much time in socket syscalls, per-connection churn, or callback delivery overhead. It ships as a napi-rs native addon with platform-specific npm packages for Linux x64/arm64 glibc/musl.
 
-Latest README benchmark snapshot: ferrings delivers **1.86x** fixed-response HTTP throughput, **1.96x** native TCP echo throughput, **1.70x** Node-style TCP facade throughput, and **37-54% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
+Current release-package benchmark snapshot: **1.86x** fixed-response HTTP throughput, **1.96x** native TCP echo throughput, **1.70x** Node-style TCP facade throughput, and **37-54% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
 
-The table below compares Node's built-in `http` and `net` servers with ferrings on the same machine, request count, and concurrency.
+| Workload | ferrings result vs Node built-in transport |
+| --- | --- |
+| Fixed-response HTTP | **1.86x throughput**, **45% lower p99**, **54% fewer syscalls/conn** |
+| Native TCP echo worker | **1.96x throughput**, **53% fewer syscalls/conn** |
+| Node-style TCP facade | **1.70x throughput**, **38% fewer syscalls/conn** |
+| TCP facade with batch send | **1.72x throughput**, **37% fewer syscalls/conn** |
+
+The full table compares Node's built-in `http` and `net` servers with ferrings on the same machine, request count, and concurrency.
 
 | Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: |

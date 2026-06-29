@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Rewrote the README first screen so ferrings leads with release-package
+  benchmark results and production Node transport positioning.
+
 ## 0.2.28 - 2026-06-29
 
 - Added TypeScript declarations for the public `tcp-transport` and
