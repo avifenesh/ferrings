@@ -364,6 +364,31 @@ function runCliSmoke(cwd) {
   const smoke = JSON.parse(smokeResult.stdout);
   assert.equal(smoke.status, 'skipped');
   assert.match(smoke.skippedReason, /ZCRX_INTERFACE|--interface/);
+
+  if (versionAtLeast(version, '0.2.33')) {
+    temporarilyRemove(
+      [path.join(cwd, 'node_modules', target.packageName, target.nativeFile)],
+      () => {
+        const missingVersionResult = run(process.execPath, [binPath, '--version'], { cwd });
+        assert.equal(missingVersionResult.stdout.trim(), `${rootPackage.name} ${version}`);
+
+        const missingDoctorResult = run(process.execPath, [binPath, 'doctor', '--json'], { cwd });
+        const missingDoctor = JSON.parse(missingDoctorResult.stdout);
+        assert.equal(missingDoctor.ready, false);
+        assert.equal(missingDoctor.defaultReady, false);
+        assert.equal(missingDoctor.verdict, 'native-load-blocked');
+        assert.equal(missingDoctor.nativeLoadError.code, 'FERRINGS_NATIVE_LOAD_FAILED');
+
+        const required = runWithStatus(
+          process.execPath,
+          [binPath, 'doctor', '--require-ready', '--json'],
+          { cwd }
+        );
+        assert.equal(required.status, 2);
+        assert.equal(JSON.parse(required.stdout).verdict, 'native-load-blocked');
+      }
+    );
+  }
 }
 
 function detectNativeTarget() {
@@ -409,8 +434,41 @@ function run(command, commandArgs, options = {}) {
   return result;
 }
 
+function runWithStatus(command, commandArgs, options = {}) {
+  const result = spawnSync(command, commandArgs, {
+    cwd: options.cwd || repoRoot,
+    encoding: 'utf8',
+    maxBuffer: 20 * 1024 * 1024,
+    ...options
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  return result;
+}
+
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+}
+
+function temporarilyRemove(filePaths, callback) {
+  const moved = [];
+  for (const filePath of filePaths) {
+    if (!fs.existsSync(filePath)) continue;
+    const backupPath = `${filePath}.ferrings-registry-smoke-backup-${process.pid}`;
+    fs.renameSync(filePath, backupPath);
+    moved.push({ filePath, backupPath });
+  }
+
+  try {
+    callback();
+  } finally {
+    for (const { filePath, backupPath } of moved.reverse()) {
+      if (fs.existsSync(backupPath)) {
+        fs.renameSync(backupPath, filePath);
+      }
+    }
+  }
 }
 
 function valueAfter(name) {

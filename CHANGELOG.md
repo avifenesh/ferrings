@@ -8,9 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
-- Hardened the registry install smoke so published `ferrings@0.2.32` and newer
-  packages must prove the `doctor` default-readiness contract from an npm
-  install.
+## 0.2.33 - 2026-06-29
+
+- Hardened the registry install smoke so published packages must prove the
+  `doctor` default-readiness contract from an npm install.
+- Made the CLI lazy-load the native binding so `ferrings --version` and help
+  still work when optional native packages are missing, and `doctor --json`
+  returns a structured `native-load-blocked` report.
 
 ## 0.2.32 - 2026-06-29
 

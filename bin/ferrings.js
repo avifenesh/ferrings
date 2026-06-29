@@ -2,12 +2,12 @@
 'use strict';
 
 const fs = require('node:fs');
-const { capabilities, zcrxProbe } = require('..');
-const { runQueueStatsParserSelfTest, runZcrxHardwareSmoke } = require('../zcrx-smoke');
 const pkg = require('../package.json');
 
 const UINT32_MAX = 0xffffffff;
 const MAX_TIMEOUT_MS = 0x7fffffff;
+let ferringsModule = null;
+let zcrxSmokeModule = null;
 
 class CliError extends Error {
   constructor(message, exitCode) {
@@ -74,7 +74,19 @@ function runCapabilities(rawArgs) {
     return;
   }
   const report = baseReport('capabilities');
-  report.capabilities = capabilities();
+  try {
+    report.capabilities = loadFerrings().capabilities();
+  } catch (error) {
+    report.capabilities = null;
+    report.ready = false;
+    report.nativeLoadError = nativeLoadErrorForReport(error);
+    if (options.json || options.compact) {
+      printJson(report, options.compact);
+      process.exitCode = 1;
+      return;
+    }
+    throw error;
+  }
   if (options.json || options.compact) {
     printJson(report, options.compact);
     return;
@@ -115,7 +127,21 @@ function runZcrxProbe(rawArgs) {
   }
 
   const report = baseReport('zcrx-probe');
-  report.capabilities = capabilities();
+  let ferrings;
+  try {
+    ferrings = loadFerrings();
+    report.capabilities = ferrings.capabilities();
+  } catch (error) {
+    report.capabilities = null;
+    report.ready = false;
+    report.nativeLoadError = nativeLoadErrorForReport(error);
+    if (options.json || options.compact) {
+      printJson(report, options.compact);
+      process.exitCode = 1;
+      return;
+    }
+    throw error;
+  }
   const probeOptions = {
     rxQueue: numberOption(options['rx-queue'], 'rx-queue', 0, UINT32_MAX),
     rxBufferSize: numberOption(options['rx-buffer-size'], 'rx-buffer-size', 0, UINT32_MAX),
@@ -124,13 +150,13 @@ function runZcrxProbe(rawArgs) {
 
   if (options.all) {
     report.probes = listInterfaces().map((interfaceName) =>
-      zcrxProbe({
+      ferrings.zcrxProbe({
         ...probeOptions,
         interfaceName
       })
     );
   } else {
-    report.probe = zcrxProbe({
+    report.probe = ferrings.zcrxProbe({
       ...probeOptions,
       interfaceName: options.interface
     });
@@ -173,13 +199,13 @@ async function runZcrxSmoke(rawArgs) {
     return;
   }
   if (options['self-test']) {
-    runQueueStatsParserSelfTest();
+    loadZcrxSmoke().runQueueStatsParserSelfTest();
     console.log('zcrx smoke self-test ok');
     return;
   }
 
   try {
-    const report = await runZcrxHardwareSmoke({
+    const report = await loadZcrxSmoke().runZcrxHardwareSmoke({
       interfaceName: options.interface,
       rxQueue: numberOption(options['rx-queue'], 'rx-queue', 0, UINT32_MAX),
       rxBufferSize: numberOption(options['rx-buffer-size'], 'rx-buffer-size', 0, UINT32_MAX),
@@ -223,9 +249,15 @@ function buildDoctorReport(options) {
     rxBufferSize: numberOption(options['rx-buffer-size'], 'rx-buffer-size', 0, UINT32_MAX),
     activeRegistration: Boolean(options.active)
   };
-  report.capabilities = capabilities();
+  let ferrings;
+  try {
+    ferrings = loadFerrings();
+  } catch (error) {
+    return buildNativeLoadDoctorReport(report, requireZcrx, probeOptions, error);
+  }
+  report.capabilities = ferrings.capabilities();
   report.transport = buildTransportVerdict(report.capabilities);
-  report.zcrx = zcrxProbe(probeOptions);
+  report.zcrx = ferrings.zcrxProbe(probeOptions);
   report.zcrxRequired = requireZcrx;
   report.defaultReady = report.transport.ready;
   report.ready = report.transport.ready && (!requireZcrx || report.zcrx.ready);
@@ -240,6 +272,45 @@ function buildDoctorReport(options) {
     ...(report.zcrx.kernelSecurityWarnings || [])
   ];
   report.nextCommand = doctorNextCommand(report, probeOptions);
+  return report;
+}
+
+function buildNativeLoadDoctorReport(report, requireZcrx, probeOptions, error) {
+  const blocker = nativeLoadBlocker(error);
+  report.capabilities = null;
+  report.nativeLoadError = nativeLoadErrorForReport(error);
+  report.transport = {
+    ready: false,
+    blockers: [blocker],
+    warnings: []
+  };
+  report.zcrx = {
+    interfaceName: probeOptions.interfaceName,
+    interfaceIndex: 0,
+    kernelOpcode: false,
+    interfaceExists: false,
+    rxQueue: probeOptions.rxQueue || 0,
+    rxBufferSize: probeOptions.rxBufferSize || 0,
+    rxQueueCount: 0,
+    isLoopback: false,
+    isVirtual: false,
+    ethtoolAvailable: false,
+    headerDataSplit: 'unknown',
+    flowSteering: 'unknown',
+    activeRegistration: Boolean(probeOptions.activeRegistration),
+    kernelSecurityWarnings: [],
+    ready: false,
+    blockers: ['native binding did not load'],
+    note: 'ZCRX cannot be probed until the ferrings native binding loads'
+  };
+  report.zcrxRequired = requireZcrx;
+  report.defaultReady = false;
+  report.ready = false;
+  report.verdict = 'native-load-blocked';
+  report.blockers = [blocker];
+  report.optionalBlockers = [];
+  report.warnings = [];
+  report.nextCommand = nativeLoadNextCommand();
   return report;
 }
 
@@ -515,6 +586,61 @@ function printZcrxSmokeReport(report) {
 
 function printJson(value, compact) {
   console.log(JSON.stringify(value, null, compact ? 0 : 2));
+}
+
+function loadFerrings() {
+  if (!ferringsModule) {
+    ferringsModule = require('..');
+  }
+  return ferringsModule;
+}
+
+function loadZcrxSmoke() {
+  if (!zcrxSmokeModule) {
+    zcrxSmokeModule = require('../zcrx-smoke');
+  }
+  return zcrxSmokeModule;
+}
+
+function nativeLoadBlocker(error) {
+  if (error && error.code === 'FERRINGS_NATIVE_LOAD_FAILED') {
+    return firstLine(error.message);
+  }
+  return `ferrings native binding failed to load: ${firstLine(error && error.message ? error.message : String(error))}`;
+}
+
+function nativeLoadNextCommand() {
+  return 'reinstall with optional dependencies enabled, for example npm install ferrings --include=optional';
+}
+
+function nativeLoadErrorForReport(error) {
+  const report = {
+    name: error && error.name ? error.name : 'Error',
+    message: error && error.message ? error.message : String(error)
+  };
+  if (error && error.code) {
+    report.code = error.code;
+  }
+  if (error && error.target) {
+    report.target = error.target;
+  }
+  if (error && Array.isArray(error.nativePackages)) {
+    report.nativePackages = error.nativePackages;
+  }
+  if (error && error.cause) {
+    report.cause = {
+      name: error.cause.name || 'Error',
+      message: error.cause.message || String(error.cause)
+    };
+    if (error.cause.code) {
+      report.cause.code = error.cause.code;
+    }
+  }
+  return report;
+}
+
+function firstLine(value) {
+  return String(value || '').split('\n')[0] || 'unknown error';
 }
 
 function yesNo(value) {

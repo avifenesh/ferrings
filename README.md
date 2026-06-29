@@ -14,43 +14,43 @@ It ships as a napi-rs native addon with typed CommonJS and ESM APIs, four Linux 
 
 The benchmark result is the reason to reach for ferrings, so it is first. The current release package was measured against Node's built-in `http` and `net` transports on the same machine, with the same request counts, same concurrency, loopback traffic, and `strace -f -c` syscall capture.
 
-Headline for `ferrings@0.2.32`: **1.97x** fixed-response HTTP throughput, **2.86x** native TCP echo throughput, **2.15x** Node-style TCP facade throughput, **2.16x** facade batch-send throughput, and **37-51% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
+Headline for `ferrings@0.2.33`: **2.26x** fixed-response HTTP throughput, **2.39x** native TCP echo throughput, **2.00x** Node-style TCP facade throughput, **2.06x** facade batch-send throughput, and **35-55% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
 
 | Workload | ferrings result vs Node built-in transport |
 | --- | --- |
-| Fixed-response HTTP | **1.97x throughput**, **61% lower p99**, **50% fewer syscalls/conn** |
-| Native TCP echo worker | **2.86x throughput**, **46% lower p99**, **51% fewer syscalls/conn** |
-| Node-style TCP facade | **2.15x throughput**, **31% lower p99**, **37% fewer syscalls/conn** |
-| TCP facade with batch send | **2.16x throughput**, **47% lower p99**, **38% fewer syscalls/conn** |
+| Fixed-response HTTP | **2.26x throughput**, **58% lower p50**, **60% lower p99**, **55% fewer syscalls/conn** |
+| Native TCP echo worker | **2.39x throughput**, **66% lower p50**, **10% higher p99**, **52% fewer syscalls/conn** |
+| Node-style TCP facade | **2.00x throughput**, **59% lower p50**, **14% higher p99**, **36% fewer syscalls/conn** |
+| TCP facade with batch send | **2.06x throughput**, **61% lower p50**, **15% higher p99**, **35% fewer syscalls/conn** |
 
 Read the TCP rows as API-surface tradeoffs. The native echo worker isolates the transport. The Node-style facade keeps familiar JavaScript connection callbacks. Batch send recovers much of the facade overhead while preserving the facade shape.
 
-| Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
-| --- | --- | --- | ---: | ---: | ---: |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | **1.97x** | **61% lower** | **50% fewer** |
-| TCP echo | Node `net` | native echo worker | **2.86x** | **46% lower** | **51% fewer** |
-| TCP echo | Node `net` | Node-style TCP facade | **2.15x** | **31% lower** | **37% fewer** |
-| TCP echo | Node `net` | facade batch send | **2.16x** | **47% lower** | **38% fewer** |
+| Workload | Baseline | ferrings path | Throughput | p50 latency | p99 latency | Server syscalls/conn |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | **2.26x** | **58% lower** | **60% lower** | **55% fewer** |
+| TCP echo | Node `net` | native echo worker | **2.39x** | **66% lower** | **10% higher** | **52% fewer** |
+| TCP echo | Node `net` | Node-style TCP facade | **2.00x** | **59% lower** | **14% higher** | **36% fewer** |
+| TCP echo | Node `net` | facade batch send | **2.06x** | **61% lower** | **15% higher** | **35% fewer** |
 
-Measured on 2026-06-29 with `ferrings@0.2.32`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
+Measured on 2026-06-29 with `ferrings@0.2.33`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
 
 Detailed results from the README run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 4,474 | 11.663 | 36.638 | 44.691 | 11.842 | libuv/epoll |
-| ferrings HTTP | 8,810 | 6.045 | 17.083 | 17.513 | 5.865 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 6,492 | 7.995 | 18.471 | 24.641 | 11.044 | libuv/epoll |
-| ferrings native TCP echo | 18,553 | 2.808 | 11.477 | 13.219 | 5.381 | native echo worker + provided buffers |
-| ferrings TCP facade | 13,963 | 3.356 | 14.479 | 17.080 | 6.921 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 13,994 | 3.694 | 9.607 | 12.988 | 6.874 | JS facade + batched native events/sends |
+| Node `http` | 4,371 | 11.837 | 45.378 | 53.599 | 11.716 | libuv/epoll |
+| ferrings HTTP | 9,863 | 5.023 | 17.721 | 21.445 | 5.324 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 7,239 | 7.887 | 14.388 | 16.517 | 11.020 | libuv/epoll |
+| ferrings native TCP echo | 17,335 | 2.684 | 16.648 | 18.240 | 5.249 | native echo worker + provided buffers |
+| ferrings TCP facade | 14,496 | 3.256 | 18.144 | 18.889 | 6.999 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 14,916 | 3.049 | 17.597 | 19.005 | 7.188 | JS facade + batched native events/sends |
 
 Run the same benchmark:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.32.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.33.json \
 npm run bench:syscalls
 ```
 
@@ -114,6 +114,11 @@ The root package installs the matching optional native package for the current L
 The root package ships JavaScript, TypeScript declarations, docs, examples, and benchmarks. Native binaries live in the platform packages above, so the loader path is the same on every supported target.
 
 If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, supported native package names, and the original loader error.
+
+The CLI keeps version/help diagnostics available without a native binding. When
+optional native dependencies are missing, `ferrings doctor --json` reports
+`verdict: "native-load-blocked"` with a `nativeLoadError` object instead of
+failing before it can explain the install problem.
 
 Minimal server:
 

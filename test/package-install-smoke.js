@@ -28,6 +28,19 @@ function run(command, args, options = {}) {
   return result;
 }
 
+function runWithStatus(command, args, options = {}) {
+  const result = spawnSync(command, args, {
+    cwd: options.cwd || repoRoot,
+    encoding: 'utf8',
+    maxBuffer: 10 * 1024 * 1024,
+    ...options
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  return result;
+}
+
 function temporarilyRemove(filePaths, callback) {
   const moved = [];
   for (const filePath of filePaths) {
@@ -155,6 +168,35 @@ try {
       )
     ],
     () => {
+      const binPath = path.join(appDir, 'node_modules', '.bin', 'ferrings');
+      const cliVersion = run(process.execPath, [binPath, '--version'], {
+        cwd: appDir
+      });
+      assert.equal(cliVersion.stdout.trim(), `${rootPackageJson.name} ${rootPackageJson.version}`);
+
+      const missingDoctorResult = run(process.execPath, [binPath, 'doctor', '--json'], {
+        cwd: appDir
+      });
+      const missingDoctor = JSON.parse(missingDoctorResult.stdout);
+      assert.equal(missingDoctor.mode, 'doctor');
+      assert.equal(missingDoctor.ready, false);
+      assert.equal(missingDoctor.defaultReady, false);
+      assert.equal(missingDoctor.verdict, 'native-load-blocked');
+      assert.equal(missingDoctor.nativeLoadError.code, 'FERRINGS_NATIVE_LOAD_FAILED');
+      assert.ok(
+        missingDoctor.blockers.some((blocker) => /could not load its native Linux binding/.test(blocker))
+      );
+      assert.match(missingDoctor.nextCommand, /optional dependencies enabled/);
+
+      const missingDoctorRequired = runWithStatus(
+        process.execPath,
+        [binPath, 'doctor', '--require-ready', '--json'],
+        { cwd: appDir }
+      );
+      assert.equal(missingDoctorRequired.status, 2);
+      assert.equal(JSON.parse(missingDoctorRequired.stdout).verdict, 'native-load-blocked');
+      assert.match(missingDoctorRequired.stderr, /doctor readiness requirements were not met/);
+
       const diagnosticScript = `
         const assert = require('node:assert/strict');
         try {
