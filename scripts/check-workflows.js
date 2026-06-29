@@ -138,6 +138,11 @@ function checkWorkflowPolicy(workflowFiles) {
   );
   assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),
+    /name: Publish npm packages[\s\S]*run: node scripts\/publish-npm-packages\.js --tag/,
+    'release.yml package-and-publish job must publish through the explicit package-set publisher'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'package-and-publish'),
     /name: Verify published npm packages[\s\S]*run: npm run check:published -- --tag/,
     'release.yml package-and-publish job must verify published npm packages'
   );

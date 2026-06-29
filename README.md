@@ -12,7 +12,7 @@ Install it from npm, import it from CommonJS or ESM, and run TCP or fixed-respon
 
 ## Benchmarks
 
-**Current benchmark snapshot:** `ferrings@0.2.35`, Node `v26.4.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, same request counts, same concurrency, and `strace -f -c` syscall capture.
+**Current benchmark snapshot:** `ferrings@0.2.36`, Node `v26.4.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, same request counts, same concurrency, and `strace -f -c` syscall capture.
 
 The short version: **2.05x** fixed-response HTTP throughput, **2.45x** native TCP echo throughput, **1.71x** Node-style TCP facade throughput, **1.79x** facade batch-send throughput, and **38-54% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
 
@@ -32,7 +32,7 @@ Read the TCP rows as API-surface tradeoffs. The native echo worker isolates the 
 | TCP echo | Node `net` | Node-style TCP facade | **1.71x** | **55% lower** | **83% higher** | **38% fewer** |
 | TCP echo | Node `net` | facade batch send | **1.79x** | **52% lower** | **36% higher** | **38% fewer** |
 
-Measured on 2026-06-29 with `ferrings@0.2.35`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
+Measured on 2026-06-29 with `ferrings@0.2.36`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
 
 Detailed results from the README run:
 
@@ -50,7 +50,7 @@ Run the same benchmark:
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.35.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.36.json \
 npm run bench:syscalls
 ```
 

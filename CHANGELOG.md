@@ -8,12 +8,15 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
-## 0.2.35 - 2026-06-29
+## 0.2.36 - 2026-06-29
 
 - Rewrote the README first screen to present ferrings as a ready-to-use Node
   transport and put benchmark proof directly under the opening.
 - Added a release-local quality gate so npm publication waits for format,
   clippy, test, and dependency-audit checks in the Release workflow itself.
+- Split release publishing into an explicit package-set publisher so native
+  packages publish before the root package and root `prepublishOnly` skips the
+  optional-package publish path.
 
 ## 0.2.34 - 2026-06-29
 

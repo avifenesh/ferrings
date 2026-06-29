@@ -16,6 +16,8 @@ const packages = [
 
 const availability = packages.map((name) => checkPackageVersion(name, version));
 const allAvailable = availability.every((entry) => entry.available);
+const missingPackages = availability.filter((entry) => entry.available);
+const existingPackages = availability.filter((entry) => !entry.available && /already exists/.test(entry.reason));
 let state = 'available';
 let published = null;
 let errors = [];
@@ -32,6 +34,13 @@ if (!allAvailable) {
   published = parseJson(check.stdout, 'check-published output');
   if (check.status === 0 && published?.ok) {
     state = 'published';
+  } else if (existingPackages.length > 0 && missingPackages.length > 0) {
+    state = 'partial';
+    errors = [
+      ...existingPackages.map((entry) => `${entry.name}@${version}: ${entry.reason}`),
+      ...missingPackages.map((entry) => `${entry.name}@${version}: ${entry.reason}`),
+      ...(published?.errors || [])
+    ].filter(Boolean);
   } else {
     state = 'conflict';
     errors = [
@@ -59,6 +68,8 @@ if (json) {
   console.log(`npm publication state: available (${rootPackage.name}@${version})`);
 } else if (state === 'published') {
   console.log(`npm publication state: already published and verified (${rootPackage.name}@${version}, tag ${expectedTag})`);
+} else if (state === 'partial') {
+  console.log(`npm publication state: partially published (${rootPackage.name}@${version}, tag ${expectedTag})`);
 } else {
   for (const error of errors) {
     console.error(error);
