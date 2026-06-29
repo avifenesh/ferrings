@@ -8,6 +8,10 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Hardened the registry install smoke so published `ferrings@0.2.32` and newer
+  packages must prove the `doctor` default-readiness contract from an npm
+  install.
+
 ## 0.2.32 - 2026-06-29
 
 - Reworked `ferrings doctor` so default transport readiness is separated from

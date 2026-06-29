@@ -334,6 +334,22 @@ function runCliSmoke(cwd) {
   assert.equal(doctor.zcrx.interfaceName, 'lo');
   assert.equal(typeof doctor.transport.ready, 'boolean');
   assert.equal(typeof doctor.nextCommand, 'string');
+  if (versionAtLeast(version, '0.2.32')) {
+    assert.equal(doctor.zcrxRequired, false);
+    assert.equal(doctor.defaultReady, doctor.transport.ready);
+    assert.equal(doctor.ready, doctor.transport.ready);
+    assert.equal(Array.isArray(doctor.blockers), true);
+    assert.equal(Array.isArray(doctor.optionalBlockers), true);
+    assert.equal(
+      doctor.blockers.some((blocker) => /loopback/i.test(blocker)),
+      false,
+      'loopback ZCRX blockers must stay optional unless --require-zcrx is set'
+    );
+    assert.ok(
+      doctor.optionalBlockers.some((blocker) => /loopback/i.test(blocker)),
+      'loopback ZCRX blocker should be reported as optional'
+    );
+  }
 
   const probeResult = run(process.execPath, [binPath, 'zcrx-probe', '-i', 'lo', '--json'], {
     cwd
@@ -400,4 +416,24 @@ function readJson(filePath) {
 function valueAfter(name) {
   const index = args.indexOf(name);
   return index === -1 ? '' : args[index + 1] || '';
+}
+
+function versionAtLeast(actual, minimum) {
+  const actualParts = semverParts(actual);
+  const minimumParts = semverParts(minimum);
+  for (let index = 0; index < Math.max(actualParts.length, minimumParts.length); index += 1) {
+    const actualPart = actualParts[index] || 0;
+    const minimumPart = minimumParts[index] || 0;
+    if (actualPart > minimumPart) return true;
+    if (actualPart < minimumPart) return false;
+  }
+  return true;
+}
+
+function semverParts(value) {
+  return String(value)
+    .replace(/^v/, '')
+    .split(/[.-]/)
+    .slice(0, 3)
+    .map((part) => Number.parseInt(part, 10) || 0);
 }
