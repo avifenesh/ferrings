@@ -38,6 +38,17 @@ try {
 
 try {
   mutatePackage((packageJson) => {
+    delete packageJson.exports;
+  });
+  const missingExports = runNativePackageCheck();
+  assert.notEqual(missingExports.status, 0, 'native package check should fail for missing exports');
+  assert.match(missingExports.stderr, /exports must expose only the native binding and package metadata/);
+} finally {
+  fs.writeFileSync(packagePath, original);
+}
+
+try {
+  mutatePackage((packageJson) => {
     packageJson.keywords = packageJson.keywords.filter((keyword) => keyword !== 'networking');
   });
   const staleKeywords = runNativePackageCheck();

@@ -95,6 +95,19 @@ try {
     const assert = require('node:assert/strict');
     const net = require('node:net');
     const ferrings = require('ferrings');
+    const nativePackage = require('ferrings-linux-x64-gnu');
+    const nativePackageJson = require('ferrings-linux-x64-gnu/package.json');
+    assert.equal(require.resolve('ferrings-linux-x64-gnu'), ${JSON.stringify(optionalNative)});
+    assert.equal(
+      require.resolve('ferrings-linux-x64-gnu/package.json'),
+      ${JSON.stringify(path.join(installedNativePackageDir, 'package.json'))}
+    );
+    assert.equal(nativePackageJson.version, require('ferrings/package.json').version);
+    assert.equal(typeof nativePackage.UringTcpServer, 'function');
+    assert.throws(
+      () => require.resolve('ferrings-linux-x64-gnu/LICENSE-MIT'),
+      (error) => error && error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED'
+    );
     assert.equal(typeof ferrings.createTcpServer, 'function');
     assert.equal(typeof ferrings.capabilities, 'function');
     const caps = ferrings.capabilities();

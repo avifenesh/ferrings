@@ -63,6 +63,7 @@ const PACKAGE_FIELDS = [
   'keywords',
   'license',
   'main',
+  'exports',
   'bin',
   'engines',
   'os',
@@ -164,6 +165,7 @@ function verifyRootPackage(published, errors) {
   expectEqual(published, 'keywords', rootPackage.keywords, errors);
   expectEqual(published, 'license', rootPackage.license, errors);
   expectEqual(published, 'main', rootPackage.main, errors);
+  expectEqual(published, 'exports', rootPackage.exports, errors);
   expectEqual(published, 'bin', rootPackage.bin, errors);
   expectEqual(published, 'engines', rootPackage.engines, errors);
   expectEqual(published, 'os', rootPackage.os, errors);
@@ -187,6 +189,7 @@ function verifyNativePackage(published, target, errors) {
   expectEqual(published, 'keywords', rootPackage.keywords, errors);
   expectEqual(published, 'license', rootPackage.license, errors);
   expectEqual(published, 'main', target.main, errors);
+  expectEqual(published, 'exports', nativePackageExports(target), errors);
   expectEqual(published, 'engines', rootPackage.engines, errors);
   expectEqual(published, 'os', ['linux'], errors);
   expectEqual(published, 'cpu', target.cpu, errors);
@@ -256,6 +259,13 @@ function verifyNativeTarball(target, errors) {
   }
   expectNoFile(files, target.package, 'README.md', errors);
   expectNoFile(files, target.package, 'src/uring.rs', errors);
+}
+
+function nativePackageExports(target) {
+  return {
+    '.': `./${target.main}`,
+    './package.json': './package.json'
+  };
 }
 
 function npmViewPackage(name, packageVersion, errors) {

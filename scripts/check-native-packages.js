@@ -117,6 +117,14 @@ function checkPlatformPackage(target) {
     `${target.name} description must match target platform`
   );
   assert.equal(packageJson.main, target.main);
+  assert.deepEqual(
+    packageJson.exports,
+    {
+      '.': `./${target.main}`,
+      './package.json': './package.json'
+    },
+    `${target.name} exports must expose only the native binding and package metadata`
+  );
   assert.deepEqual(packageJson.files, [target.main, 'LICENSE-APACHE', 'LICENSE-MIT']);
   assert.equal(packageJson.license, rootPackage.license);
   assert.deepEqual(packageJson.engines, rootPackage.engines, `${target.name} engines must match root package engines`);

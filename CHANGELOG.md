@@ -8,6 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.22 - 2026-06-29
+
+- Rewrote the README opening to present ferrings as a usable Node transport
+  with benchmark evidence before installation.
+- Added explicit `exports` boundaries to every native platform package and
+  extended local, install-smoke, and published-registry checks to verify them.
+
 ## 0.2.21 - 2026-06-29
 
 - Added a package `exports` map that defines the supported public entrypoint

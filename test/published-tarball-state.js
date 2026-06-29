@@ -22,6 +22,7 @@ fs.writeFileSync(
     const originalSpawnSync = childProcess.spawnSync;
     const rootPackage = require(path.resolve(process.cwd(), 'package.json'));
     const missingNative = process.env.FERRINGS_TEST_MISSING_NATIVE_TARBALL === '1';
+    const missingNativeExports = process.env.FERRINGS_TEST_MISSING_NATIVE_EXPORTS === '1';
     const rootNative = process.env.FERRINGS_TEST_ROOT_NATIVE_TARBALL === '1';
 
     const targets = [
@@ -106,6 +107,7 @@ fs.writeFileSync(
         keywords: rootPackage.keywords,
         license: rootPackage.license,
         main: rootPackage.main,
+        exports: rootPackage.exports,
         bin: rootPackage.bin,
         engines: rootPackage.engines,
         os: rootPackage.os,
@@ -127,6 +129,10 @@ fs.writeFileSync(
         keywords: rootPackage.keywords,
         license: rootPackage.license,
         main: target.main,
+        exports: missingNativeExports ? undefined : {
+          '.': './' + target.main,
+          './package.json': './package.json'
+        },
         engines: rootPackage.engines,
         os: ['linux'],
         cpu: target.cpu,
@@ -246,12 +252,21 @@ try {
     /ferrings-linux-arm64-musl tarball is missing ferrings\.linux-arm64-musl\.node/
   );
 
+  const missingExports = runScenario({ missingNativeExports: true });
+  assert.equal(missingExports.status, 1);
+  const missingExportsReport = JSON.parse(missingExports.stdout);
+  assert.equal(missingExportsReport.ok, false);
+  assert.match(
+    missingExportsReport.errors.join('\n'),
+    /ferrings-linux-x64-gnu exports was undefined, expected/
+  );
+
   console.log('published tarball state ok');
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
-function runScenario({ missingNative = false, rootNative = false } = {}) {
+function runScenario({ missingNative = false, missingNativeExports = false, rootNative = false } = {}) {
   return spawnSync(
     process.execPath,
     ['--require', preload, script, '--json', '--verify-tarballs'],
@@ -261,6 +276,7 @@ function runScenario({ missingNative = false, rootNative = false } = {}) {
       env: {
         ...process.env,
         FERRINGS_TEST_MISSING_NATIVE_TARBALL: missingNative ? '1' : '0',
+        FERRINGS_TEST_MISSING_NATIVE_EXPORTS: missingNativeExports ? '1' : '0',
         FERRINGS_TEST_ROOT_NATIVE_TARBALL: rootNative ? '1' : '0'
       },
       maxBuffer: 5 * 1024 * 1024
