@@ -252,7 +252,7 @@ function parseListenArgs(baseOptions, args) {
 
   if (values.length === 1 && isPlainObject(values[0])) {
     Object.assign(options, values[0]);
-    return { options, callback };
+    return { options: normalizeListenOptions(options), callback };
   }
 
   if (values.length > 0 && values[0] !== undefined && values[0] !== null) {
@@ -263,31 +263,63 @@ function parseListenArgs(baseOptions, args) {
       options.host = values[1];
     } else if (values.length === 2) {
       options.backlog = normalizeBacklog(values[1]);
+    } else {
+      throw new TypeError('host must be a string');
     }
   }
   if (values.length > 2 && values[2] !== undefined && values[2] !== null) {
     options.backlog = normalizeBacklog(values[2]);
   }
 
-  return { options, callback };
+  return { options: normalizeListenOptions(options), callback };
 }
 
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-function normalizePort(value) {
-  if (typeof value === 'string' && value.trim() !== '') {
-    return Number(value);
+function normalizeListenOptions(options) {
+  const normalized = { ...options };
+  if (
+    normalized.host !== undefined &&
+    normalized.host !== null &&
+    typeof normalized.host !== 'string'
+  ) {
+    throw new TypeError('host must be a string');
   }
-  return value;
+  if (normalized.port !== undefined && normalized.port !== null) {
+    normalized.port = normalizePort(normalized.port);
+  }
+  if (normalized.backlog !== undefined && normalized.backlog !== null) {
+    normalized.backlog = normalizeBacklog(normalized.backlog);
+  }
+  return normalized;
+}
+
+function normalizePort(value) {
+  const port = numberOption('port', value);
+  if (!Number.isInteger(port) || port < 0 || port > 65535) {
+    throw new RangeError('port must be an integer between 0 and 65535');
+  }
+  return port;
 }
 
 function normalizeBacklog(value) {
+  const backlog = numberOption('backlog', value);
+  if (!Number.isInteger(backlog) || backlog < 1 || backlog > 0x7fffffff) {
+    throw new RangeError('backlog must be an integer between 1 and 2147483647');
+  }
+  return backlog;
+}
+
+function numberOption(name, value) {
+  if (typeof value === 'number') {
+    return value;
+  }
   if (typeof value === 'string' && value.trim() !== '') {
     return Number(value);
   }
-  return value;
+  throw new TypeError(`${name} must be a number`);
 }
 
 function normalizeBatchSends(sends) {

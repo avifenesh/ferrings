@@ -8,6 +8,12 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Hardened release workflow token permissions so validation/build jobs run with
+  read-only repository access while npm provenance and GitHub release writes are
+  scoped to the publish job.
+- Added TCP facade `listen()` validation for invalid host, port, and backlog
+  inputs so common deployment misconfiguration fails before native startup.
+
 ## 0.2.26 - 2026-06-29
 
 - Added ZCRX kernel security advisory warnings for affected upstream release

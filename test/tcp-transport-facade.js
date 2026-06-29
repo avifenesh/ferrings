@@ -269,6 +269,42 @@ async function verifyFacadeKeepsProcessAlive() {
     () => createTcpServer().getConnections(null),
     /callback must be a function/
   );
+  assert.throws(
+    () => createTcpServer().listen('bad'),
+    /port must be an integer between 0 and 65535/
+  );
+  assert.throws(
+    () => createTcpServer().listen(NaN),
+    /port must be an integer between 0 and 65535/
+  );
+  assert.throws(
+    () => createTcpServer().listen(-1),
+    /port must be an integer between 0 and 65535/
+  );
+  assert.throws(
+    () => createTcpServer().listen(1.5),
+    /port must be an integer between 0 and 65535/
+  );
+  assert.throws(
+    () => createTcpServer().listen(0, '127.0.0.1', 0),
+    /backlog must be an integer between 1 and 2147483647/
+  );
+  assert.throws(
+    () => createTcpServer().listen(0, {}),
+    /backlog must be a number/
+  );
+  assert.throws(
+    () => createTcpServer().listen(0, {}, 128),
+    /host must be a string/
+  );
+  assert.throws(
+    () => createTcpServer({ port: 'bad' }).listen(),
+    /port must be an integer between 0 and 65535/
+  );
+  assert.throws(
+    () => createTcpServer({ host: 127 }).listen(),
+    /host must be a string/
+  );
 
   const countServer = createTcpServer();
   countServer.on('data', (connection) => {
