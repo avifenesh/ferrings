@@ -90,8 +90,8 @@ try {
 }
 
 const experimentalReadme = originalReadme.replace(
-  'Linux `io_uring` TCP transport for real Node.js services',
-  'Experimental Linux `io_uring` TCP transport for real Node.js services'
+  'Linux `io_uring` TCP transport for production Node.js services',
+  'Experimental Linux `io_uring` TCP transport for production Node.js services'
 );
 assert.notEqual(experimentalReadme, originalReadme, 'README experimental framing mutation should apply');
 

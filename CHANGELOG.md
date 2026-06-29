@@ -18,6 +18,8 @@ may adjust APIs, defaults, or packaging.
   probing.
 - Rewrote the README opening to lead with release-package benchmark results and
   present ferrings as usable for supported Linux Node deployments.
+- Tightened the README positioning so ferrings is described as a production
+  Node transport, with benchmark results before implementation detail.
 - Hardened native server option validation so fractional or negative JavaScript
   numbers cannot be coerced into ports, queue sizes, buffer sizes, counters, or
   ZCRX queue settings before startup.

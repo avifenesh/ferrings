@@ -6,15 +6,15 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Linux `io_uring` TCP transport for real Node.js services, built in Rust with napi-rs and shipped on npm as platform-native packages.
-
-ferrings is for Linux Node servers where the socket path matters: connection churn, syscall count, receive-buffer ownership, and the latency cost of pushing all networking through libuv's epoll loop. The default path uses multishot accept/recv and provided buffers on a native worker while application code stays in JavaScript callbacks. Optional fast paths cover recv-bundle, zero-copy send, registered send buffers, and host-gated ZCRX.
-
-On the current README benchmark run, ferrings delivers **2.00x** fixed-response HTTP throughput, **2.05x** native TCP echo throughput, **1.88x** Node-style TCP facade throughput, and **37-53% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
+Linux `io_uring` TCP transport for production Node.js services, built in Rust with napi-rs and shipped on npm as platform-native packages.
 
 ## Benchmarks
 
-Benchmarks sit at the top because ferrings is a shipped transport package, and the reason to use it is measurable socket-path improvement without moving the service out of Node. The table below compares Node's built-in `http` and `net` servers with ferrings on the same machine, request count, and concurrency.
+Benchmarks are the first section because ferrings is a shipped transport package. The reason to install it is measurable socket-path improvement while keeping the service in Node.
+
+Latest README benchmark snapshot: ferrings delivers **2.00x** fixed-response HTTP throughput, **2.05x** native TCP echo throughput, **1.88x** Node-style TCP facade throughput, and **37-53% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
+
+The table below compares Node's built-in `http` and `net` servers with ferrings on the same machine, request count, and concurrency.
 
 | Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: |
@@ -46,6 +46,8 @@ npm run bench:syscalls
 ```
 
 Watch both throughput and syscall count. Tail latency depends on API surface, payload size, kernel, NIC path, queue settings, and how much work your JavaScript callback performs.
+
+ferrings gets these numbers by moving accept/recv/send work to an `io_uring` native worker while application code stays in JavaScript callbacks. The default path uses multishot accept/recv and provided buffers. Optional fast paths cover recv-bundle, zero-copy send, registered send buffers, and host-gated ZCRX.
 
 ## Installation
 
@@ -440,7 +442,7 @@ For a new release, bump the package version first; npm versions are immutable af
 - TLS is not implemented.
 - ZCRX requires specific NIC hardware, kernel support, queue setup, permissions, and routed traffic through the selected RX queue.
 - Registered-buffer send can be unavailable even when the kernel supports other modern `io_uring` networking features; ferrings reports that through `capabilities().registeredSendBuffer`.
-- ferrings is usable today on supported Linux Node deployments, but it is still a `0.x` package: patch releases are intended to be safe updates, while minor releases may adjust API names or defaults.
+- ferrings is in the `0.x` version line: patch releases are intended to be safe updates, while minor releases may adjust API names or defaults.
 
 ## Contributing
 
