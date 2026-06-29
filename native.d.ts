@@ -49,6 +49,7 @@ export interface Capabilities {
   zcrxKernelOpcode: boolean
   zcrxCqe32Ring: boolean
   zcrxCqe32RingProbe: string
+  zcrxKernelSecurityWarnings: Array<string>
   fastPoll: boolean
   note: string
 }
@@ -200,6 +201,7 @@ export interface ZcrxProbe {
   activeRegistration: boolean
   activeRegistrationResult?: string
   activeRegistrationErrno?: number
+  kernelSecurityWarnings: Array<string>
   ready: boolean
   blockers: Array<string>
   note: string

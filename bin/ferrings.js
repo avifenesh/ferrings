@@ -223,7 +223,10 @@ function buildDoctorReport(options) {
   report.ready = report.transport.ready && report.zcrx.ready;
   report.verdict = doctorVerdict(report);
   report.blockers = [...report.transport.blockers, ...report.zcrx.blockers];
-  report.warnings = [...report.transport.warnings];
+  report.warnings = [
+    ...report.transport.warnings,
+    ...(report.zcrx.kernelSecurityWarnings || [])
+  ];
   report.nextCommand = doctorNextCommand(report, probeOptions);
   return report;
 }
@@ -276,6 +279,9 @@ function doctorNextCommand(report, probeOptions) {
   const rxQueue = report.zcrx.rxQueue;
   const rxBufferSize = report.zcrx.rxBufferSize;
   if (!report.zcrx.ready) {
+    if ((report.zcrx.kernelSecurityWarnings || []).length > 0) {
+      return 'upgrade to a ZCRX-fixed kernel or set FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK=1 only after verifying a vendor backport';
+    }
     if (!interfaceName) {
       return 'ferrings doctor --interface <nic> --active --json';
     }
@@ -400,6 +406,9 @@ function printCapabilities(caps) {
   console.log(`registered send buffer: ${yesNo(caps.registeredSendBuffer)} (${caps.registeredSendBufferProbe})`);
   console.log(`recv zc opcode: ${yesNo(caps.recvZc)}`);
   console.log(`ZCRX CQE32 ring: ${yesNo(caps.zcrxCqe32Ring)} (${caps.zcrxCqe32RingProbe})`);
+  for (const warning of caps.zcrxKernelSecurityWarnings || []) {
+    console.log(`ZCRX kernel security warning: ${warning}`);
+  }
 }
 
 function printZcrxReport(report) {
@@ -418,6 +427,9 @@ function printZcrxReport(report) {
     console.log(`  flow steering: ${probe.flowSteering}`);
     if (probe.activeRegistration) {
       console.log(`  active registration: ${probe.activeRegistrationResult || 'unknown'}`);
+    }
+    for (const warning of probe.kernelSecurityWarnings || []) {
+      console.log(`  security warning: ${warning}`);
     }
     if (probe.blockers.length > 0) {
       console.log('  blockers:');
@@ -444,6 +456,9 @@ function printDoctorReport(report) {
   console.log(`  rx queue: ${report.zcrx.rxQueue}/${report.zcrx.rxQueueCount}`);
   console.log(`  rx buffer size: ${report.zcrx.rxBufferSize}`);
   console.log(`  active registration: ${report.zcrx.activeRegistration ? report.zcrx.activeRegistrationResult || 'unknown' : 'not requested'}`);
+  for (const warning of report.zcrx.kernelSecurityWarnings || []) {
+    console.log(`  security warning: ${warning}`);
+  }
   for (const blocker of report.zcrx.blockers) {
     console.log(`  blocker: ${blocker}`);
   }

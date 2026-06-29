@@ -34,6 +34,8 @@ assert.equal(typeof probe.kernelOpcode, 'boolean');
 assert.equal(probe.kernelOpcode, caps.zcrxKernelOpcode);
 assert.equal(typeof probe.ready, 'boolean');
 assert.equal(Array.isArray(probe.blockers), true);
+assert.equal(Array.isArray(probe.kernelSecurityWarnings), true);
+assert.equal(Array.isArray(caps.zcrxKernelSecurityWarnings), true);
 assert.equal(typeof probe.rxQueue, 'number');
 assert.equal(typeof probe.rxBufferSize, 'number');
 assert.equal(probe.rxBufferSize, 0);
@@ -100,10 +102,13 @@ const server = new UringHttpServer({
   zcrxRxQueue: 0
 });
 
+const zcrxStartupBlocker =
+  /zero-copy receive requested.*(?:active ZCRX readiness probe.*register ZCRX ifq|known upstream ZCRX security advisory ranges)/i;
+
 assert.throws(
   () => server.start(),
-  /zero-copy receive requested.*active ZCRX readiness probe.*register ZCRX ifq/i,
-  'HTTP ZCRX startup should attempt persistent IFQ registration and report the active blocker'
+  zcrxStartupBlocker,
+  'HTTP ZCRX startup should fail before use when readiness or kernel security blocks ZCRX'
 );
 
 server.stop();
@@ -118,8 +123,8 @@ const tcpServer = new UringTcpServer({
 
 assert.throws(
   () => tcpServer.start(() => {}),
-  /zero-copy receive requested.*active ZCRX readiness probe.*register ZCRX ifq/i,
-  'programmable TCP ZCRX startup should attempt persistent IFQ registration and report the active blocker'
+  zcrxStartupBlocker,
+  'programmable TCP ZCRX startup should fail before use when readiness or kernel security blocks ZCRX'
 );
 
 tcpServer.stop();
@@ -134,8 +139,8 @@ const echoServer = new UringTcpEchoServer({
 
 assert.throws(
   () => echoServer.start(),
-  /zero-copy receive requested.*active ZCRX readiness probe.*register ZCRX ifq/i,
-  'native TCP echo ZCRX startup should attempt persistent IFQ registration and report the active blocker'
+  zcrxStartupBlocker,
+  'native TCP echo ZCRX startup should fail before use when readiness or kernel security blocks ZCRX'
 );
 
 echoServer.stop();

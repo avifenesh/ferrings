@@ -33,6 +33,7 @@ pub struct Capabilities {
     pub zcrx_kernel_opcode: bool,
     pub zcrx_cqe32_ring: bool,
     pub zcrx_cqe32_ring_probe: String,
+    pub zcrx_kernel_security_warnings: Vec<String>,
     pub fast_poll: bool,
     pub note: String,
 }
@@ -64,6 +65,7 @@ pub struct ZcrxProbe {
     pub active_registration: bool,
     pub active_registration_result: Option<String>,
     pub active_registration_errno: Option<i32>,
+    pub kernel_security_warnings: Vec<String>,
     pub ready: bool,
     pub blockers: Vec<String>,
     pub note: String,

@@ -113,6 +113,9 @@ passes active probing and traffic validation.
 Requirements:
 
 - Kernel exposes `IORING_OP_RECV_ZC`.
+- Running kernel release does not match a known upstream ZCRX security advisory
+  range, or the operator has verified a distro backport before setting
+  `FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK=1`.
 - `io_uring` CQE32 ring setup succeeds.
 - Physical NIC supports the required zero-copy receive path.
 - Header/data split and queue setup are configured for the NIC.
@@ -126,6 +129,11 @@ Validation command:
 node bin/ferrings.js zcrx-probe --interface eth0 --rx-queue 0 --active --json
 ZCRX_INTERFACE=eth0 ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx
 ```
+
+The probe reports ZCRX kernel security warnings for upstream advisory ranges
+such as CVE-2026-43121, CVE-2026-43174, CVE-2026-43224, and CVE-2026-45995.
+Treat these as blockers unless your kernel vendor confirms the fixes are
+backported to the exact running kernel build.
 
 `ZCRX_CONNECT_HOST` must be a concrete non-loopback host routed through the
 selected NIC path. Do not use `127.0.0.1`, `localhost`, `0.0.0.0`, or `::`.

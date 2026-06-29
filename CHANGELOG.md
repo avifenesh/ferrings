@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.26 - 2026-06-29
+
+- Added ZCRX kernel security advisory warnings for affected upstream release
+  ranges and block `useZeroCopyReceive` startup unless the operator explicitly
+  overrides after verifying a vendor backport.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.26` results on
+  Node 26.
+
 ## 0.2.25 - 2026-06-29
 
 - Added `ferrings --version` / `ferrings version` CLI support and covered it in

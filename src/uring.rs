@@ -59,6 +59,7 @@ const ZCRX_PROBE_RQ_ENTRIES: u32 = 64;
 const ZCRX_PROBE_BUFFER_SIZE: usize = 4096;
 const ZCRX_AREA_OFFSET_BITS: u32 = 48;
 const ZCRX_AREA_OFFSET_MASK: u64 = (1_u64 << ZCRX_AREA_OFFSET_BITS) - 1;
+const ZCRX_KERNEL_SECURITY_OVERRIDE_ENV: &str = "FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK";
 
 type Ring<C = cqueue::Entry> = IoUring<squeue::Entry, C>;
 type ZcrxRing = Ring<cqueue::Entry32>;
@@ -1805,6 +1806,7 @@ pub fn capabilities() -> Capabilities {
             zcrx_kernel_opcode: false,
             zcrx_cqe32_ring: false,
             zcrx_cqe32_ring_probe: "io_uring probe unavailable".to_string(),
+            zcrx_kernel_security_warnings: zcrx_kernel_security_warnings(),
             fast_poll: false,
             note: error.to_string(),
         },
@@ -1909,6 +1911,14 @@ pub fn zcrx_probe(options: Option<ZcrxProbeOptions>) -> ZcrxProbe {
             "flow steering/ntuple support is not proven enabled ({flow_steering})"
         ));
     }
+    let kernel_security_warnings = zcrx_kernel_security_warnings();
+    if !kernel_security_warnings.is_empty() && !zcrx_kernel_security_override_enabled() {
+        blockers.extend(
+            kernel_security_warnings
+                .iter()
+                .map(|warning| zcrx_kernel_security_blocker_message(warning)),
+        );
+    }
 
     let mut active_registration_result = None;
     let mut active_registration_errno = None;
@@ -1973,10 +1983,110 @@ pub fn zcrx_probe(options: Option<ZcrxProbeOptions>) -> ZcrxProbe {
         active_registration,
         active_registration_result,
         active_registration_errno,
+        kernel_security_warnings,
         ready,
         blockers,
         note: "ZCRX readiness also requires io_uring ifq and memory-region registration at server startup. By default this probe is passive; pass activeRegistration: true to attempt a short-lived ifq registration on the selected queue."
             .to_string(),
+    }
+}
+
+fn ensure_zcrx_kernel_security() -> Result<(), UringError> {
+    if zcrx_kernel_security_override_enabled() {
+        return Ok(());
+    }
+    let warnings = zcrx_kernel_security_warnings();
+    if warnings.is_empty() {
+        return Ok(());
+    }
+    Err(format!(
+        "zero-copy receive requested but the running kernel matches known upstream ZCRX security advisory ranges: {}. Upgrade to a fixed kernel or set {ZCRX_KERNEL_SECURITY_OVERRIDE_ENV}=1 only when your distro kernel has the fixes backported.",
+        warnings.join("; ")
+    )
+    .into())
+}
+
+fn zcrx_kernel_security_warnings() -> Vec<String> {
+    zcrx_kernel_security_warnings_for_release(&kernel_release())
+}
+
+fn zcrx_kernel_security_warnings_for_release(release: &str) -> Vec<String> {
+    let Some(version) = KernelVersion::parse(release) else {
+        return Vec::new();
+    };
+    let mut warnings = Vec::new();
+    if version.in_range(KernelVersion::new(6, 15, 0), KernelVersion::new(6, 18, 16))
+        || version.in_range(KernelVersion::new(6, 19, 0), KernelVersion::new(6, 19, 6))
+    {
+        warnings.push(format!(
+            "kernel release {release} matches the upstream affected range for CVE-2026-43121 in io_uring/zcrx; fixed upstream in 6.18.16, 6.19.6, and 7.0 or by vendor backport"
+        ));
+    }
+    if version.in_range(KernelVersion::new(6, 15, 0), KernelVersion::new(6, 19, 6)) {
+        warnings.push(format!(
+            "kernel release {release} matches the upstream affected range for CVE-2026-43174 in io_uring/zcrx; fixed upstream in 6.19.6 and 7.0 or by vendor backport"
+        ));
+    }
+    if version.in_range(KernelVersion::new(6, 18, 0), KernelVersion::new(6, 18, 16))
+        || version.in_range(KernelVersion::new(6, 19, 0), KernelVersion::new(6, 19, 6))
+    {
+        warnings.push(format!(
+            "kernel release {release} matches the upstream affected range for CVE-2026-43224 in io_uring/zcrx; fixed upstream in 6.18.16, 6.19.6, and 7.0 or by vendor backport"
+        ));
+    }
+    if version.in_range(KernelVersion::new(6, 19, 0), KernelVersion::new(7, 0, 4)) {
+        warnings.push(format!(
+            "kernel release {release} matches the upstream affected range for CVE-2026-45995 in io_uring/zcrx; fixed upstream in 7.0.4 and 7.1 or by vendor backport"
+        ));
+    }
+    warnings
+}
+
+fn zcrx_kernel_security_blocker_message(warning: &str) -> String {
+    format!(
+        "{warning}; set {ZCRX_KERNEL_SECURITY_OVERRIDE_ENV}=1 only after verifying a vendor backport"
+    )
+}
+
+fn zcrx_kernel_security_override_enabled() -> bool {
+    std::env::var(ZCRX_KERNEL_SECURITY_OVERRIDE_ENV)
+        .map(|value| matches!(value.as_str(), "1" | "true" | "TRUE" | "yes" | "YES"))
+        .unwrap_or(false)
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+struct KernelVersion {
+    major: u32,
+    minor: u32,
+    patch: u32,
+}
+
+impl KernelVersion {
+    const fn new(major: u32, minor: u32, patch: u32) -> Self {
+        Self {
+            major,
+            minor,
+            patch,
+        }
+    }
+
+    fn parse(release: &str) -> Option<Self> {
+        let prefix = release
+            .chars()
+            .take_while(|character| character.is_ascii_digit() || *character == '.')
+            .collect::<String>();
+        let mut parts = prefix.split('.');
+        let major = parts.next()?.parse().ok()?;
+        let minor = parts.next()?.parse().ok()?;
+        let patch = parts
+            .next()
+            .and_then(|value| value.parse().ok())
+            .unwrap_or(0);
+        Some(Self::new(major, minor, patch))
+    }
+
+    fn in_range(self, start_inclusive: KernelVersion, end_exclusive: KernelVersion) -> bool {
+        self >= start_inclusive && self < end_exclusive
     }
 }
 
@@ -2148,6 +2258,7 @@ fn probe_capabilities() -> Result<Capabilities, UringError> {
         zcrx_kernel_opcode: probe.is_supported(opcode::RecvZc::CODE),
         zcrx_cqe32_ring,
         zcrx_cqe32_ring_probe,
+        zcrx_kernel_security_warnings: zcrx_kernel_security_warnings(),
         fast_poll: ring.params().is_feature_fast_poll(),
         note: "ZCRX opcode and CQE32 ring support only mean the kernel path can be prepared; NIC queue setup is separate. providedBufferRing and registeredSendBuffer are active probes."
             .to_string(),
@@ -2836,6 +2947,7 @@ fn run_worker_zcrx_inner(
     ready_tx: &mut Option<mpsc::Sender<Result<WorkerReady, String>>>,
     stats: &TransportStats,
 ) -> Result<(), UringError> {
+    ensure_zcrx_kernel_security()?;
     let mut ring = build_zcrx_ring(config.queue_depth)?;
 
     let mut probe = Probe::new();
@@ -3209,6 +3321,7 @@ fn run_tcp_echo_zcrx_worker_inner(
     ready_tx: &mut Option<mpsc::Sender<Result<WorkerReady, String>>>,
     stats: &TransportStats,
 ) -> Result<(), UringError> {
+    ensure_zcrx_kernel_security()?;
     let mut ring = build_zcrx_ring(config.queue_depth)?;
 
     let mut probe = Probe::new();
@@ -3591,6 +3704,7 @@ fn run_tcp_zcrx_worker_inner(
     config: TcpServerConfig,
     runtime: &mut TcpWorkerRuntime,
 ) -> Result<(), UringError> {
+    ensure_zcrx_kernel_security()?;
     let mut ring = build_zcrx_ring(config.queue_depth)?;
 
     let mut probe = Probe::new();
@@ -6648,6 +6762,75 @@ mod tests {
         probe.observe(b"\n\r\n");
         assert!(probe.should_respond());
         assert_eq!(probe.bytes, b"HEAD / HTTP/1.1\r\nHost: local\r\n\r\n".len());
+    }
+
+    #[test]
+    fn kernel_version_parser_handles_distro_suffixes() {
+        assert_eq!(
+            KernelVersion::parse("7.0.0-27-generic"),
+            Some(KernelVersion::new(7, 0, 0))
+        );
+        assert_eq!(
+            KernelVersion::parse("6.19.6"),
+            Some(KernelVersion::new(6, 19, 6))
+        );
+        assert_eq!(
+            KernelVersion::parse("6.19-rc1"),
+            Some(KernelVersion::new(6, 19, 0))
+        );
+        assert_eq!(KernelVersion::parse("unknown"), None);
+    }
+
+    #[test]
+    fn zcrx_kernel_security_warnings_cover_current_advisory_ranges() {
+        let linux_615 = zcrx_kernel_security_warnings_for_release("6.15.0");
+        assert!(linux_615
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-43121")));
+        assert!(linux_615
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-43174")));
+
+        let linux_618 = zcrx_kernel_security_warnings_for_release("6.18.15");
+        assert!(linux_618
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-43224")));
+
+        let linux_619 = zcrx_kernel_security_warnings_for_release("6.19.5");
+        assert!(linux_619
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-45995")));
+
+        let linux_700 = zcrx_kernel_security_warnings_for_release("7.0.0-27-generic");
+        assert!(linux_700
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-45995")));
+
+        let linux_61816 = zcrx_kernel_security_warnings_for_release("6.18.16");
+        assert!(!linux_61816
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-43121")));
+        assert!(linux_61816
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-43174")));
+        assert!(!linux_61816
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-43224")));
+        let linux_6196 = zcrx_kernel_security_warnings_for_release("6.19.6");
+        assert!(!linux_6196
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-43121")));
+        assert!(!linux_6196
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-43174")));
+        assert!(!linux_6196
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-43224")));
+        assert!(linux_6196
+            .iter()
+            .any(|warning| warning.contains("CVE-2026-45995")));
+        assert!(zcrx_kernel_security_warnings_for_release("7.0.4").is_empty());
+        assert!(zcrx_kernel_security_warnings_for_release("7.1.0").is_empty());
     }
 
     #[test]

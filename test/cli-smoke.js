@@ -27,6 +27,7 @@ assert.equal(caps.package, 'ferrings');
 assert.equal(caps.mode, 'capabilities');
 assert.equal(typeof caps.capabilities.ioUringAvailable, 'boolean');
 assert.equal(typeof caps.capabilities.recvZc, 'boolean');
+assert.equal(Array.isArray(caps.capabilities.zcrxKernelSecurityWarnings), true);
 
 const doctor = JSON.parse(run(['doctor', '--json']).stdout);
 assert.equal(doctor.package, 'ferrings');
@@ -34,6 +35,8 @@ assert.equal(doctor.mode, 'doctor');
 assert.equal(typeof doctor.ready, 'boolean');
 assert.equal(typeof doctor.transport.ready, 'boolean');
 assert.equal(typeof doctor.zcrx.ready, 'boolean');
+assert.equal(Array.isArray(doctor.zcrx.kernelSecurityWarnings), true);
+assert.equal(Array.isArray(doctor.warnings), true);
 assert.equal(typeof doctor.nextCommand, 'string');
 
 const doctorLoopback = JSON.parse(run(['doctor', '-i', 'lo', '--json']).stdout);
@@ -46,6 +49,7 @@ assert.equal(loopback.package, 'ferrings');
 assert.equal(loopback.mode, 'zcrx-probe');
 assert.equal(loopback.probe.interfaceName, 'lo');
 assert.equal(loopback.probe.ready, false);
+assert.equal(Array.isArray(loopback.probe.kernelSecurityWarnings), true);
 assert.ok(loopback.probe.blockers.some((blocker) => /loopback/i.test(blocker)));
 
 const loopbackShort = JSON.parse(run(['zcrx-probe', '-i', 'lo', '--json']).stdout);
