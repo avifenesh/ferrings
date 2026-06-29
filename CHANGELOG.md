@@ -8,8 +8,10 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.37 - 2026-06-29
+
 - Rewrote the README opening so ferrings presents as a ready-to-use transport,
-  refreshed the `0.2.36` benchmark snapshot, and moved install/quick-start
+  refreshed the `0.2.37` benchmark snapshot, and moved install/quick-start
   usage directly next to the benchmark proof.
 - Updated the README metadata regression test so the ready-use framing guard
   covers the new opening sentence.
