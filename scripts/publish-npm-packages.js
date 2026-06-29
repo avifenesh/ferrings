@@ -104,11 +104,30 @@ function packageExists(name, version) {
     cwd: repoRoot,
     stdio: 'pipe'
   });
-  return result.status === 0;
+  if (result.status === 0) {
+    return true;
+  }
+  if (isNpmNotFound(result)) {
+    return false;
+  }
+  throw new Error(`could not check ${name}@${version} publication state: ${npmFailure(result)}`);
 }
 
 function isRetryablePublishFailure(output) {
   return /\b(E5\d\d|ETIMEDOUT|ECONNRESET|ECONNREFUSED|EAI_AGAIN|fetch failed)\b/i.test(output);
+}
+
+function isNpmNotFound(result) {
+  const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+  return result.status !== 0 && /\bE404\b|404 Not Found|not found/i.test(output);
+}
+
+function npmFailure(result) {
+  return (
+    result.error?.message ||
+    (result.stderr || result.stdout || '').trim().split('\n').slice(-1)[0] ||
+    `command exited ${result.status}`
+  );
 }
 
 function run(command, commandArgs, options = {}) {
