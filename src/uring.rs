@@ -1,6 +1,6 @@
 use crate::{
     Capabilities, ServerInfo, ServerOptions, TcpEvent, TcpEventCallback, TcpEventSink,
-    TcpServerOptions, ZcrxProbe, ZcrxProbeOptions, EVENT_QUEUE_CAPACITY,
+    TcpServerOptions, ZcrxProbe, EVENT_QUEUE_CAPACITY,
 };
 use io_uring::cqueue;
 use io_uring::opcode;
@@ -927,6 +927,14 @@ pub struct StartedTcpServer {
     pub command_tx: mpsc::SyncSender<TcpCommand>,
     pub command_event_fd: RawFd,
     pub join: JoinHandle<()>,
+}
+
+#[derive(Default)]
+pub(crate) struct ZcrxProbeConfig {
+    pub interface_name: Option<String>,
+    pub rx_queue: Option<u32>,
+    pub rx_buffer_size: Option<u32>,
+    pub active_registration: Option<bool>,
 }
 
 #[derive(Default)]
@@ -1931,16 +1939,10 @@ pub fn capabilities() -> Capabilities {
     }
 }
 
-pub fn zcrx_probe(options: Option<ZcrxProbeOptions>) -> ZcrxProbe {
+pub fn zcrx_probe(options: ZcrxProbeConfig) -> ZcrxProbe {
     let kernel_opcode = probe_capabilities()
         .map(|caps| caps.zcrx_kernel_opcode)
         .unwrap_or(false);
-    let options = options.unwrap_or(ZcrxProbeOptions {
-        interface_name: None,
-        rx_queue: None,
-        rx_buffer_size: None,
-        active_registration: None,
-    });
     let requested_interface = options.interface_name;
     let rx_queue = options.rx_queue.unwrap_or(0);
     let rx_buffer_size = options

@@ -26,6 +26,9 @@ may adjust APIs, defaults, or packaging.
 - Hardened raw TCP send and close methods so fractional, negative, overflow,
   `NaN`, or infinite `connectionId` values cannot be coerced before native
   command enqueue.
+- Hardened the raw native ZCRX probe so invalid `rxQueue`, `rxBufferSize`, and
+  empty `interfaceName` values are rejected before readiness probing or active
+  registration checks.
 
 ## 0.2.26 - 2026-06-29
 

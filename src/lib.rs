@@ -41,8 +41,8 @@ pub struct Capabilities {
 #[napi(object)]
 pub struct ZcrxProbeOptions {
     pub interface_name: Option<String>,
-    pub rx_queue: Option<u32>,
-    pub rx_buffer_size: Option<u32>,
+    pub rx_queue: Option<f64>,
+    pub rx_buffer_size: Option<f64>,
     pub active_registration: Option<bool>,
 }
 
@@ -590,12 +590,41 @@ pub fn capabilities() -> Capabilities {
 }
 
 #[napi(js_name = "zcrxProbe")]
-pub fn zcrx_probe(options: Option<ZcrxProbeOptions>) -> ZcrxProbe {
-    uring::zcrx_probe(options)
+pub fn zcrx_probe(options: Option<ZcrxProbeOptions>) -> Result<ZcrxProbe> {
+    Ok(uring::zcrx_probe(validate_zcrx_probe_options(options)?))
 }
 
 fn to_napi_error(error: uring::UringError) -> Error {
     Error::new(Status::GenericFailure, error.to_string())
+}
+
+fn validate_zcrx_probe_options(
+    options: Option<ZcrxProbeOptions>,
+) -> Result<uring::ZcrxProbeConfig> {
+    let Some(options) = options else {
+        return Ok(uring::ZcrxProbeConfig::default());
+    };
+
+    if options
+        .interface_name
+        .as_ref()
+        .is_some_and(|interface_name| interface_name.is_empty())
+    {
+        return Err(Error::new(
+            Status::InvalidArg,
+            "zcrxProbe interfaceName must be a non-empty string".to_string(),
+        ));
+    }
+
+    Ok(uring::ZcrxProbeConfig {
+        interface_name: options.interface_name,
+        rx_queue: validate_optional_u32_number("zcrxProbe rxQueue", options.rx_queue)?,
+        rx_buffer_size: validate_optional_u32_number(
+            "zcrxProbe rxBufferSize",
+            options.rx_buffer_size,
+        )?,
+        active_registration: options.active_registration,
+    })
 }
 
 fn validate_tcp_sends(sends: Vec<TcpSend>) -> Result<Vec<(u32, Buffer)>> {
@@ -606,10 +635,18 @@ fn validate_tcp_sends(sends: Vec<TcpSend>) -> Result<Vec<(u32, Buffer)>> {
 }
 
 fn validate_connection_id(value: f64) -> Result<u32> {
+    validate_u32_number("connectionId", value)
+}
+
+fn validate_optional_u32_number(name: &str, value: Option<f64>) -> Result<Option<u32>> {
+    value.map(|raw| validate_u32_number(name, raw)).transpose()
+}
+
+fn validate_u32_number(name: &str, value: f64) -> Result<u32> {
     if !value.is_finite() || value.fract() != 0.0 || value < 0.0 || value > u32::MAX as f64 {
         return Err(Error::new(
             Status::InvalidArg,
-            format!("connectionId must be an integer between 0 and {}", u32::MAX),
+            format!("{name} must be an integer between 0 and {}", u32::MAX),
         ));
     }
     Ok(value as u32)
