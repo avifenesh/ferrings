@@ -10,6 +10,9 @@ crate-type = ["cdylib"]
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 
+[lints.clippy]
+undocumented_unsafe_blocks = "deny"
+
 [dependencies]
 io-uring = "0.7.13"
 libc = "0.2.177"

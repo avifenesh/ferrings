@@ -179,6 +179,29 @@ try {
   fs.writeFileSync(cargoTomlPath, originalCargoToml);
 }
 
+const weakenedUndocumentedUnsafeLintCargoToml = originalCargoToml.replace(
+  'undocumented_unsafe_blocks = "deny"',
+  'undocumented_unsafe_blocks = "warn"'
+);
+assert.notEqual(
+  weakenedUndocumentedUnsafeLintCargoToml,
+  originalCargoToml,
+  'Cargo.toml undocumented unsafe lint mutation should apply'
+);
+
+try {
+  fs.writeFileSync(cargoTomlPath, weakenedUndocumentedUnsafeLintCargoToml);
+  const stale = runMetadataCheck();
+  assert.notEqual(
+    stale.status,
+    0,
+    'metadata check should fail for weakened undocumented unsafe lint policy'
+  );
+  assert.match(stale.stderr, /Cargo\.toml must deny clippy undocumented_unsafe_blocks/);
+} finally {
+  fs.writeFileSync(cargoTomlPath, originalCargoToml);
+}
+
 const originalCli = fs.readFileSync(cliPath, 'utf8');
 const proofyCli = originalCli.replace('ZCRX traffic validation', 'ZCRX traffic proof');
 assert.notEqual(proofyCli, originalCli, 'CLI proof framing mutation should apply');

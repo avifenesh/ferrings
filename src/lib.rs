@@ -255,6 +255,8 @@ impl NativeServer {
             let _ = join.join();
         }
         if self.command_event_fd >= 0 {
+            // SAFETY: command_event_fd is owned by this server handle after the
+            // worker has joined, and the fd is set to -1 immediately after close.
             unsafe {
                 libc::close(self.command_event_fd);
             }
@@ -296,6 +298,8 @@ impl TcpNativeServer {
             let _ = join.join();
         }
         if self.command_event_fd >= 0 {
+            // SAFETY: command_event_fd is owned by this server handle after the
+            // worker has joined, and the fd is set to -1 immediately after close.
             unsafe {
                 libc::close(self.command_event_fd);
             }
@@ -654,6 +658,8 @@ fn validate_u32_number(name: &str, value: f64) -> Result<u32> {
 
 fn wake_event_fd(fd: RawFd) {
     let value = 1_u64;
+    // SAFETY: fd is an eventfd created by the native startup path, and the
+    // write buffer points to a valid u64 for the full syscall duration.
     unsafe {
         let _ = libc::write(
             fd,

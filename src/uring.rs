@@ -171,6 +171,9 @@ struct MappedRegion {
 
 impl MappedRegion {
     fn new(len: usize) -> io::Result<Self> {
+        // SAFETY: mmap is called with an anonymous private mapping, a null hint,
+        // and fd -1/offset 0 as required for MAP_ANONYMOUS. The returned
+        // pointer is checked against MAP_FAILED before it is stored.
         let ptr = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -195,6 +198,9 @@ impl MappedRegion {
     }
 
     fn at<T>(&self, offset: u32) -> *mut T {
+        // SAFETY: callers only pass kernel-provided offsets into this mapped
+        // region and perform the typed access that matches the ZCRX structure at
+        // that offset. This helper only computes the raw address.
         unsafe {
             self.ptr
                 .as_ptr()
@@ -207,6 +213,8 @@ impl MappedRegion {
 
 impl Drop for MappedRegion {
     fn drop(&mut self) {
+        // SAFETY: ptr/len came from a successful mmap in MappedRegion::new and
+        // this type owns the mapping until Drop.
         unsafe {
             libc::munmap(self.ptr.as_ptr(), self.len);
         }
@@ -278,6 +286,9 @@ impl ZcrxRegistration {
             ..Default::default()
         };
 
+        // SAFETY: the io_uring fd is owned by `ring`, and the registration
+        // payload pointers reference stack values that remain alive for the
+        // duration of the syscall. The kernel copies/fills them before return.
         let ret = unsafe {
             libc::syscall(
                 libc::SYS_io_uring_register,
@@ -354,6 +365,8 @@ impl ZcrxRegistration {
     }
 
     fn recycle(&mut self, packet_offset: u64, len: u32) -> io::Result<()> {
+        // SAFETY: offsets were returned by successful ZCRX IFQ registration and
+        // point into the mapped refill_queue region for the queue lifetime.
         let head = unsafe {
             (*self
                 .refill_queue
@@ -363,17 +376,23 @@ impl ZcrxRegistration {
         let tail_ptr = self
             .refill_queue
             .at::<std::sync::atomic::AtomicU32>(self.offsets.tail);
+        // SAFETY: tail_ptr is derived from the kernel-provided tail offset into
+        // the live refill_queue mapping and is used as the documented atomic u32.
         let tail = unsafe { (*tail_ptr).load(Ordering::Acquire) };
         if tail.wrapping_sub(head) >= self.rq_entries {
             return Err(io::Error::other("ZCRX refill queue is full"));
         }
 
         let slot = tail & (self.rq_entries - 1);
+        // SAFETY: slot is masked by rq_entries - 1, rq_entries is a power of
+        // two, and offsets.rqes points at the RQE array in refill_queue.
         let rqe = unsafe {
             self.refill_queue
                 .at::<IoUringZcrxRqe>(self.offsets.rqes)
                 .add(slot as usize)
         };
+        // SAFETY: rqe points at the free slot selected above; tail is only
+        // published after the RQE write and release fence.
         unsafe {
             rqe.write(IoUringZcrxRqe {
                 off: (packet_offset & ZCRX_AREA_OFFSET_MASK) | self.rq_area_token,
@@ -418,6 +437,8 @@ impl ZcrxRegistration {
 
     #[allow(dead_code)]
     fn packet_bytes(&self, packet: ZcrxPacket) -> &[u8] {
+        // SAFETY: decode_packet validates packet.offset..offset+len is inside
+        // the registered receive area before packets are exposed to callers.
         unsafe {
             std::slice::from_raw_parts(
                 self.area
@@ -1531,10 +1552,14 @@ impl FixedSendBufferPool {
         let base = buffers.as_mut_ptr();
         let iovecs = (0..slots)
             .map(|slot| libc::iovec {
+                // SAFETY: slot is within 0..slots and buffers was allocated to
+                // hold slots * slot_size bytes, so each slot base is in-bounds.
                 iov_base: unsafe { base.add(slot as usize * slot_size) }.cast::<libc::c_void>(),
                 iov_len: slot_size,
             })
             .collect::<Vec<_>>();
+        // SAFETY: iovecs point into `buffers`, which is moved into the returned
+        // pool and kept alive until buffers are unregistered/dropped with the ring.
         unsafe {
             ring.submitter().register_buffers(&iovecs)?;
         }
@@ -1567,6 +1592,8 @@ impl FixedSendBufferPool {
     }
 
     fn ptr(&self, slot: u16, offset: usize) -> *const u8 {
+        // SAFETY: callers only request slots allocated by this pool and offsets
+        // below the pending send length, which is bounded by slot_size.
         unsafe {
             self.buffers
                 .as_ptr()
@@ -1604,6 +1631,8 @@ unsafe impl Send for ProvidedBufferRing {}
 impl ProvidedBufferRing {
     fn new(entries_count: u16, buffer_size: usize) -> Result<Self, UringError> {
         let size = entries_count as usize * std::mem::size_of::<types::BufRingEntry>();
+        // SAFETY: mmap is called for an anonymous private mapping sized exactly
+        // for the requested buf-ring entries and checked against MAP_FAILED.
         let raw = unsafe {
             libc::mmap(
                 std::ptr::null_mut(),
@@ -1632,6 +1661,8 @@ impl ProvidedBufferRing {
     }
 
     fn register<C: cqueue::EntryMarker>(&mut self, ring: &Ring<C>) -> Result<(), UringError> {
+        // SAFETY: entries points to a live mmap of entries_count BufRingEntry
+        // values and remains owned by self for at least the registered lifetime.
         unsafe {
             ring.submitter().register_buf_ring_with_flags(
                 self.entries.as_ptr() as u64,
@@ -1642,7 +1673,11 @@ impl ProvidedBufferRing {
         }
         self.tail = 0;
         self.head = 0;
+        // SAFETY: io-uring defines the tail word inside the registered
+        // BufRingEntry mapping; entries points to that live mapping.
         let tail = unsafe { types::BufRingEntry::tail(self.entries.as_ptr()) as *mut u16 };
+        // SAFETY: tail is the kernel-defined tail location for this buf ring
+        // and is initialized before any entries are published.
         unsafe {
             tail.write(0);
         }
@@ -1660,7 +1695,11 @@ impl ProvidedBufferRing {
     fn add(&mut self, bid: u16) {
         let idx = self.tail & (self.entries_count - 1);
         let offset = bid as usize * self.buffer_size;
+        // SAFETY: idx is masked into the entries_count ring, entries points to
+        // the live mapping, and &mut self guarantees exclusive writer access.
         let entry = unsafe { &mut *self.entries.as_ptr().add(idx as usize) };
+        // SAFETY: bid is drawn from the configured buffer ids, so offset points
+        // at the start of a buffer_size slot inside self.buffers.
         entry.set_addr(unsafe { self.buffers.as_mut_ptr().add(offset) } as u64);
         entry.set_len(self.buffer_size as u32);
         entry.set_bid(bid);
@@ -1681,6 +1720,8 @@ impl ProvidedBufferRing {
         let mut head = self.head;
         let mut buffers = Vec::new();
         while remaining > 0 {
+            // SAFETY: head is advanced modulo entries_count and entries points
+            // to the live registered buf-ring mapping.
             let entry = unsafe {
                 &*self
                     .entries
@@ -1708,7 +1749,11 @@ impl ProvidedBufferRing {
 
     fn publish_tail(&self) {
         fence(Ordering::Release);
+        // SAFETY: io-uring defines the tail word inside the registered
+        // BufRingEntry mapping; entries points to that live mapping.
         let tail = unsafe { types::BufRingEntry::tail(self.entries.as_ptr()) as *mut u16 };
+        // SAFETY: the release fence above makes entry writes visible before the
+        // tail update observed by the kernel.
         unsafe {
             tail.write_volatile(self.tail);
         }
@@ -1727,6 +1772,8 @@ struct ReceivedBuffer {
 
 impl Drop for ProvidedBufferRing {
     fn drop(&mut self) {
+        // SAFETY: entries/mmap_len came from a successful mmap in new() and the
+        // ProvidedBufferRing owns that mapping.
         unsafe {
             libc::munmap(self.entries.as_ptr().cast(), self.mmap_len);
         }
@@ -1786,6 +1833,8 @@ impl LegacyProvidedBuffers {
     ) -> Result<(), UringError> {
         let offset = bid as usize * self.buffer_size;
         let entry = opcode::ProvideBuffers::new(
+            // SAFETY: bid is provided by the kernel for this buffer group and
+            // indexes a buffer_size slot in the backing buffers vector.
             unsafe { self.buffers.as_mut_ptr().add(offset) },
             self.buffer_size as i32,
             1,
@@ -2309,6 +2358,8 @@ fn active_zcrx_registration_probe(
 }
 
 fn page_size() -> Option<usize> {
+    // SAFETY: sysconf with _SC_PAGESIZE has no pointer arguments and does not
+    // require additional process-side invariants.
     let size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
     (size > 0).then_some(size as usize)
 }
@@ -2413,11 +2464,15 @@ fn probe_registered_send_buffer() -> Result<(), UringError> {
         iov_base: buffer.as_mut_ptr().cast::<libc::c_void>(),
         iov_len: buffer.len(),
     };
+    // SAFETY: iovec points at `buffer`, which remains alive until the probe
+    // completes and buffers are unregistered.
     unsafe {
         ring.submitter().register_buffers(&[iovec])?;
     }
 
     let mut sockets = [-1; 2];
+    // SAFETY: sockets points at two valid RawFd slots for socketpair to fill,
+    // and SOCK_CLOEXEC ensures the fds are not leaked across exec.
     let socket_result = unsafe {
         libc::socketpair(
             libc::AF_UNIX,
@@ -2434,10 +2489,8 @@ fn probe_registered_send_buffer() -> Result<(), UringError> {
 
     let result =
         submit_registered_send_probe(&mut ring, sockets[0], buffer.as_ptr(), payload.len());
-    unsafe {
-        libc::close(sockets[0]);
-        libc::close(sockets[1]);
-    }
+    close_raw_fd(sockets[0]);
+    close_raw_fd(sockets[1]);
     let _ = ring.submitter().unregister_buffers();
     result
 }
@@ -2571,11 +2624,11 @@ pub fn start_server(config: ServerConfig) -> Result<StartedServer, UringError> {
     )?;
     let local_addr = listener.local_addr()?;
     let listen_fd = listener.into_raw_fd();
+    // SAFETY: eventfd has no pointer arguments here; the returned fd is checked
+    // before use and owned by the server/worker lifecycle.
     let command_event_fd = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC) };
     if command_event_fd < 0 {
-        unsafe {
-            libc::close(listen_fd);
-        }
+        close_raw_fd(listen_fd);
         return Err(io::Error::last_os_error().into());
     }
 
@@ -2599,10 +2652,8 @@ pub fn start_server(config: ServerConfig) -> Result<StartedServer, UringError> {
             );
         })
         .map_err(|error| {
-            unsafe {
-                libc::close(listen_fd);
-                libc::close(command_event_fd);
-            }
+            close_raw_fd(listen_fd);
+            close_raw_fd(command_event_fd);
             UringError(error.to_string())
         })?;
 
@@ -2612,18 +2663,14 @@ pub fn start_server(config: ServerConfig) -> Result<StartedServer, UringError> {
             shutdown.store(true, Ordering::Release);
             wake_event_fd(command_event_fd);
             let _ = join.join();
-            unsafe {
-                libc::close(command_event_fd);
-            }
+            close_raw_fd(command_event_fd);
             return Err(error.into());
         }
         Err(error) => {
             shutdown.store(true, Ordering::Release);
             wake_event_fd(command_event_fd);
             let _ = join.join();
-            unsafe {
-                libc::close(command_event_fd);
-            }
+            close_raw_fd(command_event_fd);
             return Err(format!("io_uring worker did not start: {error}").into());
         }
     };
@@ -2711,11 +2758,11 @@ pub fn start_tcp_echo_server(config: TcpServerConfig) -> Result<StartedServer, U
     )?;
     let local_addr = listener.local_addr()?;
     let listen_fd = listener.into_raw_fd();
+    // SAFETY: eventfd has no pointer arguments here; the returned fd is checked
+    // before use and owned by the server/worker lifecycle.
     let command_event_fd = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC) };
     if command_event_fd < 0 {
-        unsafe {
-            libc::close(listen_fd);
-        }
+        close_raw_fd(listen_fd);
         return Err(io::Error::last_os_error().into());
     }
 
@@ -2739,10 +2786,8 @@ pub fn start_tcp_echo_server(config: TcpServerConfig) -> Result<StartedServer, U
             );
         })
         .map_err(|error| {
-            unsafe {
-                libc::close(listen_fd);
-                libc::close(command_event_fd);
-            }
+            close_raw_fd(listen_fd);
+            close_raw_fd(command_event_fd);
             UringError(error.to_string())
         })?;
 
@@ -2752,18 +2797,14 @@ pub fn start_tcp_echo_server(config: TcpServerConfig) -> Result<StartedServer, U
             shutdown.store(true, Ordering::Release);
             wake_event_fd(command_event_fd);
             let _ = join.join();
-            unsafe {
-                libc::close(command_event_fd);
-            }
+            close_raw_fd(command_event_fd);
             return Err(error.into());
         }
         Err(error) => {
             shutdown.store(true, Ordering::Release);
             wake_event_fd(command_event_fd);
             let _ = join.join();
-            unsafe {
-                libc::close(command_event_fd);
-            }
+            close_raw_fd(command_event_fd);
             return Err(format!("io_uring TCP echo worker did not start: {error}").into());
         }
     };
@@ -2854,11 +2895,11 @@ pub fn start_tcp_server(
     )?;
     let local_addr = listener.local_addr()?;
     let listen_fd = listener.into_raw_fd();
+    // SAFETY: eventfd has no pointer arguments here; the returned fd is checked
+    // before use and owned by the server/worker lifecycle.
     let command_event_fd = unsafe { libc::eventfd(0, libc::EFD_CLOEXEC) };
     if command_event_fd < 0 {
-        unsafe {
-            libc::close(listen_fd);
-        }
+        close_raw_fd(listen_fd);
         return Err(io::Error::last_os_error().into());
     }
 
@@ -2884,10 +2925,8 @@ pub fn start_tcp_server(
             let _ = run_tcp_worker(listen_fd, command_event_fd, worker_config, runtime);
         })
         .map_err(|error| {
-            unsafe {
-                libc::close(listen_fd);
-                libc::close(command_event_fd);
-            }
+            close_raw_fd(listen_fd);
+            close_raw_fd(command_event_fd);
             UringError(error.to_string())
         })?;
 
@@ -2897,18 +2936,14 @@ pub fn start_tcp_server(
             shutdown.store(true, Ordering::Release);
             wake_event_fd(command_event_fd);
             let _ = join.join();
-            unsafe {
-                libc::close(command_event_fd);
-            }
+            close_raw_fd(command_event_fd);
             return Err(error.into());
         }
         Err(error) => {
             shutdown.store(true, Ordering::Release);
             wake_event_fd(command_event_fd);
             let _ = join.join();
-            unsafe {
-                libc::close(command_event_fd);
-            }
+            close_raw_fd(command_event_fd);
             return Err(format!("io_uring TCP worker did not start: {error}").into());
         }
     };
@@ -3007,9 +3042,7 @@ fn run_worker(
             let _ = ready_tx.send(Err(error.to_string()));
         }
     }
-    unsafe {
-        libc::close(listen_fd);
-    }
+    close_raw_fd(listen_fd);
     result
 }
 
@@ -3035,9 +3068,7 @@ fn run_tcp_echo_worker(
             let _ = ready_tx.send(Err(error.to_string()));
         }
     }
-    unsafe {
-        libc::close(listen_fd);
-    }
+    close_raw_fd(listen_fd);
     result
 }
 
@@ -3053,9 +3084,7 @@ fn run_tcp_worker(
             let _ = ready_tx.send(Err(error.to_string()));
         }
     }
-    unsafe {
-        libc::close(listen_fd);
-    }
+    close_raw_fd(listen_fd);
     result
 }
 
@@ -5384,6 +5413,8 @@ fn submit_tcp_send<C: cqueue::EntryMarker>(
     let remaining = pending.len() - pending.offset;
     let entry = match &pending.data {
         TcpSendData::Heap(data) => {
+            // SAFETY: pending.offset is maintained below pending.len(), and
+            // pending.len() was derived from this Arc<[u8]> payload length.
             let ptr = unsafe { data.as_ptr().add(pending.offset) };
             if pending.use_zero_copy {
                 stats.record_zero_copy_send_request();
@@ -5426,6 +5457,8 @@ fn submit_tcp_send<C: cqueue::EntryMarker>(
 }
 
 fn set_send_fixed_buffer(entry: &mut squeue::Entry, buf_index: u16) {
+    // SAFETY: SqeFixedBufferPrefix mirrors the kernel SQE prefix up through
+    // buf_index; io_uring's squeue::Entry has that layout for send SQEs.
     let sqe = unsafe { &mut *(entry as *mut squeue::Entry).cast::<SqeFixedBufferPrefix>() };
     sqe.ioprio |= RECVSEND_FIXED_BUF;
     sqe.buf_index = buf_index;
@@ -5987,6 +6020,8 @@ fn handle_send<C: cqueue::EntryMarker>(
 
 fn set_tcp_nodelay(fd: RawFd) {
     let value: libc::c_int = 1;
+    // SAFETY: fd is an accepted TCP socket, and the option payload points to a
+    // valid c_int for the duration of the setsockopt call.
     unsafe {
         let _ = libc::setsockopt(
             fd,
@@ -6053,6 +6088,8 @@ fn bind_tcp_listener_addr(
         SocketAddr::V4(_) => libc::AF_INET,
         SocketAddr::V6(_) => libc::AF_INET6,
     };
+    // SAFETY: socket has no pointer arguments, and the returned fd is checked
+    // and either wrapped in TcpListener or closed on every error path.
     let fd = unsafe {
         libc::socket(
             domain,
@@ -6088,6 +6125,8 @@ fn bind_tcp_listener_addr(
     }
 
     let (storage, len) = socket_addr_to_raw(&address);
+    // SAFETY: storage contains a sockaddr matching len, produced by
+    // socket_addr_to_raw for the selected address family.
     let bind_result =
         unsafe { libc::bind(fd, (&storage as *const libc::sockaddr_storage).cast(), len) };
     if bind_result < 0 {
@@ -6096,17 +6135,23 @@ fn bind_tcp_listener_addr(
         return Err(error);
     }
 
+    // SAFETY: fd is a valid bound TCP socket and backlog was validated to fit
+    // the c_int range before reaching this native config.
     if unsafe { libc::listen(fd, backlog as libc::c_int) } < 0 {
         let error = io::Error::last_os_error();
         close_raw_fd(fd);
         return Err(error);
     }
 
+    // SAFETY: fd is a uniquely owned listening socket at this point; ownership
+    // is transferred to TcpListener so it will close on drop.
     Ok(unsafe { TcpListener::from_raw_fd(fd) })
 }
 
 fn set_socket_reuseaddr(fd: RawFd) -> io::Result<()> {
     let value: libc::c_int = 1;
+    // SAFETY: fd is an open socket, and the option payload points to a valid
+    // c_int for the duration of the setsockopt call.
     let result = unsafe {
         libc::setsockopt(
             fd,
@@ -6125,6 +6170,8 @@ fn set_socket_reuseaddr(fd: RawFd) -> io::Result<()> {
 
 fn set_socket_reuseport(fd: RawFd) -> io::Result<()> {
     let value: libc::c_int = 1;
+    // SAFETY: fd is an open socket, and the option payload points to a valid
+    // c_int for the duration of the setsockopt call.
     let result = unsafe {
         libc::setsockopt(
             fd,
@@ -6144,6 +6191,8 @@ fn set_socket_reuseport(fd: RawFd) -> io::Result<()> {
 fn set_tcp_defer_accept(fd: RawFd, seconds: u32) -> io::Result<()> {
     debug_assert!(seconds <= libc::c_int::MAX as u32);
     let value = seconds as libc::c_int;
+    // SAFETY: fd is an open TCP socket, and the option payload points to a
+    // valid c_int for the duration of the setsockopt call.
     let result = unsafe {
         libc::setsockopt(
             fd,
@@ -6177,6 +6226,8 @@ fn apply_socket_buffer_sizes(
 fn set_socket_buffer_size(fd: RawFd, option: libc::c_int, size: u32) -> io::Result<()> {
     debug_assert!(size <= libc::c_int::MAX as u32);
     let value = size as libc::c_int;
+    // SAFETY: fd is an open socket, option is supplied by this module, and the
+    // payload points to a valid c_int for the duration of the setsockopt call.
     let result = unsafe {
         libc::setsockopt(
             fd,
@@ -6193,6 +6244,8 @@ fn set_socket_buffer_size(fd: RawFd, option: libc::c_int, size: u32) -> io::Resu
 }
 
 fn socket_addr_to_raw(address: &SocketAddr) -> (libc::sockaddr_storage, libc::socklen_t) {
+    // SAFETY: sockaddr_storage is a plain C storage buffer; it is fully
+    // initialized below with the matching sockaddr variant before being read.
     let mut storage = unsafe { std::mem::zeroed::<libc::sockaddr_storage>() };
     match address {
         SocketAddr::V4(address) => {
@@ -6204,6 +6257,8 @@ fn socket_addr_to_raw(address: &SocketAddr) -> (libc::sockaddr_storage, libc::so
                 },
                 sin_zero: [0; 8],
             };
+            // SAFETY: storage has enough size and alignment for sockaddr_in;
+            // the returned length identifies the initialized prefix.
             unsafe {
                 std::ptr::write(
                     (&mut storage as *mut libc::sockaddr_storage).cast::<libc::sockaddr_in>(),
@@ -6225,6 +6280,8 @@ fn socket_addr_to_raw(address: &SocketAddr) -> (libc::sockaddr_storage, libc::so
                 },
                 sin6_scope_id: address.scope_id(),
             };
+            // SAFETY: storage has enough size and alignment for sockaddr_in6;
+            // the returned length identifies the initialized prefix.
             unsafe {
                 std::ptr::write(
                     (&mut storage as *mut libc::sockaddr_storage).cast::<libc::sockaddr_in6>(),
@@ -6258,6 +6315,8 @@ fn register_response_buffer<C: cqueue::EntryMarker>(
         iov_base: response.as_ptr() as *mut libc::c_void,
         iov_len: response.len(),
     };
+    // SAFETY: iovec points into `response`, which is an Arc kept alive by the
+    // server for the full ring lifetime while the buffer is registered.
     unsafe {
         ring.submitter().register_buffers(&[iovec])?;
     }
@@ -6347,6 +6406,8 @@ fn submit_send<C: cqueue::EntryMarker>(
     stats: &TransportStats,
 ) -> Result<(), UringError> {
     let remaining = response.len() - options.offset;
+    // SAFETY: options.offset is only advanced from completed send byte counts
+    // and is kept within response.len().
     let ptr = unsafe { response.as_ptr().add(options.offset) };
     if options.use_zero_copy_send {
         stats.record_zero_copy_send_request();
@@ -6398,6 +6459,8 @@ fn push_entry<C: cqueue::EntryMarker>(
     entry: squeue::Entry,
 ) -> Result<(), UringError> {
     loop {
+        // SAFETY: entry is copied into the submission queue before this stack
+        // value goes out of scope; on full SQ we submit and retry.
         let pushed = unsafe { ring.submission().push(&entry) };
         if pushed.is_ok() {
             return Ok(());
@@ -6465,12 +6528,15 @@ fn reject_connection(fd: RawFd, stats: &TransportStats) {
 }
 
 fn close_raw_fd(fd: RawFd) {
+    // SAFETY: callers pass fds they own and do not use after this close helper.
     unsafe {
         libc::close(fd);
     }
 }
 
 fn close_fd(fd: RawFd) {
+    // SAFETY: callers pass owned connection fds; shutdown may fail for already
+    // closed peer state and is intentionally ignored before the final close.
     unsafe {
         libc::shutdown(fd, libc::SHUT_RDWR);
         libc::close(fd);
@@ -6479,6 +6545,8 @@ fn close_fd(fd: RawFd) {
 
 fn wake_event_fd(fd: RawFd) {
     let value = 1_u64;
+    // SAFETY: fd is an eventfd owned by the server/worker lifecycle, and the
+    // write buffer points to a valid u64 for the syscall duration.
     unsafe {
         let _ = libc::write(
             fd,
@@ -6534,6 +6602,8 @@ fn read_driver(interface_path: &Path) -> Option<String> {
 
 fn interface_index(interface_name: &str) -> Option<u32> {
     let c_name = CString::new(interface_name).ok()?;
+    // SAFETY: c_name is a valid NUL-terminated interface name for the duration
+    // of the libc call.
     let index = unsafe { libc::if_nametoindex(c_name.as_ptr()) };
     (index != 0).then_some(index)
 }
@@ -6587,6 +6657,8 @@ fn peer_event_fields(fd: RawFd) -> (Option<String>, Option<String>, Option<Strin
 fn peer_info(fd: RawFd) -> Option<PeerInfo> {
     let mut storage = std::mem::MaybeUninit::<libc::sockaddr_storage>::zeroed();
     let mut len = std::mem::size_of::<libc::sockaddr_storage>() as libc::socklen_t;
+    // SAFETY: storage is valid writable sockaddr_storage memory and len points
+    // to its capacity; getpeername initializes storage on success.
     let ok =
         unsafe { libc::getpeername(fd, storage.as_mut_ptr().cast::<libc::sockaddr>(), &mut len) }
             == 0;
@@ -6594,9 +6666,12 @@ fn peer_info(fd: RawFd) -> Option<PeerInfo> {
         return None;
     }
 
+    // SAFETY: getpeername returned success, so storage has been initialized as
+    // a sockaddr whose family is checked below before typed reads.
     let storage = unsafe { storage.assume_init() };
     match storage.ss_family as i32 {
         libc::AF_INET => {
+            // SAFETY: ss_family identified the initialized storage as AF_INET.
             let addr = unsafe {
                 std::ptr::read(
                     (&storage as *const libc::sockaddr_storage).cast::<libc::sockaddr_in>(),
@@ -6613,6 +6688,7 @@ fn peer_info(fd: RawFd) -> Option<PeerInfo> {
             })
         }
         libc::AF_INET6 => {
+            // SAFETY: ss_family identified the initialized storage as AF_INET6.
             let addr = unsafe {
                 std::ptr::read(
                     (&storage as *const libc::sockaddr_storage).cast::<libc::sockaddr_in6>(),
@@ -6634,10 +6710,13 @@ fn peer_info(fd: RawFd) -> Option<PeerInfo> {
 
 fn kernel_release() -> String {
     let mut uts = std::mem::MaybeUninit::<libc::utsname>::uninit();
+    // SAFETY: uts points to valid writable utsname storage and uname
+    // initializes it on success.
     let ok = unsafe { libc::uname(uts.as_mut_ptr()) } == 0;
     if !ok {
         return "unknown".to_string();
     }
+    // SAFETY: uname returned success, so uts has been initialized.
     let uts = unsafe { uts.assume_init() };
     let bytes = uts
         .release
@@ -6667,6 +6746,8 @@ mod tests {
     }
 
     fn sqe_prefix(entry: &squeue::Entry) -> &TestSqePrefix {
+        // SAFETY: TestSqePrefix mirrors the SQE prefix fields asserted by these
+        // tests, and the reference only lives as long as the source entry.
         unsafe { &*(entry as *const squeue::Entry).cast::<TestSqePrefix>() }
     }
 
@@ -6987,12 +7068,16 @@ mod tests {
             })
             .expect("packet recycle should succeed");
 
+        // SAFETY: the test refill queue mapping is initialized with a tail
+        // offset that points at an AtomicU32 inside the mmap.
         let tail = unsafe {
             (*registration
                 .refill_queue
                 .at::<std::sync::atomic::AtomicU32>(registration.offsets.tail))
             .load(Ordering::Acquire)
         };
+        // SAFETY: the test wrote one IoUringZcrxRqe at offsets.rqes via
+        // recycle_packet, so reading that initialized slot is valid.
         let rqe = unsafe {
             std::ptr::read(
                 registration

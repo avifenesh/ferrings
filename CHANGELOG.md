@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Enforced Clippy's `undocumented_unsafe_blocks` lint and documented the safety
+  invariants around native FFI, mmap, fd ownership, provided-buffer rings, and
+  io_uring submission helpers.
 - Rewrote the README around ferrings as an installable, usable transport, with
   the benchmark evidence kept at the top and duplicate benchmark framing
   removed.

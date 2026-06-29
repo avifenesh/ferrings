@@ -24,6 +24,11 @@ const unsafeOpLint = matchVersion(
   /^\[lints\.rust\][\s\S]*?^unsafe_op_in_unsafe_fn = "([^"]+)"/m,
   'Cargo.toml unsafe_op_in_unsafe_fn lint'
 );
+const undocumentedUnsafeLint = matchVersion(
+  cargoToml,
+  /^\[lints\.clippy\][\s\S]*?^undocumented_unsafe_blocks = "([^"]+)"/m,
+  'Cargo.toml undocumented_unsafe_blocks lint'
+);
 const cargoLockVersion = matchVersion(
   cargoLock,
   /\[\[package\]\]\nname = "ferrings"\nversion = "([^"]+)"/m,
@@ -37,6 +42,11 @@ assert.equal(lock.packages[''].version, rootPackage.version);
 assert.equal(cargoVersion, rootPackage.version);
 assert.equal(cargoLockVersion, rootPackage.version);
 assert.equal(unsafeOpLint, 'deny', 'Cargo.toml must deny unsafe_op_in_unsafe_fn');
+assert.equal(
+  undocumentedUnsafeLint,
+  'deny',
+  'Cargo.toml must deny clippy undocumented_unsafe_blocks'
+);
 assert.deepEqual(rootPackage.os, ['linux']);
 assert.deepEqual(rootPackage.cpu, ['x64', 'arm64'], 'root package cpu must match supported native package CPUs');
 assert.deepEqual(rootPackage.libc, ['glibc', 'musl'], 'root package libc must match supported native package libcs');
