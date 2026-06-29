@@ -8,6 +8,10 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Reframed the README around ferrings as a usable default `io_uring` TCP
+  transport, promoted the benchmark snapshot into the opening, and kept ZCRX as
+  an optional host-gated receive path.
+
 ## 0.2.39 - 2026-06-29
 
 - Tightened the README opening so the benchmark results appear immediately after
