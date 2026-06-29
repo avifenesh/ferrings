@@ -12,99 +12,145 @@ const rootPackage = require(path.join(repoRoot, 'package.json'));
 const args = process.argv.slice(2);
 const json = args.includes('--json');
 const version = valueAfter('--version') || rootPackage.version;
-const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ferrings-registry-install-'));
-const appDir = path.join(tmpRoot, 'app');
+const retries = positiveInteger(
+  valueAfter('--retries') || process.env.FERRINGS_REGISTRY_INSTALL_RETRIES || '1',
+  'retries'
+);
+const retryDelayMs = nonNegativeInteger(
+  valueAfter('--retry-delay-ms') ||
+    process.env.FERRINGS_REGISTRY_INSTALL_RETRY_DELAY_MS ||
+    '0',
+  'retry-delay-ms'
+);
 const target = detectNativeTarget();
-const report = {
-  package: rootPackage.name,
-  version,
-  target,
-  node: {
-    version: process.versions.node,
-    engine: rootPackage.engines?.node || null
-  },
-  status: 'running',
-  installSpec: `${rootPackage.name}@${version}`,
-  installedNativePackage: null,
-  error: null
-};
 
-try {
-  assertSupportedNodeRuntime();
-  fs.mkdirSync(appDir, { recursive: true });
-  fs.writeFileSync(
-    path.join(appDir, 'package.json'),
-    `${JSON.stringify({ private: true, type: 'commonjs' }, null, 2)}\n`
+const finalReport = runWithRetries();
+
+if (json) {
+  console.log(JSON.stringify(finalReport, null, 2));
+} else if (finalReport.status === 'passed') {
+  const suffix = finalReport.attempt > 1 ? ` after ${finalReport.attempt} attempts` : '';
+  console.log(
+    `registry install smoke ok (${rootPackage.name}@${version}, ${target.packageName})${suffix}`
   );
-
-  run(
-    'npm',
-    ['install', '--include=optional', '--ignore-scripts', '--no-audit', '--no-fund', report.installSpec],
-    { cwd: appDir }
-  );
-
-  const installedPackageDir = path.join(appDir, 'node_modules', rootPackage.name);
-  const installedPackageJson = readJson(path.join(installedPackageDir, 'package.json'));
-  assert.equal(installedPackageJson.name, rootPackage.name);
-  assert.equal(installedPackageJson.version, version);
-  assert.equal(
-    installedPackageJson.optionalDependencies[target.packageName],
-    version,
-    `${target.packageName} optional dependency should match root package version`
-  );
-
-  const installedNativePackageDir = path.join(appDir, 'node_modules', target.packageName);
-  const installedNativePackageJson = readJson(path.join(installedNativePackageDir, 'package.json'));
-  assert.equal(installedNativePackageJson.name, target.packageName);
-  assert.equal(installedNativePackageJson.version, version);
-  assert.deepEqual(installedNativePackageJson.os, ['linux']);
-  assert.deepEqual(installedNativePackageJson.cpu, [target.cpu]);
-  assert.deepEqual(installedNativePackageJson.libc, [target.libc]);
-  assert.equal(
-    fs.existsSync(path.join(installedNativePackageDir, target.nativeFile)),
-    true,
-    `${target.packageName} native binding is missing`
-  );
-  report.installedNativePackage = target.packageName;
-
-  const embeddedNative = path.join(installedPackageDir, target.nativeFile);
-  assert.equal(
-    fs.existsSync(embeddedNative),
-    false,
-    'root package must not ship the platform native binding'
-  );
-
-  runSmokeScript(target);
-  runCommonJsExportsSmoke(installedPackageDir);
-  runEsmSmoke(target);
-  runCliSmoke(appDir);
-
-  report.status = 'passed';
-  if (json) {
-    console.log(JSON.stringify(report, null, 2));
-  } else {
-    console.log(
-      `registry install smoke ok (${rootPackage.name}@${version}, ${target.packageName})`
-    );
-  }
-} catch (error) {
-  report.status = 'failed';
-  report.error = {
-    name: error && error.name ? error.name : 'Error',
-    message: error && error.message ? error.message : String(error),
-    stack: error && error.stack ? error.stack : undefined
-  };
-  if (json) {
-    console.log(JSON.stringify(report, null, 2));
-  } else {
-    console.error(report.error.message);
-  }
-  process.exitCode = 1;
-} finally {
-  fs.rmSync(tmpRoot, { recursive: true, force: true });
+} else {
+  console.error(finalReport.error.message);
 }
 
-function runSmokeScript(nativeTarget) {
+process.exitCode = finalReport.status === 'passed' ? 0 : 1;
+
+function runWithRetries() {
+  const previousErrors = [];
+  let report = null;
+  for (let attempt = 1; attempt <= retries; attempt += 1) {
+    report = createReport(attempt, previousErrors);
+    try {
+      runAttempt(report);
+      report.status = 'passed';
+      return report;
+    } catch (error) {
+      const errorReport = errorForReport(error);
+      report.status = 'failed';
+      report.error = errorReport;
+      if (attempt < retries) {
+        previousErrors.push({
+          attempt,
+          error: errorReport
+        });
+        if (retryDelayMs > 0) {
+          sleep(retryDelayMs);
+        }
+      }
+    }
+  }
+  return report;
+}
+
+function createReport(attempt, previousErrors) {
+  return {
+    package: rootPackage.name,
+    version,
+    target,
+    node: {
+      version: process.versions.node,
+      engine: rootPackage.engines?.node || null
+    },
+    status: 'running',
+    attempt,
+    retries,
+    retryDelayMs,
+    previousErrors: previousErrors.slice(),
+    installSpec: `${rootPackage.name}@${version}`,
+    installedNativePackage: null,
+    error: null
+  };
+}
+
+function runAttempt(report) {
+  const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'ferrings-registry-install-'));
+  const appDir = path.join(tmpRoot, 'app');
+  try {
+    assertSupportedNodeRuntime();
+    fs.mkdirSync(appDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(appDir, 'package.json'),
+      `${JSON.stringify({ private: true, type: 'commonjs' }, null, 2)}\n`
+    );
+
+    run(
+      'npm',
+      [
+        'install',
+        '--include=optional',
+        '--ignore-scripts',
+        '--no-audit',
+        '--no-fund',
+        report.installSpec
+      ],
+      { cwd: appDir }
+    );
+
+    const installedPackageDir = path.join(appDir, 'node_modules', rootPackage.name);
+    const installedPackageJson = readJson(path.join(installedPackageDir, 'package.json'));
+    assert.equal(installedPackageJson.name, rootPackage.name);
+    assert.equal(installedPackageJson.version, version);
+    assert.equal(
+      installedPackageJson.optionalDependencies[target.packageName],
+      version,
+      `${target.packageName} optional dependency should match root package version`
+    );
+
+    const installedNativePackageDir = path.join(appDir, 'node_modules', target.packageName);
+    const installedNativePackageJson = readJson(path.join(installedNativePackageDir, 'package.json'));
+    assert.equal(installedNativePackageJson.name, target.packageName);
+    assert.equal(installedNativePackageJson.version, version);
+    assert.deepEqual(installedNativePackageJson.os, ['linux']);
+    assert.deepEqual(installedNativePackageJson.cpu, [target.cpu]);
+    assert.deepEqual(installedNativePackageJson.libc, [target.libc]);
+    assert.equal(
+      fs.existsSync(path.join(installedNativePackageDir, target.nativeFile)),
+      true,
+      `${target.packageName} native binding is missing`
+    );
+    report.installedNativePackage = target.packageName;
+
+    const embeddedNative = path.join(installedPackageDir, target.nativeFile);
+    assert.equal(
+      fs.existsSync(embeddedNative),
+      false,
+      'root package must not ship the platform native binding'
+    );
+
+    runSmokeScript(target, appDir);
+    runCommonJsExportsSmoke(installedPackageDir, appDir);
+    runEsmSmoke(target, appDir);
+    runCliSmoke(appDir);
+  } finally {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+}
+
+function runSmokeScript(nativeTarget, appDir) {
   const smokeScript = `
     'use strict';
 
@@ -173,7 +219,7 @@ function runSmokeScript(nativeTarget) {
   });
 }
 
-function runCommonJsExportsSmoke(installedPackageDir) {
+function runCommonJsExportsSmoke(installedPackageDir, appDir) {
   const exportsScript = `
     'use strict';
 
@@ -223,7 +269,7 @@ function runCommonJsExportsSmoke(installedPackageDir) {
   });
 }
 
-function runEsmSmoke(nativeTarget) {
+function runEsmSmoke(nativeTarget, appDir) {
   const esmScript = `
     import assert from 'node:assert/strict';
     import { createRequire } from 'node:module';
@@ -447,6 +493,14 @@ function runWithStatus(command, commandArgs, options = {}) {
   return result;
 }
 
+function errorForReport(error) {
+  return {
+    name: error && error.name ? error.name : 'Error',
+    message: error && error.message ? error.message : String(error),
+    stack: error && error.stack ? error.stack : undefined
+  };
+}
+
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
@@ -474,6 +528,26 @@ function temporarilyRemove(filePaths, callback) {
 function valueAfter(name) {
   const index = args.indexOf(name);
   return index === -1 ? '' : args[index + 1] || '';
+}
+
+function positiveInteger(value, name) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    throw new Error(`--${name} must be a positive integer`);
+  }
+  return parsed;
+}
+
+function nonNegativeInteger(value, name) {
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error(`--${name} must be a non-negative integer`);
+  }
+  return parsed;
+}
+
+function sleep(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 function versionAtLeast(actual, minimum) {

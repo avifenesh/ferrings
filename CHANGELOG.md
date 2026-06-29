@@ -8,6 +8,12 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.34 - 2026-06-29
+
+- Added retry support to the registry install smoke and wired the release
+  workflow to retry post-publish install validation while npm registry metadata
+  propagates.
+
 ## 0.2.33 - 2026-06-29
 
 - Hardened the registry install smoke so published packages must prove the

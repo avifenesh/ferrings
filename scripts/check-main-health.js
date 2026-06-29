@@ -206,7 +206,11 @@ if (full) {
       const result = run(process.execPath, [
         'scripts/check-registry-install.js',
         '--version',
-        rootPackage.version
+        rootPackage.version,
+        '--retries',
+        '3',
+        '--retry-delay-ms',
+        '1000'
       ]);
       if (result.status === 0) {
         return pass(trimForDetail(result.stdout) || 'registry install ok');

@@ -14,43 +14,43 @@ It ships as a napi-rs native addon with typed CommonJS and ESM APIs, four Linux 
 
 The benchmark result is the reason to reach for ferrings, so it is first. The current release package was measured against Node's built-in `http` and `net` transports on the same machine, with the same request counts, same concurrency, loopback traffic, and `strace -f -c` syscall capture.
 
-Headline for `ferrings@0.2.33`: **2.26x** fixed-response HTTP throughput, **2.39x** native TCP echo throughput, **2.00x** Node-style TCP facade throughput, **2.06x** facade batch-send throughput, and **35-55% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
+Headline for `ferrings@0.2.34`: **2.16x** fixed-response HTTP throughput, **1.93x** native TCP echo throughput, **2.39x** Node-style TCP facade throughput, **2.30x** facade batch-send throughput, and **37-52% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
 
 | Workload | ferrings result vs Node built-in transport |
 | --- | --- |
-| Fixed-response HTTP | **2.26x throughput**, **58% lower p50**, **60% lower p99**, **55% fewer syscalls/conn** |
-| Native TCP echo worker | **2.39x throughput**, **66% lower p50**, **10% higher p99**, **52% fewer syscalls/conn** |
-| Node-style TCP facade | **2.00x throughput**, **59% lower p50**, **14% higher p99**, **36% fewer syscalls/conn** |
-| TCP facade with batch send | **2.06x throughput**, **61% lower p50**, **15% higher p99**, **35% fewer syscalls/conn** |
+| Fixed-response HTTP | **2.16x throughput**, **53% lower p50**, **41% lower p99**, **52% fewer syscalls/conn** |
+| Native TCP echo worker | **1.93x throughput**, **66% lower p50**, **2% higher p99**, **52% fewer syscalls/conn** |
+| Node-style TCP facade | **2.39x throughput**, **67% lower p50**, **5% higher p99**, **37% fewer syscalls/conn** |
+| TCP facade with batch send | **2.30x throughput**, **66% lower p50**, **9% higher p99**, **37% fewer syscalls/conn** |
 
 Read the TCP rows as API-surface tradeoffs. The native echo worker isolates the transport. The Node-style facade keeps familiar JavaScript connection callbacks. Batch send recovers much of the facade overhead while preserving the facade shape.
 
 | Workload | Baseline | ferrings path | Throughput | p50 latency | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | **2.26x** | **58% lower** | **60% lower** | **55% fewer** |
-| TCP echo | Node `net` | native echo worker | **2.39x** | **66% lower** | **10% higher** | **52% fewer** |
-| TCP echo | Node `net` | Node-style TCP facade | **2.00x** | **59% lower** | **14% higher** | **36% fewer** |
-| TCP echo | Node `net` | facade batch send | **2.06x** | **61% lower** | **15% higher** | **35% fewer** |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | **2.16x** | **53% lower** | **41% lower** | **52% fewer** |
+| TCP echo | Node `net` | native echo worker | **1.93x** | **66% lower** | **2% higher** | **52% fewer** |
+| TCP echo | Node `net` | Node-style TCP facade | **2.39x** | **67% lower** | **5% higher** | **37% fewer** |
+| TCP echo | Node `net` | facade batch send | **2.30x** | **66% lower** | **9% higher** | **37% fewer** |
 
-Measured on 2026-06-29 with `ferrings@0.2.33`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
+Measured on 2026-06-29 with `ferrings@0.2.34`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
 
 Detailed results from the README run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 4,371 | 11.837 | 45.378 | 53.599 | 11.716 | libuv/epoll |
-| ferrings HTTP | 9,863 | 5.023 | 17.721 | 21.445 | 5.324 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 7,239 | 7.887 | 14.388 | 16.517 | 11.020 | libuv/epoll |
-| ferrings native TCP echo | 17,335 | 2.684 | 16.648 | 18.240 | 5.249 | native echo worker + provided buffers |
-| ferrings TCP facade | 14,496 | 3.256 | 18.144 | 18.889 | 6.999 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 14,916 | 3.049 | 17.597 | 19.005 | 7.188 | JS facade + batched native events/sends |
+| Node `http` | 4,640 | 11.205 | 40.901 | 46.421 | 11.795 | libuv/epoll |
+| ferrings HTTP | 10,001 | 5.226 | 22.930 | 27.181 | 5.713 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 6,389 | 9.167 | 14.404 | 19.142 | 11.073 | libuv/epoll |
+| ferrings native TCP echo | 12,308 | 3.154 | 19.057 | 19.535 | 5.351 | native echo worker + provided buffers |
+| ferrings TCP facade | 15,299 | 3.023 | 18.399 | 20.049 | 6.978 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 14,682 | 3.125 | 19.504 | 20.888 | 6.927 | JS facade + batched native events/sends |
 
 Run the same benchmark:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.33.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.34.json \
 npm run bench:syscalls
 ```
 
@@ -431,7 +431,7 @@ npm run check:npm-names
 npm run check:release-repository
 npm run check:release-ready -- --full --strict
 npm run check:release-ready -- --full --require-zcrx
-npm run check:registry-install -- --version "$(node -p "require('./package.json').version")"
+npm run check:registry-install -- --version "$(node -p "require('./package.json').version")" --retries 12 --retry-delay-ms 5000
 ```
 
 `check:release-ready -- --require-zcrx` requires `ZCRX_INTERFACE` and a non-loopback `ZCRX_CONNECT_HOST`, then runs `npm run test:zcrx`. Use this only on hardware where traffic can be routed through the selected NIC queue.
@@ -450,6 +450,7 @@ npm run check:main-health
 ```
 
 `check:published --verify-tarballs` verifies registry metadata, provenance, signatures, dist-tags, and downloaded npm tarball contents for the root package and every native package.
+`check:registry-install` accepts `--retries` and `--retry-delay-ms` for the short post-publish window where the root package can become visible before every optional native package resolves consistently from all npm caches.
 
 For a new release, bump the package version first; npm versions are immutable after publication, so `check:release-ready` is a release gate rather than a normal post-release main-branch check. Use `check:main-health` when validating current `main` after a release or docs/tooling follow-up.
 

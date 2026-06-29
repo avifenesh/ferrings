@@ -175,9 +175,13 @@ After publication:
 
 ```bash
 npm run check:published -- --tag latest --verify-tarballs
-npm run check:registry-install -- --version "$(node -p "require('./package.json').version")"
+npm run check:registry-install -- --version "$(node -p "require('./package.json').version")" --retries 12 --retry-delay-ms 5000
 npm run check:main-health -- --full
 ```
+
+Use the registry-install retries immediately after publish. They cover the short
+window where npm may resolve the root package before every optional native
+package is visible through the same cache path.
 
 ## Rollback
 
