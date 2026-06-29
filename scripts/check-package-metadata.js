@@ -13,6 +13,7 @@ const nativeLoader = fs.readFileSync(path.join(repoRoot, 'native.js'), 'utf8');
 const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
 const cliBin = fs.readFileSync(path.join(repoRoot, 'bin', 'ferrings.js'), 'utf8');
 const changelog = fs.readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
+const SUPPORTED_NODE_ENGINES = '>=22 <23 || >=24 <25 || >=26 <27';
 
 const cargoVersion = matchVersion(cargoToml, /^version = "([^"]+)"/m, 'Cargo.toml package version');
 const unsafeOpLint = matchVersion(
@@ -36,6 +37,11 @@ assert.equal(unsafeOpLint, 'deny', 'Cargo.toml must deny unsafe_op_in_unsafe_fn'
 assert.deepEqual(rootPackage.os, ['linux']);
 assert.deepEqual(rootPackage.cpu, ['x64', 'arm64'], 'root package cpu must match supported native package CPUs');
 assert.deepEqual(rootPackage.libc, ['glibc', 'musl'], 'root package libc must match supported native package libcs');
+assert.deepEqual(
+  rootPackage.engines,
+  { node: SUPPORTED_NODE_ENGINES },
+  'root package engines must match tested supported Node release lines'
+);
 assertExportsSurface(rootPackage);
 assert.equal(rootPackage.homepage, `${repositoryHttpUrl(rootPackage.repository.url)}#readme`);
 assert.equal(rootPackage.bugs.url, `${repositoryHttpUrl(rootPackage.repository.url)}/issues`);
@@ -77,6 +83,7 @@ assertNoExperimentalPublicFraming(cliBin, 'CLI help');
 assertNoProofyCliFraming(cliBin);
 assertNoLegacyQuickBenchmarkFraming(readme, changelog, rootPackage);
 assertBenchmarkPublicSurface(rootPackage);
+assertReadmeNodeSupport(readme);
 
 for (const [name, version] of Object.entries(rootPackage.optionalDependencies)) {
   assert.equal(version, rootPackage.version, `${name} must match root package version`);
@@ -183,6 +190,19 @@ function assertBenchmarkPublicSurface(packageJson) {
     fs.existsSync(path.join(repoRoot, 'benchmark', 'quick-proof.js')),
     false,
     'benchmark/quick-proof.js must not be restored'
+  );
+}
+
+function assertReadmeNodeSupport(content) {
+  assert.match(
+    content,
+    /\bNode\.js 22, 24, or 26\b/,
+    'README must advertise the tested Node release lines'
+  );
+  assert.match(
+    content,
+    /\bNode 20, 23, and 25 are EOL and not supported\b/,
+    'README must not imply EOL odd-numbered Node releases are supported'
   );
 }
 

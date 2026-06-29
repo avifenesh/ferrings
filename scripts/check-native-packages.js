@@ -76,7 +76,7 @@ assert.deepEqual(rootPackage.keywords, [
   'linux',
   'networking'
 ]);
-assert.deepEqual(rootPackage.engines, { node: '>=22' });
+assert.deepEqual(rootPackage.engines, { node: '>=22 <23 || >=24 <25 || >=26 <27' });
 assert.equal(typeof rootPackage.repository?.url, 'string');
 assert.equal(typeof rootPackage.homepage, 'string');
 assert.equal(typeof rootPackage.bugs?.url, 'string');

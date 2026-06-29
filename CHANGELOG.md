@@ -8,8 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.30 - 2026-06-29
+
 - Hardened release workflow reruns so already-published versions skip native
   rebuilds and go straight to registry verification and install smoke checks.
+- Tightened package engine metadata to the tested Node 22, 24, and 26 lines so
+  EOL odd-numbered Node releases are not advertised as supported.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.30` results on
+  Node 26.
 
 ## 0.2.29 - 2026-06-29
 

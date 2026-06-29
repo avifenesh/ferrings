@@ -32,6 +32,17 @@ try {
 
 try {
   const packageJson = JSON.parse(originalPackage);
+  packageJson.engines = { node: '>=22' };
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for broad Node engines');
+  assert.match(stale.stderr, /root package engines must match tested supported Node release lines/);
+} finally {
+  fs.writeFileSync(packagePath, originalPackage);
+}
+
+try {
+  const packageJson = JSON.parse(originalPackage);
   delete packageJson.exports;
   fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
   const stale = runMetadataCheck();
