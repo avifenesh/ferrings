@@ -58,6 +58,39 @@ function checkWorkflowPolicy(workflowFiles) {
     /run:\s+npm run install:cargo-audit/,
     'security.yml must install cargo-audit through the pinned local helper'
   );
+
+  const releaseWorkflow = readWorkflow(workflowFiles, 'release.yml');
+  const releaseHeader = releaseWorkflow.split(/^jobs:\s*$/m)[0];
+  assert.match(
+    releaseHeader,
+    /^permissions:\n  contents: read\n/m,
+    'release.yml must default to read-only contents permission'
+  );
+  assert.doesNotMatch(
+    releaseHeader,
+    /^\s+id-token:\s*write\s*$/m,
+    'release.yml must grant id-token: write only on the publishing job'
+  );
+  assert.doesNotMatch(
+    releaseHeader,
+    /^\s+contents:\s*write\s*$/m,
+    'release.yml must grant contents: write only on the publishing job'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'validate'),
+    /^    permissions:\n      contents: read\n/m,
+    'release.yml validate job must be read-only'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'build-native'),
+    /^    permissions:\n      contents: read\n/m,
+    'release.yml build-native job must be read-only'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'package-and-publish'),
+    /^    permissions:\n      contents: write\n      id-token: write\n/m,
+    'release.yml package-and-publish job must be the only job with publish/release permissions'
+  );
 }
 
 function readWorkflow(workflowFiles, name) {
@@ -68,6 +101,23 @@ function readWorkflow(workflowFiles, name) {
 
 function matchCount(input, pattern) {
   return input.match(pattern)?.length || 0;
+}
+
+function jobBlock(workflow, jobName) {
+  const startPattern = new RegExp(`^  ${escapeRegex(jobName)}:\\n`, 'm');
+  const match = startPattern.exec(workflow);
+  assert.ok(match, `${jobName} job missing`);
+  const start = match.index;
+  const bodyStart = start + match[0].length;
+  const nextJob = workflow.slice(bodyStart).search(/^  [A-Za-z0-9_-]+:\n/m);
+  if (nextJob === -1) {
+    return workflow.slice(start);
+  }
+  return workflow.slice(start, bodyStart + nextJob);
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 async function ensureActionlint() {
