@@ -8,6 +8,7 @@ const path = require('node:path');
 const repoRoot = path.resolve(__dirname, '..');
 const rootPackage = require(path.join(repoRoot, 'package.json'));
 const packagePath = path.join(repoRoot, 'package.json');
+const cargoTomlPath = path.join(repoRoot, 'Cargo.toml');
 const nativeLoaderPath = path.join(repoRoot, 'native.js');
 const readmePath = path.join(repoRoot, 'README.md');
 
@@ -88,6 +89,26 @@ try {
   assert.match(stale.stderr, /README Benchmarks section must be the first top-level section/);
 } finally {
   fs.writeFileSync(readmePath, originalReadme);
+}
+
+const originalCargoToml = fs.readFileSync(cargoTomlPath, 'utf8');
+const weakenedUnsafeLintCargoToml = originalCargoToml.replace(
+  'unsafe_op_in_unsafe_fn = "deny"',
+  'unsafe_op_in_unsafe_fn = "warn"'
+);
+assert.notEqual(
+  weakenedUnsafeLintCargoToml,
+  originalCargoToml,
+  'Cargo.toml unsafe lint mutation should apply'
+);
+
+try {
+  fs.writeFileSync(cargoTomlPath, weakenedUnsafeLintCargoToml);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for weakened unsafe lint policy');
+  assert.match(stale.stderr, /Cargo\.toml must deny unsafe_op_in_unsafe_fn/);
+} finally {
+  fs.writeFileSync(cargoTomlPath, originalCargoToml);
 }
 
 console.log('package metadata state ok');

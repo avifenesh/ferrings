@@ -14,6 +14,11 @@ const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
 const changelog = fs.readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
 
 const cargoVersion = matchVersion(cargoToml, /^version = "([^"]+)"/m, 'Cargo.toml package version');
+const unsafeOpLint = matchVersion(
+  cargoToml,
+  /^\[lints\.rust\][\s\S]*?^unsafe_op_in_unsafe_fn = "([^"]+)"/m,
+  'Cargo.toml unsafe_op_in_unsafe_fn lint'
+);
 const cargoLockVersion = matchVersion(
   cargoLock,
   /\[\[package\]\]\nname = "ferrings"\nversion = "([^"]+)"/m,
@@ -26,6 +31,7 @@ assert.equal(lock.packages[''].name, rootPackage.name);
 assert.equal(lock.packages[''].version, rootPackage.version);
 assert.equal(cargoVersion, rootPackage.version);
 assert.equal(cargoLockVersion, rootPackage.version);
+assert.equal(unsafeOpLint, 'deny', 'Cargo.toml must deny unsafe_op_in_unsafe_fn');
 assert.deepEqual(rootPackage.os, ['linux']);
 assert.deepEqual(rootPackage.cpu, ['x64', 'arm64'], 'root package cpu must match supported native package CPUs');
 assert.deepEqual(rootPackage.libc, ['glibc', 'musl'], 'root package libc must match supported native package libcs');

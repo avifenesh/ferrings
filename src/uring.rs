@@ -1468,6 +1468,10 @@ struct ProvidedBufferRing {
     tail: u16,
 }
 
+// SAFETY: ProvidedBufferRing is owned by one worker thread after construction.
+// The raw mapped ring pointer and backing buffer are only touched through
+// &mut self methods on that owner, and Drop runs after the worker has stopped
+// submitting ring entries that reference it.
 unsafe impl Send for ProvidedBufferRing {}
 
 impl ProvidedBufferRing {
