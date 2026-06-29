@@ -14,7 +14,7 @@ ferrings gives Node applications a real TCP server surface backed by an `io_urin
 npm install ferrings
 ```
 
-Current benchmark snapshot: **1.92x** fixed-response HTTP throughput, **1.92x** native TCP echo throughput, and roughly half the server syscalls per completed connection versus Node's built-in transports on the same host.
+Current benchmark snapshot: **1.65x** fixed-response HTTP throughput, **2.35x** native TCP echo throughput, and roughly half the server syscalls per completed connection versus Node's built-in transports on the same host.
 
 ## Benchmarks
 
@@ -22,30 +22,30 @@ ferrings is benchmarked against Node's built-in `http` and `net` servers on the 
 
 | Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | **1.92x** | **47% lower** | **51% fewer** |
-| TCP echo | Node `net` | native echo worker | **1.92x** | 24% higher | **52% fewer** |
-| TCP echo | Node `net` | Node-style TCP facade | **1.47x** | 32% higher | **37% fewer** |
-| TCP echo | Node `net` | facade batch send | **1.67x** | 36% higher | **38% fewer** |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | **1.65x** | **42% lower** | **51% fewer** |
+| TCP echo | Node `net` | native echo worker | **2.35x** | 3% higher | **53% fewer** |
+| TCP echo | Node `net` | Node-style TCP facade | **2.16x** | **7% lower** | **38% fewer** |
+| TCP echo | Node `net` | facade batch send | **2.15x** | 3% higher | **38% fewer** |
 
-Measured on 2026-06-29 with `ferrings@0.2.19`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
+Measured on 2026-06-29 with `ferrings@0.2.20`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
 
 Detailed results from the README run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 4,656 | 11.144 | 36.834 | 44.485 | 11.809 | libuv/epoll |
-| ferrings HTTP | 8,941 | 5.472 | 22.436 | 23.678 | 5.747 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 7,730 | 7.510 | 12.693 | 17.774 | 11.063 | libuv/epoll |
-| ferrings native TCP echo | 14,838 | 3.003 | 20.622 | 22.121 | 5.280 | native echo worker + provided buffers |
-| ferrings TCP facade | 11,338 | 3.844 | 21.718 | 23.485 | 6.952 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 12,939 | 3.388 | 22.540 | 24.163 | 6.876 | JS facade + batched native events/sends |
+| Node `http` | 4,873 | 11.315 | 30.903 | 36.553 | 11.730 | libuv/epoll |
+| ferrings HTTP | 8,055 | 6.534 | 20.045 | 21.067 | 5.698 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 6,876 | 8.651 | 12.314 | 16.087 | 11.121 | libuv/epoll |
+| ferrings native TCP echo | 16,165 | 2.891 | 14.793 | 16.631 | 5.240 | native echo worker + provided buffers |
+| ferrings TCP facade | 14,852 | 3.134 | 14.246 | 14.984 | 6.905 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 14,814 | 3.432 | 14.614 | 16.616 | 6.923 | JS facade + batched native events/sends |
 
 Reproduce the table:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.19.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.20.json \
 npm run bench:syscalls
 ```
 
@@ -365,6 +365,7 @@ npm test
 - npm package: [`ferrings`](https://www.npmjs.com/package/ferrings)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
 - Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Production runbook: [`docs/production.md`](docs/production.md)
 - Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
 - Examples: [`examples/http-fixed.js`](examples/http-fixed.js), [`examples/tcp-echo.js`](examples/tcp-echo.js)
 - Benchmarks: [`benchmark/`](benchmark/)
@@ -376,7 +377,7 @@ npm test
 - Security policy: [`SECURITY.md`](SECURITY.md)
 - Tests: [`test/`](test/)
 
-There is no separate docs site yet; the README, type definitions, examples, benchmarks, and tests are the current reference material.
+There is no separate docs site yet; the README, production runbook, type definitions, examples, benchmarks, and tests are the current reference material.
 
 ## Release Checks
 

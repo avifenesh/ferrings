@@ -8,6 +8,12 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.20 - 2026-06-29
+
+- Added a packaged production runbook covering install verification, operational
+  counters, benchmark interpretation, ZCRX validation, release checks, and
+  rollback.
+
 ## 0.2.19 - 2026-06-29
 
 - Rewrote the README opening so ferrings is presented as a usable transport,

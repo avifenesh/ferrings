@@ -65,6 +65,7 @@ try {
   assert.equal(packedFiles.has('CONTRIBUTING.md'), true);
   assert.equal(packedFiles.has('CODE_OF_CONDUCT.md'), true);
   assert.equal(packedFiles.has('SECURITY.md'), true);
+  assert.equal(packedFiles.has('docs/production.md'), true);
   assert.equal(packedFiles.has('ferrings.linux-x64-gnu.node'), false);
   assert.equal(packedFiles.has('LICENSE-APACHE'), true);
   assert.equal(packedFiles.has('LICENSE-MIT'), true);
@@ -109,6 +110,7 @@ try {
   assert.deepEqual(installedPackageJson.optionalDependencies, rootPackageJson.optionalDependencies);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.js')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.d.ts')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'docs', 'production.md')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'ferrings.linux-x64-gnu.node')), false);
   assert.equal(
     fs.existsSync(

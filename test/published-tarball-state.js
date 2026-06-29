@@ -158,6 +158,7 @@ fs.writeFileSync(
         'CONTRIBUTING.md',
         'CODE_OF_CONDUCT.md',
         'SECURITY.md',
+        'docs/production.md',
         'LICENSE-APACHE',
         'LICENSE-MIT',
         'index.js',

@@ -42,6 +42,12 @@ assert.equal(rootPackage.files.includes('CHANGELOG.md'), true);
 assert.equal(rootPackage.files.includes('CONTRIBUTING.md'), true);
 assert.equal(rootPackage.files.includes('CODE_OF_CONDUCT.md'), true);
 assert.equal(rootPackage.files.includes('SECURITY.md'), true);
+assert.equal(rootPackage.files.includes('docs/'), true);
+assert.equal(
+  fs.existsSync(path.join(repoRoot, 'docs', 'production.md')),
+  true,
+  'docs/production.md must exist'
+);
 assert.match(changelog, new RegExp(`^## ${escapeRegExp(rootPackage.version)} - `, 'm'));
 
 const readmeBenchmarkVersion = matchVersion(
