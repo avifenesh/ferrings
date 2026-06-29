@@ -8,9 +8,18 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.14 - 2026-06-29
+
+- Added release metadata guards that keep the README benchmark section first
+  and prevent public experiment/prototype framing from returning.
+- Added a Rust lint policy that denies `unsafe_op_in_unsafe_fn`, with metadata
+  regression coverage and a safety rationale on the native buffer-ring `Send`
+  contract.
 - Hardened `check:release-ready -- --require-zcrx` so it requires a
   non-loopback hardware route and runs the ZCRX hardware smoke test instead of
   accepting environment configuration as proof.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.14` results on
+  Node 26.
 
 ## 0.2.13 - 2026-06-29
 
