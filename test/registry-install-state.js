@@ -85,7 +85,21 @@ fs.writeFileSync(
             ready: false,
             defaultReady: false,
             verdict: 'native-load-blocked',
-            nativeLoadError: { code: 'FERRINGS_NATIVE_LOAD_FAILED' }
+            nativeLoadError: {
+              code: 'FERRINGS_NATIVE_LOAD_FAILED',
+              loadErrors: [
+                {
+                  name: 'Error',
+                  code: 'MODULE_NOT_FOUND',
+                  message: 'Cannot find module ' + target.packageName
+                },
+                {
+                  name: 'Error',
+                  code: 'MODULE_NOT_FOUND',
+                  message: 'Cannot find module ' + target.nativeFile
+                }
+              ]
+            }
           };
           return done(args.includes('--require-ready') ? 2 : 0, JSON.stringify(report) + '\\n');
         }

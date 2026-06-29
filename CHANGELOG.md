@@ -8,9 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.38 - 2026-06-29
+
 - Added structured native-loader attempt diagnostics to
   `FerringsNativeLoadError`, `ferrings doctor --json`, package-install smoke
   coverage, and future registry-install verification.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.38` results on
+  Node 26.
 - Enforced Clippy's `undocumented_unsafe_blocks` lint and documented the safety
   invariants around native FFI, mmap, fd ownership, provided-buffer rings, and
   io_uring submission helpers.
