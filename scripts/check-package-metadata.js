@@ -62,6 +62,7 @@ assert.equal(
   '.node-version must pin the development Node major'
 );
 assertExportsSurface(rootPackage);
+assertPackagePathsExist(rootPackage);
 assert.equal(rootPackage.homepage, `${repositoryHttpUrl(rootPackage.repository.url)}#readme`);
 assert.equal(rootPackage.bugs.url, `${repositoryHttpUrl(rootPackage.repository.url)}/issues`);
 assert.equal(rootPackage.files.includes('CHANGELOG.md'), true);
@@ -368,4 +369,85 @@ function assertExportsSurface(packageJson) {
     expectedExports,
     'package exports must define the supported public entrypoint boundary'
   );
+}
+
+function assertPackagePathsExist(packageJson) {
+  assertFileExists(packageJson.main, 'package main');
+  assertFileExists(packageJson.types, 'package types');
+
+  for (const [binName, binTarget] of Object.entries(packageJson.bin || {})) {
+    assertFileExists(binTarget, `package bin ${binName}`);
+  }
+
+  for (const fileEntry of packageJson.files || []) {
+    assertPublishedFileEntryExists(fileEntry);
+  }
+
+  for (const exportTarget of collectExportTargets(packageJson.exports)) {
+    assertExportTargetExists(exportTarget);
+  }
+}
+
+function assertPublishedFileEntryExists(fileEntry) {
+  if (fileEntry.endsWith('/')) {
+    assertDirectoryExists(fileEntry, `package files entry ${fileEntry}`);
+    return;
+  }
+  assertFileExists(fileEntry, `package files entry ${fileEntry}`);
+}
+
+function collectExportTargets(exportsMap) {
+  const targets = [];
+  visitExportTarget(exportsMap, targets);
+  return targets;
+}
+
+function visitExportTarget(value, targets) {
+  if (typeof value === 'string') {
+    targets.push(value);
+    return;
+  }
+  if (!value || typeof value !== 'object') return;
+  for (const nested of Object.values(value)) {
+    visitExportTarget(nested, targets);
+  }
+}
+
+function assertExportTargetExists(exportTarget) {
+  if (exportTarget.includes('*')) {
+    const prefix = exportTarget.slice(0, exportTarget.indexOf('*'));
+    const directory = prefix.endsWith('/') ? prefix : path.dirname(prefix);
+    assertDirectoryExists(directory, `package export pattern ${exportTarget}`);
+    return;
+  }
+  assertFileExists(exportTarget, `package export target ${exportTarget}`);
+}
+
+function assertFileExists(packagePath, label) {
+  const resolved = resolvePackagePath(packagePath, label);
+  assert.ok(
+    fs.existsSync(resolved) && fs.statSync(resolved).isFile(),
+    `${label} must reference an existing file`
+  );
+}
+
+function assertDirectoryExists(packagePath, label) {
+  const resolved = resolvePackagePath(packagePath, label);
+  assert.ok(
+    fs.existsSync(resolved) && fs.statSync(resolved).isDirectory(),
+    `${label} must reference an existing directory`
+  );
+}
+
+function resolvePackagePath(packagePath, label) {
+  assert.equal(typeof packagePath, 'string', `${label} must be a string`);
+  const normalized = packagePath.startsWith('./') ? packagePath.slice(2) : packagePath;
+  const resolved = path.resolve(repoRoot, normalized);
+  assert.ok(
+    normalized.length > 0 &&
+      !path.isAbsolute(normalized) &&
+      (resolved === repoRoot || resolved.startsWith(`${repoRoot}${path.sep}`)),
+    `${label} must stay inside the package root`
+  );
+  return resolved;
 }

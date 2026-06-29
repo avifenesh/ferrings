@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.46 - 2026-06-29
+
+- Hardened package metadata checks so release gates fail when package `files`,
+  concrete export targets, export pattern directories, `main`, `types`, or CLI
+  bin paths point at missing files or directories.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.46` results on
+  Node 26 using 5,000 completed requests per case.
+
 ## 0.2.45 - 2026-06-29
 
 - Hardened root `zcrxProbe()` option validation so buffers, dates, arrays, and

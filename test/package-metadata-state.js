@@ -56,6 +56,52 @@ try {
 
 try {
   const packageJson = JSON.parse(originalPackage);
+  packageJson.files = packageJson.files.map((entry) =>
+    entry === 'index.js' ? 'missing-index.js' : entry
+  );
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for a missing files entry');
+  assert.match(stale.stderr, /package files entry missing-index\.js must reference an existing file/);
+} finally {
+  fs.writeFileSync(packagePath, originalPackage);
+}
+
+try {
+  const packageJson = JSON.parse(originalPackage);
+  packageJson.bin.ferrings = 'bin/missing-ferrings.js';
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for a missing bin target');
+  assert.match(stale.stderr, /package bin ferrings must reference an existing file/);
+} finally {
+  fs.writeFileSync(packagePath, originalPackage);
+}
+
+try {
+  const packageJson = JSON.parse(originalPackage);
+  packageJson.files = [...packageJson.files, '../outside.js'];
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for files entries outside the package root');
+  assert.match(stale.stderr, /package files entry \.\.\/outside\.js must stay inside the package root/);
+} finally {
+  fs.writeFileSync(packagePath, originalPackage);
+}
+
+try {
+  const packageJson = JSON.parse(originalPackage);
+  packageJson.files = [...packageJson.files, 'bin/../../outside.js'];
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for normalized files paths outside the package root');
+  assert.match(stale.stderr, /package files entry bin\/\.\.\/\.\.\/outside\.js must stay inside the package root/);
+} finally {
+  fs.writeFileSync(packagePath, originalPackage);
+}
+
+try {
+  const packageJson = JSON.parse(originalPackage);
   packageJson.scripts['bench:quick'] = 'node benchmark/quick-proof.js';
   fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
   const stale = runMetadataCheck();
