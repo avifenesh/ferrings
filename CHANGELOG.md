@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.45 - 2026-06-29
+
+- Hardened root `zcrxProbe()` option validation so buffers, dates, arrays, and
+  class instances are rejected before reaching the native probe while plain and
+  `Object.create(null)` option records remain supported.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.45` results on
+  Node 26 using 5,000 completed requests per case.
+
 ## 0.2.44 - 2026-06-29
 
 - Rewrote the README opening to present ferrings as a usable Linux Node

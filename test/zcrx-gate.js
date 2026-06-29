@@ -71,6 +71,13 @@ assert.equal(invalidBufferProbe.ready, false);
 assert.ok(invalidBufferProbe.blockers.some((blocker) => /rxBufferSize/i.test(blocker)));
 assert.match(invalidBufferProbe.activeRegistrationResult, /rxBufferSize/i);
 
+const nullPrototypeOptions = Object.create(null);
+nullPrototypeOptions.interfaceName = 'lo';
+nullPrototypeOptions.rxQueue = 0;
+const nullPrototypeProbe = zcrxProbe(nullPrototypeOptions);
+assert.equal(nullPrototypeProbe.interfaceName, 'lo');
+assert.equal(nullPrototypeProbe.rxQueue, 0);
+
 assert.throws(
   () => zcrxProbe({ rxQueue: -1 }),
   /zcrxProbe rxQueue must be an integer between 0 and 4294967295/
@@ -97,6 +104,19 @@ assert.throws(
 );
 assert.throws(
   () => zcrxProbe([]),
+  /zcrxProbe options must be an object/
+);
+assert.throws(
+  () => zcrxProbe(Buffer.from('bad-options')),
+  /zcrxProbe options must be an object/
+);
+assert.throws(
+  () => zcrxProbe(new Date()),
+  /zcrxProbe options must be an object/
+);
+class NonPlainZcrxOptions {}
+assert.throws(
+  () => zcrxProbe(new NonPlainZcrxOptions()),
   /zcrxProbe options must be an object/
 );
 
