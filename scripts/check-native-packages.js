@@ -55,8 +55,11 @@ assert.deepEqual(rootPackage.os, ['linux']);
 assert.deepEqual(rootPackage.cpu, ['x64', 'arm64']);
 assert.deepEqual(rootPackage.libc, ['glibc', 'musl']);
 assert.deepEqual(rootPackage.napi.targets, TARGETS.map((target) => target.target));
-assert.equal(rootPackage.files.includes('ferrings.linux-x64-gnu.node'), true);
-assert.equal(rootPackage.files.some((entry) => entry.includes('*.node')), false);
+assert.equal(
+  rootPackage.files.some((entry) => entry.endsWith('.node') || entry.includes('*.node')),
+  false,
+  'root package must not ship platform-specific native binaries; use optional native packages'
+);
 assert.deepEqual(rootPackage.publishConfig, {
   registry: 'https://registry.npmjs.org/',
   access: 'public',

@@ -8,6 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.18 - 2026-06-29
+
+- Removed the native binary from the root package tarball so all supported
+  Linux targets load through the same optional platform-package path.
+- Tightened package, tarball, and registry-install checks to reject native
+  binaries in the root package and prove the platform package is installed.
+
 ## 0.2.17 - 2026-06-29
 
 - Renamed the packaged quick benchmark runner to `quick-benchmark`, and

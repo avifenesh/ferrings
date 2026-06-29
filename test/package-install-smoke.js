@@ -51,8 +51,10 @@ function temporarilyRemove(filePaths, callback) {
 try {
   const packDir = path.join(tmpRoot, 'pack');
   const appDir = path.join(tmpRoot, 'app');
+  const nativePackageDir = path.join(tmpRoot, 'native-package');
   fs.mkdirSync(packDir, { recursive: true });
   fs.mkdirSync(appDir, { recursive: true });
+  fs.mkdirSync(nativePackageDir, { recursive: true });
 
   const pack = run('npm', ['pack', '--pack-destination', packDir, '--json']);
   const [packed] = JSON.parse(pack.stdout);
@@ -63,7 +65,7 @@ try {
   assert.equal(packedFiles.has('CONTRIBUTING.md'), true);
   assert.equal(packedFiles.has('CODE_OF_CONDUCT.md'), true);
   assert.equal(packedFiles.has('SECURITY.md'), true);
-  assert.equal(packedFiles.has('ferrings.linux-x64-gnu.node'), true);
+  assert.equal(packedFiles.has('ferrings.linux-x64-gnu.node'), false);
   assert.equal(packedFiles.has('LICENSE-APACHE'), true);
   assert.equal(packedFiles.has('LICENSE-MIT'), true);
   assert.equal(packedFiles.has('index.js'), true);
@@ -78,13 +80,16 @@ try {
   assert.equal(packedFiles.has('test/smoke.js'), false);
 
   const tarball = path.join(packDir, packed.filename);
+  const nativeTarball = packNativePackage(packDir, nativePackageDir);
   fs.writeFileSync(
     path.join(appDir, 'package.json'),
     `${JSON.stringify({ private: true, type: 'commonjs' }, null, 2)}\n`
   );
-  run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball], {
-    cwd: appDir
-  });
+  run(
+    'npm',
+    ['install', '--ignore-scripts', '--no-audit', '--no-fund', tarball, nativeTarball],
+    { cwd: appDir }
+  );
 
   const installedPackageDir = path.join(appDir, 'node_modules', 'ferrings');
   const installedPackageJson = JSON.parse(
@@ -104,7 +109,18 @@ try {
   assert.deepEqual(installedPackageJson.optionalDependencies, rootPackageJson.optionalDependencies);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.js')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.d.ts')), true);
-  assert.equal(fs.existsSync(path.join(installedPackageDir, 'ferrings.linux-x64-gnu.node')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'ferrings.linux-x64-gnu.node')), false);
+  assert.equal(
+    fs.existsSync(
+      path.join(
+        appDir,
+        'node_modules',
+        'ferrings-linux-x64-gnu',
+        'ferrings.linux-x64-gnu.node'
+      )
+    ),
+    true
+  );
   assert.match(
     fs.readFileSync(path.join(installedPackageDir, 'native.js'), 'utf8'),
     /require\('\.\/ferrings\.linux-x64-gnu\.node'\)/
@@ -112,7 +128,6 @@ try {
 
   temporarilyRemove(
     [
-      path.join(installedPackageDir, 'ferrings.linux-x64-gnu.node'),
       path.join(
         appDir,
         'node_modules',
@@ -308,4 +323,29 @@ try {
   console.log('package install smoke ok');
 } finally {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
+}
+
+function packNativePackage(packDir, nativePackageDir) {
+  for (const fileName of [
+    'package.json',
+    'ferrings.linux-x64-gnu.node',
+    'LICENSE-APACHE',
+    'LICENSE-MIT'
+  ]) {
+    const source =
+      fileName === 'package.json'
+        ? path.join(repoRoot, 'npm', 'linux-x64-gnu', fileName)
+        : path.join(repoRoot, fileName);
+    assert.equal(fs.existsSync(source), true, `${source} is missing`);
+    fs.copyFileSync(source, path.join(nativePackageDir, fileName));
+  }
+
+  const pack = run('npm', ['pack', nativePackageDir, '--pack-destination', packDir, '--json']);
+  const [packed] = JSON.parse(pack.stdout);
+  assert.equal(packed.name, 'ferrings-linux-x64-gnu');
+  const packedFiles = new Set(packed.files.map((file) => file.path));
+  assert.equal(packedFiles.has('ferrings.linux-x64-gnu.node'), true);
+  assert.equal(packedFiles.has('LICENSE-APACHE'), true);
+  assert.equal(packedFiles.has('LICENSE-MIT'), true);
+  return path.join(packDir, packed.filename);
 }

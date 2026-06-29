@@ -231,12 +231,12 @@ function verifyRootTarball(errors) {
     'benchmark/syscalls.js',
     'benchmark/tcp-echo.js',
     'examples/http-fixed.js',
-    'examples/tcp-echo.js',
-    'ferrings.linux-x64-gnu.node'
+    'examples/tcp-echo.js'
   ]) {
     expectFile(files, rootPackage.name, filePath, errors);
   }
 
+  expectNoNativeFiles(files, rootPackage.name, errors);
   for (const filePath of ['src/lib.rs', 'src/uring.rs', 'test/smoke.js']) {
     expectNoFile(files, rootPackage.name, filePath, errors);
   }
@@ -355,6 +355,14 @@ function expectFile(files, packageName, filePath, errors) {
 function expectNoFile(files, packageName, filePath, errors) {
   if (files.has(filePath)) {
     errors.push(`${packageName} tarball unexpectedly includes ${filePath}`);
+  }
+}
+
+function expectNoNativeFiles(files, packageName, errors) {
+  for (const filePath of files) {
+    if (filePath.endsWith('.node')) {
+      errors.push(`${packageName} tarball unexpectedly includes native binary ${filePath}`);
+    }
   }
 }
 

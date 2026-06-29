@@ -88,10 +88,8 @@ try {
   );
   const embeddedNative = path.join(installedBaseDir, 'ferrings.linux-x64-gnu.node');
   const optionalNative = path.join(installedNativePackageDir, 'ferrings.linux-x64-gnu.node');
-  assert.equal(fs.existsSync(embeddedNative), true);
-  assert.equal(fs.existsSync(optionalNative), true);
-  fs.rmSync(embeddedNative);
   assert.equal(fs.existsSync(embeddedNative), false);
+  assert.equal(fs.existsSync(optionalNative), true);
 
   const smokeScript = `
     const assert = require('node:assert/strict');

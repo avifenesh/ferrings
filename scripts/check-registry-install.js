@@ -62,8 +62,11 @@ try {
   report.installedNativePackage = target.packageName;
 
   const embeddedNative = path.join(installedPackageDir, target.nativeFile);
-  fs.rmSync(embeddedNative, { force: true });
-  assert.equal(fs.existsSync(embeddedNative), false);
+  assert.equal(
+    fs.existsSync(embeddedNative),
+    false,
+    'root package must not ship the platform native binding'
+  );
 
   runSmokeScript(target);
   runCliSmoke(appDir);

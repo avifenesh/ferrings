@@ -12,34 +12,34 @@ ferrings ships a real TCP server surface while moving accept, receive, send, and
 
 ## Benchmarks
 
-Benchmarks are first because ferrings exists to reduce syscall pressure on busy Linux TCP servers. In the current Node 26 run, the `io_uring` path delivered **2.21x** fixed-response HTTP throughput and **2.59x** native TCP echo throughput while cutting server syscalls per completed connection by roughly half.
+Benchmarks are first because ferrings exists to reduce syscall pressure on busy Linux TCP servers. In the current Node 26 run, the `io_uring` path delivered **1.74x** fixed-response HTTP throughput and **2.22x** native TCP echo throughput while cutting server syscalls per completed connection by roughly half. The Node-style TCP facade still improves throughput and syscall count, with the expected JavaScript callback tail-latency tradeoff.
 
 | Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | **2.21x** | **61% lower** | **53% fewer** |
-| TCP echo | Node `net` | native echo worker | **2.59x** | **18% lower** | **54% fewer** |
-| TCP echo | Node `net` | Node-style TCP facade | **2.13x** | **15% lower** | **38% fewer** |
-| TCP echo | Node `net` | facade batch send | **1.92x** | 7% higher | **37% fewer** |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | **1.74x** | **11% lower** | **51% fewer** |
+| TCP echo | Node `net` | native echo worker | **2.22x** | **2% lower** | **53% fewer** |
+| TCP echo | Node `net` | Node-style TCP facade | **1.76x** | 67% higher | **38% fewer** |
+| TCP echo | Node `net` | facade batch send | **1.83x** | 11% higher | **38% fewer** |
 
-Measured on 2026-06-29 with `ferrings@0.2.17`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; the useful signal is the same-host comparison against Node's built-in transports.
+Measured on 2026-06-29 with `ferrings@0.2.18`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; the useful signal is the same-host comparison against Node's built-in transports.
 
 Detailed results:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 4,087 | 13.539 | 46.925 | 54.053 | 11.724 | libuv/epoll |
-| ferrings HTTP | 9,040 | 5.909 | 17.930 | 20.832 | 5.525 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 6,568 | 9.085 | 13.849 | 20.323 | 11.136 | libuv/epoll |
-| ferrings native TCP echo | 17,043 | 2.789 | 15.031 | 16.597 | 5.160 | native echo worker + provided buffers |
-| ferrings TCP facade | 13,991 | 3.757 | 16.252 | 17.217 | 6.939 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 12,612 | 3.890 | 20.761 | 21.669 | 6.980 | JS facade + batched native events/sends |
+| Node `http` | 4,952 | 10.575 | 38.902 | 43.812 | 11.580 | libuv/epoll |
+| ferrings HTTP | 8,630 | 5.241 | 24.561 | 39.001 | 5.649 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 7,500 | 7.920 | 12.237 | 14.689 | 11.108 | libuv/epoll |
+| ferrings native TCP echo | 16,623 | 3.009 | 12.609 | 14.439 | 5.199 | native echo worker + provided buffers |
+| ferrings TCP facade | 13,177 | 3.466 | 22.503 | 24.517 | 6.890 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 13,739 | 3.437 | 14.213 | 16.352 | 6.922 | JS facade + batched native events/sends |
 
 Reproduce the table:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.17.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.18.json \
 npm run bench:syscalls
 ```
 
@@ -66,6 +66,8 @@ The root package installs the matching optional native package for the current L
 - `ferrings-linux-x64-musl`
 - `ferrings-linux-arm64-gnu`
 - `ferrings-linux-arm64-musl`
+
+The root package ships JavaScript, TypeScript declarations, docs, examples, and benchmarks. Native binaries live in the platform packages above so installs use the same dynamic package path on every supported target.
 
 If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, the supported native package names, and the original loader error.
 

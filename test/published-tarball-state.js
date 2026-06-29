@@ -22,6 +22,7 @@ fs.writeFileSync(
     const originalSpawnSync = childProcess.spawnSync;
     const rootPackage = require(path.resolve(process.cwd(), 'package.json'));
     const missingNative = process.env.FERRINGS_TEST_MISSING_NATIVE_TARBALL === '1';
+    const rootNative = process.env.FERRINGS_TEST_ROOT_NATIVE_TARBALL === '1';
 
     const targets = [
       {
@@ -150,35 +151,38 @@ fs.writeFileSync(
     }
 
     function rootPack() {
+      const files = [
+        'package.json',
+        'README.md',
+        'CHANGELOG.md',
+        'CONTRIBUTING.md',
+        'CODE_OF_CONDUCT.md',
+        'SECURITY.md',
+        'LICENSE-APACHE',
+        'LICENSE-MIT',
+        'index.js',
+        'index.d.ts',
+        'native.js',
+        'native.d.ts',
+        'tcp-transport.js',
+        'zcrx-smoke.js',
+        'bin/ferrings.js',
+        'benchmark/compare.js',
+        'benchmark/quick-benchmark.js',
+        'benchmark/high-concurrency.js',
+        'benchmark/syscalls.js',
+        'benchmark/tcp-echo.js',
+        'examples/http-fixed.js',
+        'examples/tcp-echo.js'
+      ];
+      if (rootNative) {
+        files.push('ferrings.linux-x64-gnu.node');
+      }
       return {
         name: rootPackage.name,
         version: rootPackage.version,
         filename: 'ferrings.tgz',
-        files: [
-          'package.json',
-          'README.md',
-          'CHANGELOG.md',
-          'CONTRIBUTING.md',
-          'CODE_OF_CONDUCT.md',
-          'SECURITY.md',
-          'LICENSE-APACHE',
-          'LICENSE-MIT',
-          'index.js',
-          'index.d.ts',
-          'native.js',
-          'native.d.ts',
-          'tcp-transport.js',
-          'zcrx-smoke.js',
-          'bin/ferrings.js',
-          'benchmark/compare.js',
-          'benchmark/quick-benchmark.js',
-          'benchmark/high-concurrency.js',
-          'benchmark/syscalls.js',
-          'benchmark/tcp-echo.js',
-          'examples/http-fixed.js',
-          'examples/tcp-echo.js',
-          'ferrings.linux-x64-gnu.node'
-        ].map((file) => ({ path: file }))
+        files: files.map((file) => ({ path: file }))
       };
     }
 
@@ -210,7 +214,7 @@ fs.writeFileSync(
 );
 
 try {
-  const ok = runScenario(false);
+  const ok = runScenario();
   assert.equal(ok.status, 0, ok.stderr);
   const okReport = JSON.parse(ok.stdout);
   assert.equal(okReport.ok, true);
@@ -223,7 +227,16 @@ try {
     'ferrings-linux-x64-musl'
   ]);
 
-  const missing = runScenario(true);
+  const rootNative = runScenario({ rootNative: true });
+  assert.equal(rootNative.status, 1);
+  const rootNativeReport = JSON.parse(rootNative.stdout);
+  assert.equal(rootNativeReport.ok, false);
+  assert.match(
+    rootNativeReport.errors.join('\n'),
+    /ferrings tarball unexpectedly includes native binary ferrings\.linux-x64-gnu\.node/
+  );
+
+  const missing = runScenario({ missingNative: true });
   assert.equal(missing.status, 1);
   const missingReport = JSON.parse(missing.stdout);
   assert.equal(missingReport.ok, false);
@@ -237,7 +250,7 @@ try {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
-function runScenario(missingNative) {
+function runScenario({ missingNative = false, rootNative = false } = {}) {
   return spawnSync(
     process.execPath,
     ['--require', preload, script, '--json', '--verify-tarballs'],
@@ -246,7 +259,8 @@ function runScenario(missingNative) {
       encoding: 'utf8',
       env: {
         ...process.env,
-        FERRINGS_TEST_MISSING_NATIVE_TARBALL: missingNative ? '1' : '0'
+        FERRINGS_TEST_MISSING_NATIVE_TARBALL: missingNative ? '1' : '0',
+        FERRINGS_TEST_ROOT_NATIVE_TARBALL: rootNative ? '1' : '0'
       },
       maxBuffer: 5 * 1024 * 1024
     }
