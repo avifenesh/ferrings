@@ -11,6 +11,7 @@ const cargoToml = fs.readFileSync(path.join(repoRoot, 'Cargo.toml'), 'utf8');
 const cargoLock = fs.readFileSync(path.join(repoRoot, 'Cargo.lock'), 'utf8');
 const nativeLoader = fs.readFileSync(path.join(repoRoot, 'native.js'), 'utf8');
 const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
+const cliBin = fs.readFileSync(path.join(repoRoot, 'bin', 'ferrings.js'), 'utf8');
 const changelog = fs.readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
 
 const cargoVersion = matchVersion(cargoToml, /^version = "([^"]+)"/m, 'Cargo.toml package version');
@@ -56,6 +57,8 @@ assert.equal(
 assertReadmePositioning(readme);
 assertNoExperimentalPublicFraming(readme, 'README');
 assertNoExperimentalPublicFraming(rootPackage.description || '', 'package description');
+assertNoExperimentalPublicFraming(cliBin, 'CLI help');
+assertNoProofyCliFraming(cliBin);
 
 for (const [name, version] of Object.entries(rootPackage.optionalDependencies)) {
   assert.equal(version, rootPackage.version, `${name} must match root package version`);
@@ -125,5 +128,14 @@ function assertNoExperimentalPublicFraming(content, label) {
     forbidden.test(content),
     false,
     `${label} must not present ferrings as an experiment or prototype`
+  );
+}
+
+function assertNoProofyCliFraming(content) {
+  const forbidden = /\b(traffic proof|proof bundle)\b/i;
+  assert.equal(
+    forbidden.test(content),
+    false,
+    'CLI help must describe validation or benchmarks, not proof-oriented framing'
   );
 }

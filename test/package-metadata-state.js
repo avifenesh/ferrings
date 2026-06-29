@@ -11,6 +11,7 @@ const packagePath = path.join(repoRoot, 'package.json');
 const cargoTomlPath = path.join(repoRoot, 'Cargo.toml');
 const nativeLoaderPath = path.join(repoRoot, 'native.js');
 const readmePath = path.join(repoRoot, 'README.md');
+const cliPath = path.join(repoRoot, 'bin', 'ferrings.js');
 
 const clean = runMetadataCheck();
 assert.equal(clean.status, 0, `expected clean metadata\nstdout:\n${clean.stdout}\nstderr:\n${clean.stderr}`);
@@ -109,6 +110,19 @@ try {
   assert.match(stale.stderr, /Cargo\.toml must deny unsafe_op_in_unsafe_fn/);
 } finally {
   fs.writeFileSync(cargoTomlPath, originalCargoToml);
+}
+
+const originalCli = fs.readFileSync(cliPath, 'utf8');
+const proofyCli = originalCli.replace('ZCRX traffic validation', 'ZCRX traffic proof');
+assert.notEqual(proofyCli, originalCli, 'CLI proof framing mutation should apply');
+
+try {
+  fs.writeFileSync(cliPath, proofyCli);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail when CLI help uses proof framing');
+  assert.match(stale.stderr, /CLI help must describe validation or benchmarks/);
+} finally {
+  fs.writeFileSync(cliPath, originalCli);
 }
 
 console.log('package metadata state ok');

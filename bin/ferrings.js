@@ -483,7 +483,7 @@ Commands:
   capabilities  Print kernel/io_uring feature probes.
   doctor        Print one installed-package transport/ZCRX readiness verdict.
   zcrx-probe    Print ZCRX NIC readiness probes.
-  zcrx-smoke    Run HTTP/native echo/programmable TCP ZCRX traffic proof.
+  zcrx-smoke    Run HTTP/native echo/programmable TCP ZCRX traffic validation.
 
 Options:
   --json             Print a pretty JSON report.

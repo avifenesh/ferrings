@@ -8,6 +8,11 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.16 - 2026-06-29
+
+- Reworded the installed CLI help so ZCRX smoke is described as traffic
+  validation, and extended metadata checks to guard public CLI framing.
+
 ## 0.2.15 - 2026-06-29
 
 - Rewrote the README opening and benchmark section to present ferrings as a
