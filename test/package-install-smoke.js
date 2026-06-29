@@ -319,6 +319,11 @@ try {
   assertInstalledTypeSurface(appDir);
 
   const binPath = path.join(appDir, 'node_modules', '.bin', 'ferrings');
+  const cliVersion = run(binPath, ['--version'], {
+    cwd: appDir
+  });
+  assert.equal(cliVersion.stdout.trim(), `ferrings ${rootPackageJson.version}`);
+
   const cliCaps = run(binPath, ['capabilities', '--json'], {
     cwd: appDir
   });

@@ -3,6 +3,7 @@
 const assert = require('node:assert/strict');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
+const pkg = require('../package.json');
 
 const cli = path.resolve(__dirname, '..', 'bin', 'ferrings.js');
 
@@ -87,6 +88,11 @@ assert.match(smokeSelfTest.stdout, /zcrx smoke self-test ok/);
 
 const help = run(['-h']);
 assert.match(help.stdout, /Usage:/);
+
+for (const args of [['--version'], ['-v'], ['version']]) {
+  const version = run(args);
+  assert.equal(version.stdout.trim(), `${pkg.name} ${pkg.version}`);
+}
 
 const required = run(['zcrx-probe', '--interface', 'lo', '--require-ready', '--json'], 2);
 const requiredReport = JSON.parse(required.stdout);

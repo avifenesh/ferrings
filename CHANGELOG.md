@@ -8,6 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.25 - 2026-06-29
+
+- Added `ferrings --version` / `ferrings version` CLI support and covered it in
+  source and installed-package smoke tests.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.25` results on
+  Node 26.
+
 ## 0.2.24 - 2026-06-29
 
 - Rewrote the README first screen so ferrings is presented as a usable npm

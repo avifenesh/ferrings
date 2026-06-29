@@ -19,6 +19,7 @@ that the native transport is actually active.
 Run these on the target host after installation:
 
 ```bash
+npx ferrings --version
 node -e "console.log(require('ferrings').capabilities())"
 npx ferrings doctor --json
 npx ferrings capabilities --json

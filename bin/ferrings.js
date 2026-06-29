@@ -14,7 +14,7 @@ class CliError extends Error {
 }
 
 const args = process.argv.slice(2);
-const command = args[0] && !args[0].startsWith('-') ? args.shift() : 'capabilities';
+const command = parseCommand(args);
 
 main().catch((error) => {
   handleError(error);
@@ -23,6 +23,8 @@ main().catch((error) => {
 async function main() {
   if (command === 'help' || command === '--help' || command === '-h') {
     printHelp();
+  } else if (command === 'version') {
+    runVersion(args);
   } else if (command === 'capabilities' || command === 'caps') {
     runCapabilities(args);
   } else if (command === 'doctor') {
@@ -36,12 +38,28 @@ async function main() {
   }
 }
 
+function parseCommand(rawArgs) {
+  const first = rawArgs[0];
+  if (first === '--version' || first === '-v') {
+    rawArgs.shift();
+    return 'version';
+  }
+  return first && !first.startsWith('-') ? rawArgs.shift() : 'capabilities';
+}
+
 function handleError(error) {
   console.error(error.message || String(error));
   if (!(error instanceof CliError)) {
     console.error(error.stack);
   }
   process.exitCode = error.exitCode || 1;
+}
+
+function runVersion(rawArgs) {
+  if (rawArgs.length > 0) {
+    throw new CliError(`unexpected argument: ${rawArgs[0]}`, 64);
+  }
+  console.log(`${pkg.name} ${pkg.version}`);
 }
 
 function runCapabilities(rawArgs) {
@@ -474,18 +492,21 @@ function yesNo(value) {
 
 function printHelp() {
   console.log(`Usage:
+  ferrings --version
   ferrings capabilities [--json|--compact]
   ferrings doctor [--interface <name>] [--rx-queue <n>] [--rx-buffer-size <n>] [--active] [--require-ready] [--json|--compact]
   ferrings zcrx-probe [--interface <name>] [--rx-queue <n>] [--rx-buffer-size <n>] [--active] [--all] [--require-ready] [--json|--compact]
   ferrings zcrx-smoke [--interface <name>] [--connect-host <host>] [--bind-host <host>] [--rx-queue <n>] [--rx-buffer-size <n>] [--timeout-ms <n>] [--require-rx-queue-stats] [--report-path <path>] [--json|--compact]
 
 Commands:
+  version       Print the installed ferrings version.
   capabilities  Print kernel/io_uring feature probes.
   doctor        Print one installed-package transport/ZCRX readiness verdict.
   zcrx-probe    Print ZCRX NIC readiness probes.
   zcrx-smoke    Run HTTP/native echo/programmable TCP ZCRX traffic validation.
 
 Options:
+  --version, -v      Print the installed ferrings version.
   --json             Print a pretty JSON report.
   --compact          Print compact JSON.
   --interface, -i    Probe a specific interface.
