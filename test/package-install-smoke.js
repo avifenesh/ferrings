@@ -78,7 +78,11 @@ try {
   assert.equal(packedFiles.has('native.d.ts'), true);
   assert.equal(packedFiles.has('native.d.mts'), true);
   assert.equal(packedFiles.has('tcp-transport.js'), true);
+  assert.equal(packedFiles.has('tcp-transport.d.ts'), true);
+  assert.equal(packedFiles.has('tcp-transport.d.mts'), true);
   assert.equal(packedFiles.has('zcrx-smoke.js'), true);
+  assert.equal(packedFiles.has('zcrx-smoke.d.ts'), true);
+  assert.equal(packedFiles.has('zcrx-smoke.d.mts'), true);
   assert.equal(packedFiles.has('bin/ferrings.js'), true);
   assert.equal(packedFiles.has('benchmark/quick-benchmark.js'), true);
   assert.equal(packedFiles.has('src/uring.rs'), false);
@@ -119,6 +123,10 @@ try {
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.mjs')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.d.ts')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.d.mts')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'tcp-transport.d.ts')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'tcp-transport.d.mts')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'zcrx-smoke.d.ts')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'zcrx-smoke.d.mts')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'docs', 'production.md')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'ferrings.linux-x64-gnu.node')), false);
   assert.equal(
@@ -486,6 +494,13 @@ function assertInstalledTypeSurface(appDir) {
         type ZcrxProbe
       } from 'ferrings/native';
       import type { TcpSend } from 'ferrings/native.js';
+      import createTcpTransportExports, {
+        type TcpTransportExports
+      } from 'ferrings/tcp-transport';
+      import {
+        runZcrxHardwareSmoke,
+        type ZcrxSmokeReport
+      } from 'ferrings/zcrx-smoke';
 
       const tcpOptions: TcpServerOptions = {
         host: '127.0.0.1',
@@ -523,8 +538,16 @@ function assertInstalledTypeSurface(appDir) {
       const caps: Capabilities = capabilities();
       const ready: boolean = caps.ioUringAvailable;
       const probe: ZcrxProbe = zcrxProbe({ interfaceName: 'lo' });
+      const transportFactory: (server: typeof UringTcpServer) => TcpTransportExports =
+        createTcpTransportExports;
+      const smokeReportPromise: Promise<ZcrxSmokeReport> = runZcrxHardwareSmoke({
+        selfTest: true,
+        timeoutMs: 1000
+      });
       void ready;
       void probe;
+      void transportFactory;
+      void smokeReportPromise;
     `,
     'utf8'
   );
@@ -574,6 +597,13 @@ function assertInstalledTypeSurface(appDir) {
         type ZcrxProbe
       } from 'ferrings/native';
       import nativeJs, { type TcpSend } from 'ferrings/native.js';
+      import createTcpTransportExports, {
+        type TcpTransportExports
+      } from 'ferrings/tcp-transport';
+      import zcrxSmoke, {
+        runZcrxHardwareSmoke,
+        type ZcrxSmokeReport
+      } from 'ferrings/zcrx-smoke';
 
       const tcpOptions: TcpServerOptions = { host: '127.0.0.1', port: 0 };
       const facade = createTcpServer(tcpOptions, (connection: IoUringTcpConnection) => {
@@ -603,11 +633,21 @@ function assertInstalledTypeSurface(appDir) {
       const defaultCreateTcpServer: typeof createTcpServer = ferrings.createTcpServer;
       const defaultNativeProbe: typeof zcrxProbe = native.zcrxProbe;
       const defaultNativeJsProbe: typeof zcrxProbe = nativeJs.zcrxProbe;
+      const transportFactory: (server: typeof UringTcpServer) => TcpTransportExports =
+        createTcpTransportExports;
+      const smokeReportPromise: Promise<ZcrxSmokeReport> = runZcrxHardwareSmoke({
+        selfTest: true,
+        timeoutMs: 1000
+      });
+      const defaultSmoke: typeof runZcrxHardwareSmoke = zcrxSmoke.runZcrxHardwareSmoke;
       void ready;
       void probe;
       void defaultCreateTcpServer;
       void defaultNativeProbe;
       void defaultNativeJsProbe;
+      void transportFactory;
+      void smokeReportPromise;
+      void defaultSmoke;
     `,
     'utf8'
   );

@@ -8,6 +8,12 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.28 - 2026-06-29
+
+- Added TypeScript declarations for the public `tcp-transport` and
+  `zcrx-smoke` subpaths, with package metadata and installed-package smoke
+  coverage so the exported JavaScript subpaths stay typed.
+
 ## 0.2.27 - 2026-06-29
 
 - Hardened release workflow token permissions so validation/build jobs run with

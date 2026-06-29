@@ -47,6 +47,10 @@ assert.equal(rootPackage.files.includes('index.mjs'), true);
 assert.equal(rootPackage.files.includes('index.d.mts'), true);
 assert.equal(rootPackage.files.includes('native.mjs'), true);
 assert.equal(rootPackage.files.includes('native.d.mts'), true);
+assert.equal(rootPackage.files.includes('tcp-transport.d.ts'), true);
+assert.equal(rootPackage.files.includes('tcp-transport.d.mts'), true);
+assert.equal(rootPackage.files.includes('zcrx-smoke.d.ts'), true);
+assert.equal(rootPackage.files.includes('zcrx-smoke.d.mts'), true);
 assert.equal(rootPackage.files.includes('docs/'), true);
 assert.equal(
   fs.existsSync(path.join(repoRoot, 'docs', 'production.md')),
@@ -217,10 +221,50 @@ function assertExportsSurface(packageJson) {
       },
       default: './native.js'
     },
-    './tcp-transport': './tcp-transport.js',
-    './tcp-transport.js': './tcp-transport.js',
-    './zcrx-smoke': './zcrx-smoke.js',
-    './zcrx-smoke.js': './zcrx-smoke.js',
+    './tcp-transport': {
+      import: {
+        types: './tcp-transport.d.mts',
+        default: './tcp-transport.js'
+      },
+      require: {
+        types: './tcp-transport.d.ts',
+        default: './tcp-transport.js'
+      },
+      default: './tcp-transport.js'
+    },
+    './tcp-transport.js': {
+      import: {
+        types: './tcp-transport.d.mts',
+        default: './tcp-transport.js'
+      },
+      require: {
+        types: './tcp-transport.d.ts',
+        default: './tcp-transport.js'
+      },
+      default: './tcp-transport.js'
+    },
+    './zcrx-smoke': {
+      import: {
+        types: './zcrx-smoke.d.mts',
+        default: './zcrx-smoke.js'
+      },
+      require: {
+        types: './zcrx-smoke.d.ts',
+        default: './zcrx-smoke.js'
+      },
+      default: './zcrx-smoke.js'
+    },
+    './zcrx-smoke.js': {
+      import: {
+        types: './zcrx-smoke.d.mts',
+        default: './zcrx-smoke.js'
+      },
+      require: {
+        types: './zcrx-smoke.d.ts',
+        default: './zcrx-smoke.js'
+      },
+      default: './zcrx-smoke.js'
+    },
     './benchmark/*': './benchmark/*.js',
     './benchmark/*.js': './benchmark/*.js',
     './examples/*': './examples/*.js',

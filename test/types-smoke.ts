@@ -16,6 +16,13 @@ import {
   type ZcrxProbe,
   type ZcrxProbeOptions
 } from '../index';
+import createTcpTransportExports, {
+  type TcpTransportExports
+} from '../tcp-transport';
+import zcrxSmoke, {
+  runZcrxHardwareSmoke,
+  type ZcrxSmokeReport
+} from '../zcrx-smoke';
 
 const tcpOptions: TcpServerOptions = {
   host: '127.0.0.1',
@@ -143,3 +150,14 @@ const zcrxOptions: ZcrxProbeOptions = {
 const probe: ZcrxProbe = zcrxProbe(zcrxOptions);
 const blockers: Array<string> = probe.blockers;
 void blockers;
+
+const transportFactory: (server: typeof UringTcpServer) => TcpTransportExports =
+  createTcpTransportExports;
+const smokeReportPromise: Promise<ZcrxSmokeReport> = runZcrxHardwareSmoke({
+  selfTest: true,
+  timeoutMs: 1000
+});
+const defaultSmoke: typeof runZcrxHardwareSmoke = zcrxSmoke.runZcrxHardwareSmoke;
+void transportFactory;
+void smokeReportPromise;
+void defaultSmoke;

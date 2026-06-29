@@ -1,6 +1,6 @@
 {
   "name": "ferrings",
-  "version": "0.2.27",
+  "version": "0.2.28",
   "description": "Linux io_uring TCP transport for Node.js services",
   "main": "index.js",
   "types": "index.d.ts",
@@ -38,10 +38,50 @@
       },
       "default": "./native.js"
     },
-    "./tcp-transport": "./tcp-transport.js",
-    "./tcp-transport.js": "./tcp-transport.js",
-    "./zcrx-smoke": "./zcrx-smoke.js",
-    "./zcrx-smoke.js": "./zcrx-smoke.js",
+    "./tcp-transport": {
+      "import": {
+        "types": "./tcp-transport.d.mts",
+        "default": "./tcp-transport.js"
+      },
+      "require": {
+        "types": "./tcp-transport.d.ts",
+        "default": "./tcp-transport.js"
+      },
+      "default": "./tcp-transport.js"
+    },
+    "./tcp-transport.js": {
+      "import": {
+        "types": "./tcp-transport.d.mts",
+        "default": "./tcp-transport.js"
+      },
+      "require": {
+        "types": "./tcp-transport.d.ts",
+        "default": "./tcp-transport.js"
+      },
+      "default": "./tcp-transport.js"
+    },
+    "./zcrx-smoke": {
+      "import": {
+        "types": "./zcrx-smoke.d.mts",
+        "default": "./zcrx-smoke.js"
+      },
+      "require": {
+        "types": "./zcrx-smoke.d.ts",
+        "default": "./zcrx-smoke.js"
+      },
+      "default": "./zcrx-smoke.js"
+    },
+    "./zcrx-smoke.js": {
+      "import": {
+        "types": "./zcrx-smoke.d.mts",
+        "default": "./zcrx-smoke.js"
+      },
+      "require": {
+        "types": "./zcrx-smoke.d.ts",
+        "default": "./zcrx-smoke.js"
+      },
+      "default": "./zcrx-smoke.js"
+    },
     "./benchmark/*": "./benchmark/*.js",
     "./benchmark/*.js": "./benchmark/*.js",
     "./examples/*": "./examples/*.js",
@@ -86,7 +126,11 @@
     "native.d.ts",
     "native.d.mts",
     "tcp-transport.js",
+    "tcp-transport.d.ts",
+    "tcp-transport.d.mts",
     "zcrx-smoke.js",
+    "zcrx-smoke.d.ts",
+    "zcrx-smoke.d.mts",
     "bin/",
     "docs/",
     "examples/",
@@ -136,10 +180,10 @@
     "typescript": "^6.0.3"
   },
   "optionalDependencies": {
-    "ferrings-linux-arm64-gnu": "0.2.27",
-    "ferrings-linux-arm64-musl": "0.2.27",
-    "ferrings-linux-x64-gnu": "0.2.27",
-    "ferrings-linux-x64-musl": "0.2.27"
+    "ferrings-linux-arm64-gnu": "0.2.28",
+    "ferrings-linux-arm64-musl": "0.2.28",
+    "ferrings-linux-x64-gnu": "0.2.28",
+    "ferrings-linux-x64-musl": "0.2.28"
   },
   "napi": {
     "binaryName": "ferrings",
