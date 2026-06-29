@@ -8,13 +8,15 @@
 
 `ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services: a typed CommonJS/ESM package with Linux `x64`/`arm64` native binaries and a familiar TCP facade over a Rust/NAPI worker.
 
-Use it when the built-in Node socket path is spending too much time on accept/recv/send syscalls under high connection churn, byte-moving TCP services, simple request/response traffic, or fixed-response health endpoints. The default fast path is multishot accept/recv plus provided buffer rings on supported Linux hosts. ZCRX is an optional receive path for hosts that pass the kernel, NIC, queue, permission, and routing checks.
+It ships on npm with platform-specific native packages, a Node-style TCP API, lower-level event APIs for hot paths, install-smoke coverage, registry verification, and a CLI that explains host readiness.
 
-Install from npm: `npm install ferrings`
+Install: `npm install ferrings`
 
 ## Benchmarks
 
-Current package result: `ferrings@0.2.38` reached **2.15x** Node `http` throughput, **2.37x** Node `net` throughput on the native TCP path, **1.93x** throughput through the Node-style TCP facade, and **37-53% fewer server syscalls per completed connection** on the same host.
+`ferrings@0.2.38` on Node `v26.4.0` reached **2.15x** Node `http` throughput, **2.37x** Node `net` throughput on the native TCP path, **1.93x** throughput through the Node-style TCP facade, and **37-53% fewer server syscalls per completed connection** on the same host.
+
+These are normal-path results: multishot accept/recv plus provided buffer rings, with ZCRX disabled. They do not require specialized NIC receive support.
 
 Measured on 2026-06-29 with `ferrings@0.2.38`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; rerun this on the machine class you plan to deploy.
 
@@ -36,7 +38,7 @@ Detailed latency and syscall data from the same run:
 | ferrings TCP facade | 12,554 | 3.677 | 17.907 | 19.608 | 6.899 | Node-style JS facade + batched native events |
 | ferrings TCP facade batch send | 13,789 | 4.151 | 11.020 | 12.978 | 6.981 | JS facade + batched native events/sends |
 
-The ferrings server info for this run reported `multishotAccept: true`, `multishotRecv: true`, and `providedBufferRing: true`. ZCRX stayed disabled (`zeroCopyReceive: false`), so these are default-path numbers from a normal supported Linux host.
+The ferrings server info for this run reported `multishotAccept: true`, `multishotRecv: true`, `providedBufferRing: true`, and `zeroCopyReceive: false`.
 
 Reproduce the README run:
 
@@ -48,6 +50,14 @@ npm run bench:syscalls
 ```
 
 Watch both throughput and server syscalls per completed connection. Tail latency depends on API surface, payload size, kernel, NIC path, CPU governor, queue settings, and the work you do in JavaScript callbacks.
+
+## Where It Fits
+
+- Use ferrings when a Linux Node service is limited by TCP syscall count, socket-path overhead, or high connection churn.
+- Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
+- Use raw or batched TCP events when callback/object overhead matters and your service can work directly with connection IDs.
+- Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework is unnecessary.
+- Enable ZCRX only on hosts where the kernel, NIC, queue setup, permissions, and traffic route pass the readiness checks.
 
 ## Installation
 
@@ -111,14 +121,6 @@ node quickstart.js
 ```
 
 It prints `echo:hello`. Your application stays in ordinary JavaScript callbacks while ferrings handles accept, receive, send, shutdown, and buffer management on the native worker.
-
-## Use Cases
-
-- Use ferrings when a Linux Node service is limited by TCP syscall count, socket-path overhead, or high connection churn.
-- Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
-- Use raw or batched TCP events when callback/object overhead matters and your service can work directly with connection IDs.
-- Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework is unnecessary.
-- Use ZCRX only on hosts where the kernel, NIC, queue setup, permissions, and traffic route pass the readiness checks.
 
 ## Supported Targets
 

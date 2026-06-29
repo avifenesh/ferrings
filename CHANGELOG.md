@@ -8,6 +8,10 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Tightened the README opening so the benchmark results appear immediately after
+  the installable transport summary, with ZCRX kept as an optional host-gated
+  receive path.
+
 ## 0.2.38 - 2026-06-29
 
 - Added structured native-loader attempt diagnostics to
