@@ -11,9 +11,9 @@ may adjust APIs, defaults, or packaging.
 - Enforced Clippy's `undocumented_unsafe_blocks` lint and documented the safety
   invariants around native FFI, mmap, fd ownership, provided-buffer rings, and
   io_uring submission helpers.
-- Rewrote the README around ferrings as an installable, usable transport, with
-  the benchmark evidence kept at the top and duplicate benchmark framing
-  removed.
+- Rewrote the README first screen around ferrings as an installable, usable
+  transport, moved the benchmark headline into the first section, and tightened
+  public-doc wording away from proof-oriented framing.
 - Added a tracked-file secret scan for npm, GitHub, AWS, npmrc, and private-key
   patterns, wired it into `npm test` and the Security workflow.
 
@@ -21,7 +21,7 @@ may adjust APIs, defaults, or packaging.
 
 - Rewrote the README opening so ferrings presents as a ready-to-use transport,
   refreshed the `0.2.37` benchmark snapshot, and moved install/quick-start
-  usage directly next to the benchmark proof.
+  usage directly next to the benchmark evidence.
 - Updated the README metadata regression test so the ready-use framing guard
   covers the new opening sentence.
 - Added explicit Release workflow timeouts for quality, publish, registry
@@ -35,7 +35,7 @@ may adjust APIs, defaults, or packaging.
 ## 0.2.36 - 2026-06-29
 
 - Rewrote the README first screen to present ferrings as a ready-to-use Node
-  transport and put benchmark proof directly under the opening.
+  transport and put benchmark evidence directly under the opening.
 - Added a release-local quality gate so npm publication waits for format,
   clippy, test, and dependency-audit checks in the Release workflow itself.
 - Split release publishing into an explicit package-set publisher so native

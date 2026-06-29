@@ -6,15 +6,15 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services: typed CommonJS/ESM APIs, npm native packages for Linux `x64`/`arm64`, and a familiar TCP facade over a Rust/NAPI native worker.
+`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services: a typed CommonJS/ESM package with Linux `x64`/`arm64` native binaries and a familiar TCP facade over a Rust/NAPI worker.
 
-Use it when the built-in Node socket path is spending too much time on accept/recv/send syscalls under high connection churn, byte-moving TCP services, simple request/response traffic, or fixed-response health endpoints. The normal transport uses multishot accept/recv plus provided buffer rings on supported Linux hosts; ZCRX is an optional host-gated receive path, not the thing you need before ferrings is useful.
+Use it when the built-in Node socket path is spending too much time on accept/recv/send syscalls under high connection churn, byte-moving TCP services, simple request/response traffic, or fixed-response health endpoints. The default fast path is multishot accept/recv plus provided buffer rings on supported Linux hosts. ZCRX is an optional receive path for hosts that pass the kernel, NIC, queue, permission, and routing checks.
 
-Install: `npm install ferrings`
-
-Current package benchmark: `ferrings@0.2.37` reached **1.91x** Node `http` throughput, **2.21x** Node `net` throughput on the native TCP path, **1.88x** throughput through the Node-style TCP facade, and **38-53% fewer server syscalls per completed connection** on the same host.
+Install from npm: `npm install ferrings`
 
 ## Benchmarks
+
+Current package result: `ferrings@0.2.37` reached **1.91x** Node `http` throughput, **2.21x** Node `net` throughput on the native TCP path, **1.88x** throughput through the Node-style TCP facade, and **38-53% fewer server syscalls per completed connection** on the same host.
 
 Measured on 2026-06-29 with `ferrings@0.2.37`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; rerun this on the machine class you plan to deploy.
 

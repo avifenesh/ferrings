@@ -143,6 +143,22 @@ try {
 }
 
 const originalChangelog = fs.readFileSync(changelogPath, 'utf8');
+const proofyBenchmarkChangelog = originalChangelog.replace('benchmark evidence', 'benchmark proof');
+assert.notEqual(
+  proofyBenchmarkChangelog,
+  originalChangelog,
+  'CHANGELOG proof-oriented benchmark mutation should apply'
+);
+
+try {
+  fs.writeFileSync(changelogPath, proofyBenchmarkChangelog);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for proof-oriented benchmark framing');
+  assert.match(stale.stderr, /CHANGELOG must describe benchmarks as results or evidence/);
+} finally {
+  fs.writeFileSync(changelogPath, originalChangelog);
+}
+
 const legacyBenchmarkChangelog = originalChangelog.replace('quick-benchmark', 'quick-proof');
 assert.notEqual(
   legacyBenchmarkChangelog,

@@ -108,6 +108,9 @@ assertNoExperimentalPublicFraming(readme, 'README');
 assertNoExperimentalPublicFraming(changelog, 'CHANGELOG');
 assertNoExperimentalPublicFraming(rootPackage.description || '', 'package description');
 assertNoExperimentalPublicFraming(cliBin, 'CLI help');
+assertNoProofyPublicFraming(readme, 'README');
+assertNoProofyPublicFraming(changelog, 'CHANGELOG');
+assertNoProofyPublicFraming(rootPackage.description || '', 'package description');
 assertNoProofyCliFraming(cliBin);
 assertNoLegacyQuickBenchmarkFraming(readme, changelog, rootPackage);
 assertBenchmarkPublicSurface(rootPackage);
@@ -214,6 +217,15 @@ function assertNoProofyCliFraming(content) {
     forbidden.test(content),
     false,
     'CLI help must describe validation or benchmarks, not proof-oriented framing'
+  );
+}
+
+function assertNoProofyPublicFraming(content, label) {
+  const forbidden = /\b(benchmark proof|traffic proof|proof bundle|quick proof)\b/i;
+  assert.equal(
+    forbidden.test(content),
+    false,
+    `${label} must describe benchmarks as results or evidence, not proof-oriented framing`
   );
 }
 
