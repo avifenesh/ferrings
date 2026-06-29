@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Rewrote the README around ferrings as an installable, usable transport, with
+  the benchmark evidence kept at the top and duplicate benchmark framing
+  removed.
 - Added a tracked-file secret scan for npm, GitHub, AWS, npmrc, and private-key
   patterns, wired it into `npm test` and the Security workflow.
 

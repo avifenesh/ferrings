@@ -113,9 +113,11 @@ try {
   fs.writeFileSync(readmePath, originalReadme);
 }
 
+const readmeOpening =
+  '`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services:';
 const experimentalReadme = originalReadme.replace(
-  '`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js servers:',
-  'Experimental `ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js servers:'
+  readmeOpening,
+  `Experimental ${readmeOpening}`
 );
 assert.notEqual(experimentalReadme, originalReadme, 'README experimental framing mutation should apply');
 

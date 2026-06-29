@@ -6,37 +6,26 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js servers: typed CommonJS/ESM APIs, npm native packages for Linux `x64`/`arm64`, and a familiar TCP facade when you want JavaScript callbacks over a native networking worker.
+`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services: typed CommonJS/ESM APIs, npm native packages for Linux `x64`/`arm64`, and a familiar TCP facade over a Rust/NAPI native worker.
 
-Use it when Node's built-in socket path is spending too much syscall budget under high connection churn, simple request/response traffic, or TCP services that mostly move bytes between the kernel and JavaScript. The default path uses multishot accept/recv and provided buffer rings on ordinary supported Linux hosts; ZCRX is an optional host-gated receive path, not a prerequisite.
+Use it when the built-in Node socket path is spending too much time on accept/recv/send syscalls under high connection churn, byte-moving TCP services, simple request/response traffic, or fixed-response health endpoints. The normal transport uses multishot accept/recv plus provided buffer rings on supported Linux hosts; ZCRX is an optional host-gated receive path, not the thing you need before ferrings is useful.
 
-**Current release benchmark:** on this machine, `ferrings@0.2.37` is **1.91x** Node `http` throughput, **2.21x** Node `net` throughput on the native TCP path, **1.88x** throughput through the Node-style TCP facade, and **38-53% fewer server syscalls per completed connection**.
+Install: `npm install ferrings`
+
+Current package benchmark: `ferrings@0.2.37` reached **1.91x** Node `http` throughput, **2.21x** Node `net` throughput on the native TCP path, **1.88x** throughput through the Node-style TCP facade, and **38-53% fewer server syscalls per completed connection** on the same host.
 
 ## Benchmarks
 
-**Current benchmark snapshot:** `ferrings@0.2.37`, Node `v26.4.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, same request counts, same concurrency, and `strace -f -c` syscall capture.
+Measured on 2026-06-29 with `ferrings@0.2.37`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; rerun this on the machine class you plan to deploy.
 
-The short version: **1.91x** fixed-response HTTP throughput, **2.21x** native TCP echo throughput, **1.88x** Node-style TCP facade throughput, **2.03x** facade batch-send throughput, and **38-53% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
+| Workload | Baseline | ferrings path | Baseline req/s | ferrings req/s | Result |
+| --- | --- | --- | ---: | ---: | --- |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | 4,332 | 8,262 | **1.91x throughput**, **54% lower p50**, **44% lower p99**, **49% fewer syscalls/conn** |
+| TCP echo | Node `net` | native echo worker | 6,804 | 15,025 | **2.21x throughput**, **64% lower p50**, **roughly equal p99**, **53% fewer syscalls/conn** |
+| TCP echo | Node `net` | Node-style TCP facade | 6,804 | 12,807 | **1.88x throughput**, **57% lower p50**, **27% higher p99**, **38% fewer syscalls/conn** |
+| TCP echo | Node `net` | facade batch send | 6,804 | 13,796 | **2.03x throughput**, **61% lower p50**, **17% higher p99**, **38% fewer syscalls/conn** |
 
-| Workload | Why it matters | ferrings result vs Node built-in |
-| --- | --- | --- |
-| Fixed-response HTTP | Health, readiness, and simple edge responses | **1.91x throughput**, **54% lower p50**, **44% lower p99**, **49% fewer syscalls/conn** |
-| Native TCP echo worker | Isolates the native transport path | **2.21x throughput**, **64% lower p50**, **roughly equal p99**, **53% fewer syscalls/conn** |
-| Node-style TCP facade | Keeps familiar JavaScript connection callbacks | **1.88x throughput**, **57% lower p50**, **27% higher p99**, **38% fewer syscalls/conn** |
-| TCP facade with batch send | Keeps the facade while batching JS/native work | **2.03x throughput**, **61% lower p50**, **17% higher p99**, **38% fewer syscalls/conn** |
-
-Read the TCP rows as API-surface tradeoffs. The native echo worker isolates the transport. The Node-style facade keeps familiar JavaScript connection callbacks. Batch send recovers much of the facade overhead while preserving the facade shape.
-
-| Workload | Baseline | ferrings path | Throughput | p50 latency | p99 latency | Server syscalls/conn |
-| --- | --- | --- | ---: | ---: | ---: | ---: |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | **1.91x** | **54% lower** | **44% lower** | **49% fewer** |
-| TCP echo | Node `net` | native echo worker | **2.21x** | **64% lower** | **roughly equal** | **53% fewer** |
-| TCP echo | Node `net` | Node-style TCP facade | **1.88x** | **57% lower** | **27% higher** | **38% fewer** |
-| TCP echo | Node `net` | facade batch send | **2.03x** | **61% lower** | **17% higher** | **38% fewer** |
-
-Measured on 2026-06-29 with `ferrings@0.2.37`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
-
-Detailed results from the README run:
+Detailed latency and syscall data from the same run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -47,9 +36,9 @@ Detailed results from the README run:
 | ferrings TCP facade | 12,807 | 3.814 | 20.000 | 21.370 | 6.893 | Node-style JS facade + batched native events |
 | ferrings TCP facade batch send | 13,796 | 3.501 | 18.433 | 19.699 | 6.900 | JS facade + batched native events/sends |
 
-The server info from this run reported `multishotAccept: true`, `multishotRecv: true`, and `providedBufferRing: true` for the ferrings cases. ZCRX stayed disabled (`zeroCopyReceive: false`), so these numbers are from the default path a normal supported Linux host can use.
+The ferrings server info for this run reported `multishotAccept: true`, `multishotRecv: true`, and `providedBufferRing: true`. ZCRX stayed disabled (`zeroCopyReceive: false`), so these are default-path numbers from a normal supported Linux host.
 
-Run the same benchmark:
+Reproduce the README run:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
@@ -58,9 +47,7 @@ REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.37.json \
 npm run bench:syscalls
 ```
 
-Watch both throughput and syscall count. Tail latency depends on API surface, payload size, kernel, NIC path, queue settings, and how much work your JavaScript callback performs.
-
-ferrings gets these numbers by moving accept/recv/send work to an `io_uring` native worker while application code stays in JavaScript callbacks. Optional fast paths cover recv-bundle, zero-copy send, registered send buffers, and host-gated ZCRX.
+Watch both throughput and server syscalls per completed connection. Tail latency depends on API surface, payload size, kernel, NIC path, CPU governor, queue settings, and the work you do in JavaScript callbacks.
 
 ## Installation
 
@@ -123,13 +110,13 @@ Run it:
 node quickstart.js
 ```
 
-It prints `echo:hello`. Application code stays in normal JavaScript callbacks; ferrings handles accept, receive, send, shutdown, and buffer management on the native worker.
+It prints `echo:hello`. Your application stays in ordinary JavaScript callbacks while ferrings handles accept, receive, send, shutdown, and buffer management on the native worker.
 
-## Where Ferrings Fits
+## Use Cases
 
-- Use ferrings when a Linux Node service is limited by TCP syscall count, high connection churn, or socket-path overhead.
+- Use ferrings when a Linux Node service is limited by TCP syscall count, socket-path overhead, or high connection churn.
 - Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
-- Use raw or batched TCP events when callback overhead matters and your service can work with connection IDs directly.
+- Use raw or batched TCP events when callback/object overhead matters and your service can work directly with connection IDs.
 - Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework is unnecessary.
 - Use ZCRX only on hosts where the kernel, NIC, queue setup, permissions, and traffic route pass the readiness checks.
 
@@ -142,7 +129,7 @@ Supported runtime targets:
 - `x64` or `arm64`
 - glibc or musl
 
-CI tests Node 22, 24, and 26 on Linux. Per the [Node.js release schedule](https://nodejs.org/en/about/previous-releases), Node 26 is Current, Node 24 and 22 are LTS, and Node 20 is EOL.
+CI tests Node 22, 24, and 26 on Linux. Per the [Node.js release schedule](https://nodejs.org/en/about/previous-releases), Node 26 is Current, Node 24 and 22 are LTS, and Node 20 is EOL. Node 20, 23, and 25 are EOL and not supported.
 
 For local development, the repository pins Node 26 through `.nvmrc` and `.node-version`.
 
@@ -157,21 +144,18 @@ The root package ships JavaScript, TypeScript declarations, docs, examples, and 
 
 If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, supported native package names, and the original loader error.
 
-The CLI keeps version/help diagnostics available without a native binding. When
-optional native dependencies are missing, `ferrings doctor --json` reports
-`verdict: "native-load-blocked"` with a `nativeLoadError` object instead of
-failing before it can explain the install problem.
+The CLI keeps version/help diagnostics available without a native binding. When optional native dependencies are missing, `ferrings doctor --json` reports `verdict: "native-load-blocked"` with a `nativeLoadError` object instead of failing before it can explain the install problem.
 
 ## Mental Model
 
-The broadly useful ferrings path is the default one:
+The normal ferrings path is the broadly useful path:
 
-- the listener is created with normal Linux sockets
-- accepts and receives run through `io_uring`
-- multishot accept and multishot recv reduce resubmission overhead
-- provided receive buffers keep buffer ownership explicit
-- JavaScript receives events through NAPI thread-safe callbacks
-- JavaScript writes go through a bounded native command queue
+- a normal Linux listening socket
+- `io_uring` accept, recv, and send on a native worker
+- multishot accept and multishot recv to reduce resubmission overhead
+- provided receive buffers for explicit receive-buffer ownership
+- bounded NAPI callbacks from native events into JavaScript
+- bounded JavaScript-to-native command queues for writes and shutdown
 
 ZCRX is not required to use ferrings. It is an extra receive path for capable hardware, and ferrings exposes probes and counters so you can gate it per host.
 
@@ -275,33 +259,6 @@ console.log(`tcp://${info.host}:${info.port}`);
 
 Use this to isolate the native TCP path from JavaScript event delivery when benchmarking or checking host behavior.
 
-## Capabilities And Doctor
-
-```js
-const { capabilities, zcrxProbe } = require('ferrings');
-
-console.log(capabilities());
-console.log(zcrxProbe({
-  interfaceName: 'eth0',
-  rxQueue: 0,
-  activeRegistration: true
-}));
-```
-
-The installed CLI exposes the same checks:
-
-```bash
-npx ferrings --version
-npx ferrings capabilities --json
-npx ferrings doctor --interface eth0 --rx-queue 0 --active --json
-npx ferrings doctor --interface eth0 --rx-queue 0 --active --require-zcrx --require-ready --json
-npx ferrings zcrx-probe --interface eth0 --rx-queue 0 --active --json
-```
-
-`capabilities()` reports kernel and `io_uring` fast-path availability, including multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, registered-buffer send, ZCRX opcode support, CQE32 ring setup, and fast poll.
-
-`doctor` treats the default multishot/provided-buffer transport as the normal production readiness path. Its top-level `ready` and `defaultReady` fields can be true while `zcrx.ready` is false; in that case ZCRX blockers are reported under `optionalBlockers`. Add `--require-zcrx --require-ready` when zero-copy receive must be a hard deployment gate.
-
 ## Configuration
 
 Common server options:
@@ -337,6 +294,34 @@ TCP queue options:
 | `sendBufferCount` | `256` | Fixed-send pool slot count. |
 | `sendBufferSize` | `2048` | Fixed-send pool slot size. |
 
+## Capabilities And Doctor
+
+```js
+const { capabilities, zcrxProbe } = require('ferrings');
+
+console.log(capabilities());
+console.log(zcrxProbe({
+  interfaceName: 'eth0',
+  rxQueue: 0,
+  activeRegistration: true
+}));
+```
+
+The installed CLI exposes the same checks:
+
+```bash
+npx ferrings --version
+npx ferrings capabilities --json
+npx ferrings doctor --require-ready --json
+npx ferrings doctor --interface eth0 --rx-queue 0 --active --json
+npx ferrings doctor --interface eth0 --rx-queue 0 --active --require-zcrx --require-ready --json
+npx ferrings zcrx-probe --interface eth0 --rx-queue 0 --active --json
+```
+
+`capabilities()` reports kernel and `io_uring` fast-path availability, including multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, registered-buffer send, ZCRX opcode support, CQE32 ring setup, and fast poll.
+
+`doctor` treats the default multishot/provided-buffer transport as the normal readiness path. Its top-level `ready` and `defaultReady` fields can be true while `zcrx.ready` is false; in that case ZCRX blockers are reported under `optionalBlockers`. Add `--require-zcrx --require-ready` when zero-copy receive must be a hard deployment gate.
+
 ## ZCRX
 
 ZCRX is implemented as a gated receive path for hosts with the right kernel, permissions, NIC support, header/data split, RX queue setup, and flow steering or RSS isolation. Most deployments should start with the normal multishot/provided-buffer path and enable ZCRX only after the probe and hardware smoke test pass.
@@ -346,7 +331,7 @@ node bin/ferrings.js zcrx-probe --interface eth0 --rx-queue 0 --active --json
 ZCRX_INTERFACE=eth0 ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx
 ```
 
-The ZCRX gate also checks the running kernel release against known upstream ZCRX security advisory ranges, including CVE-2026-43121, CVE-2026-43174, CVE-2026-43224, and CVE-2026-45995. A matching kernel makes ZCRX not-ready and blocks `useZeroCopyReceive` startup before IFQ registration. If a distro kernel has the fix backported while retaining an affected-looking release string, set `FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK=1` only after verifying the vendor patch level.
+The ZCRX gate checks the running kernel release against known upstream ZCRX security advisory ranges, including CVE-2026-43121, CVE-2026-43174, CVE-2026-43224, and CVE-2026-45995. A matching kernel makes ZCRX not-ready and blocks `useZeroCopyReceive` startup before IFQ registration. If a distro kernel has the fix backported while retaining an affected-looking release string, set `FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK=1` only after verifying the vendor patch level.
 
 `test:zcrx` starts the HTTP, native TCP echo, and programmable TCP servers with `useZeroCopyReceive: true`, drives traffic through `ZCRX_CONNECT_HOST`, and requires `ServerInfo.zcrxPackets` and `zcrxBytes` to increase.
 
@@ -397,18 +382,17 @@ npm test
 
 - npm package: [`ferrings`](https://www.npmjs.com/package/ferrings)
 - Changelog: [`CHANGELOG.md`](CHANGELOG.md)
-- Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 - Production runbook: [`docs/production.md`](docs/production.md)
-- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
 - Examples: [`examples/http-fixed.js`](examples/http-fixed.js), [`examples/tcp-echo.js`](examples/tcp-echo.js)
 - Benchmarks: [`benchmark/`](benchmark/)
-- Type surface: [`index.d.ts`](index.d.ts), [`native.d.ts`](native.d.ts)
+- Type surface: [`index.d.ts`](index.d.ts), [`native.d.ts`](native.d.ts), [`tcp-transport.d.ts`](tcp-transport.d.ts)
 - CLI entrypoint: [`bin/ferrings.js`](bin/ferrings.js)
 - CI workflow: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 - Release workflow: [`.github/workflows/release.yml`](.github/workflows/release.yml)
 - Security workflow: [`.github/workflows/security.yml`](.github/workflows/security.yml)
 - Security policy: [`SECURITY.md`](SECURITY.md)
-- Tests: [`test/`](test/)
+- Contributing guide: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- Code of conduct: [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md)
 
 There is no separate docs site yet; the README, production runbook, type definitions, examples, benchmarks, and tests are the current reference material.
 
@@ -443,8 +427,7 @@ npm run check:published -- --tag latest --verify-tarballs
 npm run check:main-health
 ```
 
-`check:published --verify-tarballs` verifies registry metadata, provenance, signatures, dist-tags, and downloaded npm tarball contents for the root package and every native package.
-`check:registry-install` accepts `--retries` and `--retry-delay-ms` for the short post-publish window where the root package can become visible before every optional native package resolves consistently from all npm caches.
+`check:published --verify-tarballs` verifies registry metadata, provenance, signatures, dist-tags, and downloaded npm tarball contents for the root package and every native package. `check:registry-install` accepts `--retries` and `--retry-delay-ms` for the short post-publish window where the root package can become visible before every optional native package resolves consistently from all npm caches.
 
 For a new release, bump the package version first; npm versions are immutable after publication, so `check:release-ready` is a release gate rather than a normal post-release main-branch check. Use `check:main-health` when validating current `main` after a release or docs/tooling follow-up.
 
@@ -463,7 +446,8 @@ For a new release, bump the package version first; npm versions are immutable af
 ## Contributing
 
 Issues and pull requests are welcome. Start with [`CONTRIBUTING.md`](CONTRIBUTING.md).
-At minimum, run this baseline before opening a change:
+
+Run this baseline before opening a change:
 
 ```bash
 npm install
