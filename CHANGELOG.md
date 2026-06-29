@@ -8,8 +8,12 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.29 - 2026-06-29
+
 - Rewrote the README first screen so ferrings leads with release-package
   benchmark results and production Node transport positioning.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.29` results on
+  Node 26.
 
 ## 0.2.28 - 2026-06-29
 
