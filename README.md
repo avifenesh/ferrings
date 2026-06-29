@@ -6,15 +6,29 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Linux `io_uring` TCP transport for Node.js services, built in Rust with napi-rs and shipped as native npm packages for x64/arm64 Linux.
+Usable Linux `io_uring` TCP transport for Node.js services, built in Rust with napi-rs and shipped on npm as platform-native packages.
 
-ferrings gives Node applications a TCP server surface backed by an `io_uring` worker instead of libuv's epoll socket path. Use it when connection churn, syscall count, or JavaScript callback overhead is part of the bottleneck: simple HTTP edge responses, TCP protocol frontends, echo-style services, and high-concurrency Linux servers. The default receive path uses multishot accept/recv and provided receive buffers on ordinary recent Linux kernels; ZCRX is an opt-in hardware-gated path with capability probes.
+ferrings gives Node applications a TCP server path backed by an `io_uring` worker instead of libuv's epoll socket path. Install it from npm, use it from CommonJS or ESM, and start with the normal multishot receive path on ordinary recent Linux kernels. ZCRX is available as an opt-in hardware-gated receive path after host readiness checks pass.
+
+```bash
+npm install ferrings
+```
+
+```js
+import { createTcpServer } from 'ferrings';
+
+const server = createTcpServer((connection) => {
+  connection.on('data', (data) => connection.end(data));
+});
+
+server.listen(8080, '127.0.0.1');
+```
+
+README benchmark snapshot: **2.16x** fixed-response HTTP throughput, **1.86x** batched TCP echo throughput, and **39-54% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
 
 ## Benchmarks
 
-On the current README run, ferrings delivered **2.16x** fixed-response HTTP throughput, **1.77x** native TCP echo throughput, **1.74x** throughput through the Node-style TCP facade, and **39-54% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
-
-ferrings is benchmarked against Node's built-in `http` and `net` servers with the same request count and concurrency. The useful signal is the paired comparison: what changes when the socket path moves to `io_uring`.
+Benchmarks are the first thing to look at because ferrings exists to change the socket hot path, not the application model. The table below compares Node's built-in `http` and `net` servers with ferrings on the same machine, request count, and concurrency.
 
 | Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: |
@@ -138,6 +152,19 @@ It prints `echo:hello`. Application code stays in normal JavaScript callbacks; f
 - Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework is unnecessary.
 - Use ZCRX only on hosts where the kernel, NIC, queue setup, permissions, and traffic route pass the readiness checks.
 
+## Mental Model
+
+The default ferrings path is the broadly useful one:
+
+- the listener is created with normal Linux sockets
+- accepts and receives run through `io_uring`
+- multishot accept and multishot recv reduce resubmission overhead
+- provided receive buffers keep buffer ownership explicit
+- JavaScript receives events through NAPI thread-safe callbacks
+- JavaScript writes go through a bounded native command queue
+
+ZCRX is not required to use ferrings. It is an extra receive path for capable hardware, and ferrings exposes probes and counters so you can gate it per host.
+
 ## API Choices
 
 ### Node-Style TCP
@@ -238,26 +265,12 @@ console.log(`tcp://${info.host}:${info.port}`);
 
 Use this to isolate the native TCP path from JavaScript event delivery when benchmarking or checking host behavior.
 
-## How It Works
-
-ferrings creates the listening socket directly with `socket`, `bind`, and `listen`, then drives accepts, receives, sends, and shutdown from a Rust worker thread with `io_uring`.
-
-The normal receive path uses multishot accept, multishot recv, and provided buffers. JavaScript owns the application API:
-
-- Native-to-JS events are delivered through NAPI thread-safe callbacks.
-- JS-to-native writes go through a bounded command queue and an `eventfd` wakeup.
-- Lower-level APIs expose connection IDs, batched events, batched sends, server counters, and active capability probes.
-- `ServerInfo` exposes accepted/closed/rejected connections, bytes sent/received, queue drops, receive buffer starvation, recv-bundle counters, zero-copy send counters, fixed-send misses, and ZCRX packet counters.
-
-ZCRX is separate because it needs kernel support, NIC header/data split, RX queue setup, flow steering or RSS isolation, routed traffic, and permissions.
-
 ## Capabilities And Doctor
 
 ```js
 const { capabilities, zcrxProbe } = require('ferrings');
 
 console.log(capabilities());
-console.log(zcrxProbe({ interfaceName: 'eth0' }));
 console.log(zcrxProbe({
   interfaceName: 'eth0',
   rxQueue: 0,

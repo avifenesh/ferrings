@@ -8,6 +8,10 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Rewrote the README first screen so ferrings is presented as a usable npm
+  transport with install, a minimal server, and benchmark evidence before the
+  longer API reference.
+
 ## 0.2.23 - 2026-06-29
 
 - Added ESM wrapper entrypoints for root and native imports so Node ESM
