@@ -18,6 +18,9 @@ may adjust APIs, defaults, or packaging.
   probing.
 - Rewrote the README opening to lead with release-package benchmark results and
   present ferrings as usable for supported Linux Node deployments.
+- Hardened native server option validation so fractional or negative JavaScript
+  numbers cannot be coerced into ports, queue sizes, buffer sizes, counters, or
+  ZCRX queue settings before startup.
 
 ## 0.2.26 - 2026-06-29
 

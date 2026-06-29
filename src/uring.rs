@@ -517,22 +517,26 @@ impl ServerConfig {
             zcrx_rx_buffer_size: None,
         });
 
-        let buffer_count = options.buffer_count.unwrap_or(DEFAULT_BUFFER_COUNT);
-        if buffer_count == 0 || !buffer_count.is_power_of_two() {
+        let buffer_count = validate_u32_option(
+            "bufferCount",
+            options.buffer_count,
+            DEFAULT_BUFFER_COUNT,
+            1,
+            32768,
+        )?;
+        if !buffer_count.is_power_of_two() {
             return Err("bufferCount must be a non-zero power of two"
                 .to_string()
                 .into());
         }
-        if buffer_count > 32768 {
-            return Err("bufferCount must be <= 32768 for provided buffer rings"
-                .to_string()
-                .into());
-        }
 
-        let buffer_size = options.buffer_size.unwrap_or(DEFAULT_BUFFER_SIZE);
-        if buffer_size < 512 {
-            return Err("bufferSize must be at least 512 bytes".to_string().into());
-        }
+        let buffer_size = validate_u32_option(
+            "bufferSize",
+            options.buffer_size,
+            DEFAULT_BUFFER_SIZE,
+            512,
+            u32::MAX,
+        )?;
 
         let mut response_body = options
             .response_body
@@ -553,13 +557,25 @@ impl ServerConfig {
 
         Ok(Self {
             host: options.host.unwrap_or_else(|| "127.0.0.1".to_string()),
-            port: options.port.unwrap_or(0),
+            port: validate_port(options.port)?,
             backlog: validate_backlog(options.backlog)?,
-            queue_depth: options.queue_depth.unwrap_or(DEFAULT_QUEUE_DEPTH).max(8),
+            queue_depth: validate_queue_depth(options.queue_depth)?,
             buffer_count,
             buffer_size,
-            max_connections: options.max_connections.unwrap_or(0),
-            idle_timeout_ms: options.idle_timeout_ms.unwrap_or(0),
+            max_connections: validate_u32_option(
+                "maxConnections",
+                options.max_connections,
+                0,
+                0,
+                u32::MAX,
+            )?,
+            idle_timeout_ms: validate_u32_option(
+                "idleTimeoutMs",
+                options.idle_timeout_ms,
+                0,
+                0,
+                u32::MAX,
+            )?,
             tcp_no_delay: options.tcp_no_delay.unwrap_or(true),
             reuse_port: options.reuse_port.unwrap_or(false),
             tcp_defer_accept_seconds: validate_tcp_defer_accept_seconds(
@@ -579,7 +595,7 @@ impl ServerConfig {
             use_zero_copy_send: options.use_zero_copy_send.unwrap_or(false),
             use_zero_copy_receive,
             zcrx_interface_name: options.zcrx_interface_name,
-            zcrx_rx_queue: options.zcrx_rx_queue,
+            zcrx_rx_queue: validate_optional_u32("zcrxRxQueue", options.zcrx_rx_queue)?,
             zcrx_rx_buffer_size: validate_zcrx_rx_buffer_size(options.zcrx_rx_buffer_size)?,
         })
     }
@@ -646,70 +662,62 @@ impl TcpServerConfig {
             zcrx_rx_buffer_size: None,
         });
 
-        let buffer_count = options.buffer_count.unwrap_or(DEFAULT_BUFFER_COUNT);
-        if buffer_count == 0 || !buffer_count.is_power_of_two() {
+        let buffer_count = validate_u32_option(
+            "bufferCount",
+            options.buffer_count,
+            DEFAULT_BUFFER_COUNT,
+            1,
+            32768,
+        )?;
+        if !buffer_count.is_power_of_two() {
             return Err("bufferCount must be a non-zero power of two"
                 .to_string()
                 .into());
         }
-        if buffer_count > 32768 {
-            return Err("bufferCount must be <= 32768 for provided buffer rings"
-                .to_string()
-                .into());
-        }
 
-        let buffer_size = options.buffer_size.unwrap_or(DEFAULT_BUFFER_SIZE);
-        if buffer_size < 512 {
-            return Err("bufferSize must be at least 512 bytes".to_string().into());
-        }
+        let buffer_size = validate_u32_option(
+            "bufferSize",
+            options.buffer_size,
+            DEFAULT_BUFFER_SIZE,
+            512,
+            u32::MAX,
+        )?;
 
-        let send_buffer_count = options
-            .send_buffer_count
-            .unwrap_or(DEFAULT_SEND_BUFFER_COUNT);
-        if send_buffer_count == 0 || send_buffer_count > u16::MAX as u32 {
-            return Err("sendBufferCount must be between 1 and 65535"
-                .to_string()
-                .into());
-        }
+        let send_buffer_count = validate_u32_option(
+            "sendBufferCount",
+            options.send_buffer_count,
+            DEFAULT_SEND_BUFFER_COUNT,
+            1,
+            u16::MAX as u32,
+        )?;
 
-        let send_buffer_size = options.send_buffer_size.unwrap_or(DEFAULT_SEND_BUFFER_SIZE);
-        if send_buffer_size < 64 {
-            return Err("sendBufferSize must be at least 64 bytes"
-                .to_string()
-                .into());
-        }
+        let send_buffer_size = validate_u32_option(
+            "sendBufferSize",
+            options.send_buffer_size,
+            DEFAULT_SEND_BUFFER_SIZE,
+            64,
+            u32::MAX,
+        )?;
 
-        let command_queue_capacity = options
-            .command_queue_capacity
-            .unwrap_or(DEFAULT_COMMAND_QUEUE_CAPACITY);
-        if command_queue_capacity == 0 {
-            return Err("commandQueueCapacity must be at least 1".to_string().into());
-        }
+        let command_queue_capacity = validate_nonzero_u32_option(
+            "commandQueueCapacity",
+            options.command_queue_capacity,
+            DEFAULT_COMMAND_QUEUE_CAPACITY,
+            "commandQueueCapacity must be at least 1",
+        )?;
 
-        let event_queue_capacity = options
-            .event_queue_capacity
-            .unwrap_or(DEFAULT_EVENT_QUEUE_CAPACITY);
-        if event_queue_capacity == 0 || event_queue_capacity > DEFAULT_EVENT_QUEUE_CAPACITY {
-            return Err(format!(
-                "eventQueueCapacity must be between 1 and {DEFAULT_EVENT_QUEUE_CAPACITY}"
-            )
-            .into());
-        }
+        let event_queue_capacity = validate_event_queue_capacity(options.event_queue_capacity)?;
         let event_batch_size = options
             .event_batch_size
+            .map(|value| validate_event_batch_size(value, event_queue_capacity))
+            .transpose()?
             .unwrap_or_else(|| DEFAULT_EVENT_BATCH_SIZE.min(event_queue_capacity));
-        if event_batch_size == 0 || event_batch_size > event_queue_capacity {
-            return Err(format!(
-                "eventBatchSize must be between 1 and eventQueueCapacity ({event_queue_capacity})"
-            )
-            .into());
-        }
-        let send_queue_capacity = options
-            .send_queue_capacity
-            .unwrap_or(DEFAULT_SEND_QUEUE_CAPACITY);
-        if send_queue_capacity == 0 {
-            return Err("sendQueueCapacity must be at least 1".to_string().into());
-        }
+        let send_queue_capacity = validate_nonzero_u32_option(
+            "sendQueueCapacity",
+            options.send_queue_capacity,
+            DEFAULT_SEND_QUEUE_CAPACITY,
+            "sendQueueCapacity must be at least 1",
+        )?;
 
         let use_recv_bundle = options.use_recv_bundle.unwrap_or(false);
         let use_zero_copy_receive = options.use_zero_copy_receive.unwrap_or(false);
@@ -723,13 +731,25 @@ impl TcpServerConfig {
 
         Ok(Self {
             host: options.host.unwrap_or_else(|| "127.0.0.1".to_string()),
-            port: options.port.unwrap_or(0),
+            port: validate_port(options.port)?,
             backlog: validate_backlog(options.backlog)?,
-            queue_depth: options.queue_depth.unwrap_or(DEFAULT_QUEUE_DEPTH).max(8),
+            queue_depth: validate_queue_depth(options.queue_depth)?,
             buffer_count,
             buffer_size,
-            max_connections: options.max_connections.unwrap_or(0),
-            idle_timeout_ms: options.idle_timeout_ms.unwrap_or(0),
+            max_connections: validate_u32_option(
+                "maxConnections",
+                options.max_connections,
+                0,
+                0,
+                u32::MAX,
+            )?,
+            idle_timeout_ms: validate_u32_option(
+                "idleTimeoutMs",
+                options.idle_timeout_ms,
+                0,
+                0,
+                u32::MAX,
+            )?,
             tcp_no_delay: options.tcp_no_delay.unwrap_or(true),
             reuse_port: options.reuse_port.unwrap_or(false),
             tcp_defer_accept_seconds: validate_tcp_defer_accept_seconds(
@@ -754,14 +774,25 @@ impl TcpServerConfig {
             send_buffer_size,
             use_zero_copy_receive,
             zcrx_interface_name: options.zcrx_interface_name,
-            zcrx_rx_queue: options.zcrx_rx_queue,
+            zcrx_rx_queue: validate_optional_u32("zcrxRxQueue", options.zcrx_rx_queue)?,
             zcrx_rx_buffer_size: validate_zcrx_rx_buffer_size(options.zcrx_rx_buffer_size)?,
         })
     }
 }
 
-fn validate_zcrx_rx_buffer_size(value: Option<u32>) -> Result<u32, UringError> {
-    let size = value.unwrap_or(DEFAULT_ZCRX_RX_BUFFER_SIZE);
+fn validate_port(value: Option<f64>) -> Result<u16, UringError> {
+    Ok(validate_u32_option("port", value, 0, 0, u16::MAX as u32)? as u16)
+}
+
+fn validate_queue_depth(value: Option<f64>) -> Result<u32, UringError> {
+    Ok(validate_u32_option("queueDepth", value, DEFAULT_QUEUE_DEPTH, 1, u32::MAX)?.max(8))
+}
+
+fn validate_zcrx_rx_buffer_size(value: Option<f64>) -> Result<u32, UringError> {
+    let size = match value {
+        Some(raw) => validate_u32_value("zcrxRxBufferSize", raw, 0, u32::MAX)?,
+        None => DEFAULT_ZCRX_RX_BUFFER_SIZE,
+    };
     if size != 0 && size < 512 {
         return Err("zcrxRxBufferSize must be 0 or at least 512 bytes"
             .to_string()
@@ -770,28 +801,115 @@ fn validate_zcrx_rx_buffer_size(value: Option<u32>) -> Result<u32, UringError> {
     Ok(size)
 }
 
-fn validate_backlog(value: Option<u32>) -> Result<u32, UringError> {
-    let backlog = value.unwrap_or(DEFAULT_BACKLOG);
-    if backlog == 0 || backlog > libc::c_int::MAX as u32 {
-        return Err(format!("backlog must be between 1 and {}", libc::c_int::MAX).into());
-    }
+fn validate_backlog(value: Option<f64>) -> Result<u32, UringError> {
+    let backlog = match value {
+        Some(raw) if valid_integer_in_range(raw, 1, libc::c_int::MAX as u32) => raw as u32,
+        Some(_) => {
+            return Err(format!("backlog must be between 1 and {}", libc::c_int::MAX).into());
+        }
+        None => DEFAULT_BACKLOG,
+    };
     Ok(backlog)
 }
 
-fn validate_socket_buffer_size(name: &str, value: Option<u32>) -> Result<u32, UringError> {
-    let size = value.unwrap_or(0);
-    if size > libc::c_int::MAX as u32 {
-        return Err(format!("{name} must be <= {}", libc::c_int::MAX).into());
+fn validate_socket_buffer_size(name: &str, value: Option<f64>) -> Result<u32, UringError> {
+    match value {
+        Some(raw) if !raw.is_finite() || raw.fract() != 0.0 || raw < 0.0 => Err(format!(
+            "{name} must be an integer between 0 and {}",
+            libc::c_int::MAX
+        )
+        .into()),
+        Some(raw) if raw > libc::c_int::MAX as f64 => {
+            Err(format!("{name} must be <= {}", libc::c_int::MAX).into())
+        }
+        Some(raw) => Ok(raw as u32),
+        None => Ok(0),
     }
-    Ok(size)
 }
 
-fn validate_tcp_defer_accept_seconds(value: Option<u32>) -> Result<u32, UringError> {
-    let seconds = value.unwrap_or(0);
-    if seconds > libc::c_int::MAX as u32 {
-        return Err(format!("tcpDeferAcceptSeconds must be <= {}", libc::c_int::MAX).into());
+fn validate_tcp_defer_accept_seconds(value: Option<f64>) -> Result<u32, UringError> {
+    match value {
+        Some(raw) if !raw.is_finite() || raw.fract() != 0.0 || raw < 0.0 => Err(format!(
+            "tcpDeferAcceptSeconds must be an integer between 0 and {}",
+            libc::c_int::MAX
+        )
+        .into()),
+        Some(raw) if raw > libc::c_int::MAX as f64 => {
+            Err(format!("tcpDeferAcceptSeconds must be <= {}", libc::c_int::MAX).into())
+        }
+        Some(raw) => Ok(raw as u32),
+        None => Ok(0),
     }
-    Ok(seconds)
+}
+
+fn validate_nonzero_u32_option(
+    name: &str,
+    value: Option<f64>,
+    default: u32,
+    zero_message: &str,
+) -> Result<u32, UringError> {
+    match value {
+        Some(raw) if !raw.is_finite() || raw.fract() != 0.0 || raw < 0.0 => {
+            Err(format!("{name} must be an integer between 1 and {}", u32::MAX).into())
+        }
+        Some(raw) if raw == 0.0 => Err(zero_message.to_string().into()),
+        Some(raw) if raw > u32::MAX as f64 => {
+            Err(format!("{name} must be an integer between 1 and {}", u32::MAX).into())
+        }
+        Some(raw) => Ok(raw as u32),
+        None => Ok(default),
+    }
+}
+
+fn validate_event_batch_size(value: f64, event_queue_capacity: u32) -> Result<u32, UringError> {
+    if !valid_integer_in_range(value, 1, event_queue_capacity) {
+        return Err(format!(
+            "eventBatchSize must be between 1 and eventQueueCapacity ({event_queue_capacity})"
+        )
+        .into());
+    }
+    Ok(value as u32)
+}
+
+fn validate_event_queue_capacity(value: Option<f64>) -> Result<u32, UringError> {
+    match value {
+        Some(raw) if valid_integer_in_range(raw, 1, DEFAULT_EVENT_QUEUE_CAPACITY) => Ok(raw as u32),
+        Some(_) => Err(format!(
+            "eventQueueCapacity must be between 1 and {DEFAULT_EVENT_QUEUE_CAPACITY}"
+        )
+        .into()),
+        None => Ok(DEFAULT_EVENT_QUEUE_CAPACITY),
+    }
+}
+
+fn validate_u32_option(
+    name: &str,
+    value: Option<f64>,
+    default: u32,
+    min: u32,
+    max: u32,
+) -> Result<u32, UringError> {
+    match value {
+        Some(raw) => validate_u32_value(name, raw, min, max),
+        None => Ok(default),
+    }
+}
+
+fn validate_optional_u32(name: &str, value: Option<f64>) -> Result<Option<u32>, UringError> {
+    value
+        .map(|raw| validate_u32_value(name, raw, 0, u32::MAX))
+        .transpose()
+}
+
+fn validate_u32_value(name: &str, value: f64, min: u32, max: u32) -> Result<u32, UringError> {
+    if !valid_integer_in_range(value, min, max) {
+        return Err(format!("{name} must be an integer between {min} and {max}").into());
+    }
+    Ok(value as u32)
+}
+
+fn valid_integer_in_range(value: f64, min: u32, max: u32) -> bool {
+    value.is_finite() && value.fract() == 0.0 && value >= min as f64 && value <= max as f64
 }
 
 pub struct StartedServer {
