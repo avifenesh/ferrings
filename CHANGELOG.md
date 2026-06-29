@@ -16,6 +16,8 @@ may adjust APIs, defaults, or packaging.
 - Added root `zcrxProbe()` option validation so invalid queue, buffer-size,
   interface, and active-registration inputs cannot be silently coerced before
   probing.
+- Rewrote the README opening to lead with release-package benchmark results and
+  present ferrings as usable for supported Linux Node deployments.
 
 ## 0.2.26 - 2026-06-29
 

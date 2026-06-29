@@ -6,29 +6,15 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Linux `io_uring` TCP transport for Node.js services, built in Rust with napi-rs and shipped on npm as platform-native packages.
+Linux `io_uring` TCP transport for real Node.js services, built in Rust with napi-rs and shipped on npm as platform-native packages.
 
-ferrings gives Node applications a usable TCP server path backed by an `io_uring` worker instead of libuv's epoll socket path. It supports CommonJS and ESM, ships prebuilt Linux packages for x64 and arm64, and starts on the normal multishot receive path used by recent kernels. ZCRX is an opt-in hardware-gated receive path, not a requirement for production use.
+ferrings is for Linux Node servers where the socket path matters: connection churn, syscall count, receive-buffer ownership, and the latency cost of pushing all networking through libuv's epoll loop. The default path uses multishot accept/recv and provided buffers on a native worker while application code stays in JavaScript callbacks. Optional fast paths cover recv-bundle, zero-copy send, registered send buffers, and host-gated ZCRX.
 
-Current README benchmark: **2.00x** fixed-response HTTP throughput, **2.05x** native TCP echo throughput, **1.88x** Node-style TCP facade throughput, and **37-53% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
-
-```bash
-npm install ferrings
-```
-
-```js
-import { createTcpServer } from 'ferrings';
-
-const server = createTcpServer((connection) => {
-  connection.on('data', (data) => connection.end(data));
-});
-
-server.listen(8080, '127.0.0.1');
-```
+On the current README benchmark run, ferrings delivers **2.00x** fixed-response HTTP throughput, **2.05x** native TCP echo throughput, **1.88x** Node-style TCP facade throughput, and **37-53% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
 
 ## Benchmarks
 
-Benchmarks are the first thing to look at because ferrings changes the socket hot path while keeping application code in Node. The table below compares Node's built-in `http` and `net` servers with ferrings on the same machine, request count, and concurrency.
+Benchmarks sit at the top because ferrings is a shipped transport package, and the reason to use it is measurable socket-path improvement without moving the service out of Node. The table below compares Node's built-in `http` and `net` servers with ferrings on the same machine, request count, and concurrency.
 
 | Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: |
@@ -94,6 +80,18 @@ The root package installs the matching optional native package for the current L
 The root package ships JavaScript, TypeScript declarations, docs, examples, and benchmarks. Native binaries live in the platform packages above, so the loader path is the same on every supported target.
 
 If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, supported native package names, and the original loader error.
+
+Minimal server:
+
+```js
+import { createTcpServer } from 'ferrings';
+
+const server = createTcpServer((connection) => {
+  connection.on('data', (data) => connection.end(data));
+});
+
+server.listen(8080, '127.0.0.1');
+```
 
 ## Quick Start
 
@@ -442,7 +440,7 @@ For a new release, bump the package version first; npm versions are immutable af
 - TLS is not implemented.
 - ZCRX requires specific NIC hardware, kernel support, queue setup, permissions, and routed traffic through the selected RX queue.
 - Registered-buffer send can be unavailable even when the kernel supports other modern `io_uring` networking features; ferrings reports that through `capabilities().registeredSendBuffer`.
-- ferrings is a `0.x` package: patch releases are intended to be safe updates, while minor releases may still adjust API names or defaults as the public surface settles.
+- ferrings is usable today on supported Linux Node deployments, but it is still a `0.x` package: patch releases are intended to be safe updates, while minor releases may adjust API names or defaults.
 
 ## Contributing
 
