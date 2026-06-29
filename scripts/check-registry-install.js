@@ -31,9 +31,11 @@ try {
     `${JSON.stringify({ private: true, type: 'commonjs' }, null, 2)}\n`
   );
 
-  run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund', report.installSpec], {
-    cwd: appDir
-  });
+  run(
+    'npm',
+    ['install', '--include=optional', '--ignore-scripts', '--no-audit', '--no-fund', report.installSpec],
+    { cwd: appDir }
+  );
 
   const installedPackageDir = path.join(appDir, 'node_modules', rootPackage.name);
   const installedPackageJson = readJson(path.join(installedPackageDir, 'package.json'));
