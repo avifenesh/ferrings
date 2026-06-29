@@ -8,9 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.40 - 2026-06-29
+
 - Reframed the README around ferrings as a usable default `io_uring` TCP
   transport, promoted the benchmark snapshot into the opening, and kept ZCRX as
   an optional host-gated receive path.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.40` results on
+  Node 26 using 5,000 completed requests per case.
 
 ## 0.2.39 - 2026-06-29
 
