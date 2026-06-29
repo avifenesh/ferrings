@@ -64,6 +64,11 @@ All servers expose `ServerInfo`. In production, export or log at least:
 - `zcrxPackets`
 - `zcrxBytes`
 
+Runtime counters are reported as JavaScript `number` values backed by 64-bit
+native atomics and clamp only at `Number.MAX_SAFE_INTEGER`. They are suitable
+for long-lived service telemetry; scrape them periodically rather than assuming
+process-lifetime counters reset before 4 GiB or 4B events.
+
 Treat increasing queue drops, receive buffer starvation, or fixed-send misses as
 capacity signals. Raise queue, receive-buffer, or send-buffer limits only after
 checking `RLIMIT_MEMLOCK`, process memory, and workload shape.

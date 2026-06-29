@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.43 - 2026-06-29
+
+- Widened live `ServerInfo` runtime counters from 32-bit reported values to
+  JavaScript-safe numeric counters backed by the existing `AtomicU64` stats, so
+  long-running services do not flatten byte and event counters at `u32::MAX`.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.43` results on
+  Node 26 using 5,000 completed requests per case.
+
 ## 0.2.42 - 2026-06-29
 
 - Preserved `trafficRoute` evidence in failed ZCRX hardware smoke reports when

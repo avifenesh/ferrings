@@ -60,6 +60,7 @@ const ZCRX_PROBE_BUFFER_SIZE: usize = 4096;
 const ZCRX_AREA_OFFSET_BITS: u32 = 48;
 const ZCRX_AREA_OFFSET_MASK: u64 = (1_u64 << ZCRX_AREA_OFFSET_BITS) - 1;
 const ZCRX_KERNEL_SECURITY_OVERRIDE_ENV: &str = "FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK";
+const MAX_SAFE_JS_INTEGER: u64 = 9_007_199_254_740_991;
 
 type Ring<C = cqueue::Entry> = IoUring<squeue::Entry, C>;
 type ZcrxRing = Ring<cqueue::Entry32>;
@@ -992,46 +993,42 @@ pub struct TransportStats {
 
 impl TransportStats {
     pub(crate) fn apply_to_info(&self, info: &mut ServerInfo) {
-        info.accepted_connections =
-            saturating_u32(self.accepted_connections.load(Ordering::Relaxed));
-        info.rejected_connections =
-            saturating_u32(self.rejected_connections.load(Ordering::Relaxed));
-        info.idle_timeouts = saturating_u32(self.idle_timeouts.load(Ordering::Relaxed));
-        info.closed_connections = saturating_u32(self.closed_connections.load(Ordering::Relaxed));
-        info.active_connections = saturating_u32(self.active_connections.load(Ordering::Relaxed));
-        info.bytes_received = saturating_u32(self.bytes_received.load(Ordering::Relaxed));
-        info.bytes_sent = saturating_u32(self.bytes_sent.load(Ordering::Relaxed));
+        info.accepted_connections = js_counter(self.accepted_connections.load(Ordering::Relaxed));
+        info.rejected_connections = js_counter(self.rejected_connections.load(Ordering::Relaxed));
+        info.idle_timeouts = js_counter(self.idle_timeouts.load(Ordering::Relaxed));
+        info.closed_connections = js_counter(self.closed_connections.load(Ordering::Relaxed));
+        info.active_connections = js_counter(self.active_connections.load(Ordering::Relaxed));
+        info.bytes_received = js_counter(self.bytes_received.load(Ordering::Relaxed));
+        info.bytes_sent = js_counter(self.bytes_sent.load(Ordering::Relaxed));
         info.recv_bundle_completions =
-            saturating_u32(self.recv_bundle_completions.load(Ordering::Relaxed));
-        info.recv_bundle_buffers = saturating_u32(self.recv_bundle_buffers.load(Ordering::Relaxed));
-        info.recv_bundle_bytes = saturating_u32(self.recv_bundle_bytes.load(Ordering::Relaxed));
+            js_counter(self.recv_bundle_completions.load(Ordering::Relaxed));
+        info.recv_bundle_buffers = js_counter(self.recv_bundle_buffers.load(Ordering::Relaxed));
+        info.recv_bundle_bytes = js_counter(self.recv_bundle_bytes.load(Ordering::Relaxed));
         info.recv_buffer_starvations =
-            saturating_u32(self.recv_buffer_starvations.load(Ordering::Relaxed));
+            js_counter(self.recv_buffer_starvations.load(Ordering::Relaxed));
         info.recv_multishot_resubmits =
-            saturating_u32(self.recv_multishot_resubmits.load(Ordering::Relaxed));
-        info.recv_copy_events = saturating_u32(self.recv_copy_events.load(Ordering::Relaxed));
-        info.recv_copy_bytes = saturating_u32(self.recv_copy_bytes.load(Ordering::Relaxed));
+            js_counter(self.recv_multishot_resubmits.load(Ordering::Relaxed));
+        info.recv_copy_events = js_counter(self.recv_copy_events.load(Ordering::Relaxed));
+        info.recv_copy_bytes = js_counter(self.recv_copy_bytes.load(Ordering::Relaxed));
         info.registered_send_requests =
-            saturating_u32(self.registered_send_requests.load(Ordering::Relaxed));
+            js_counter(self.registered_send_requests.load(Ordering::Relaxed));
         info.registered_send_errors =
-            saturating_u32(self.registered_send_errors.load(Ordering::Relaxed));
+            js_counter(self.registered_send_errors.load(Ordering::Relaxed));
         info.fixed_send_buffer_misses =
-            saturating_u32(self.fixed_send_buffer_misses.load(Ordering::Relaxed));
+            js_counter(self.fixed_send_buffer_misses.load(Ordering::Relaxed));
         info.fixed_send_buffer_miss_bytes =
-            saturating_u32(self.fixed_send_buffer_miss_bytes.load(Ordering::Relaxed));
-        info.command_queue_drops = saturating_u32(self.command_queue_drops.load(Ordering::Relaxed));
-        info.event_queue_drops = saturating_u32(self.event_queue_drops.load(Ordering::Relaxed));
-        info.send_queue_drops = saturating_u32(self.send_queue_drops.load(Ordering::Relaxed));
+            js_counter(self.fixed_send_buffer_miss_bytes.load(Ordering::Relaxed));
+        info.command_queue_drops = js_counter(self.command_queue_drops.load(Ordering::Relaxed));
+        info.event_queue_drops = js_counter(self.event_queue_drops.load(Ordering::Relaxed));
+        info.send_queue_drops = js_counter(self.send_queue_drops.load(Ordering::Relaxed));
         info.zero_copy_send_requests =
-            saturating_u32(self.zero_copy_send_requests.load(Ordering::Relaxed));
+            js_counter(self.zero_copy_send_requests.load(Ordering::Relaxed));
         info.zero_copy_send_notifications =
-            saturating_u32(self.zero_copy_send_notifications.load(Ordering::Relaxed));
-        info.zero_copy_send_copied =
-            saturating_u32(self.zero_copy_send_copied.load(Ordering::Relaxed));
-        info.zero_copy_send_errors =
-            saturating_u32(self.zero_copy_send_errors.load(Ordering::Relaxed));
-        info.zcrx_packets = saturating_u32(self.zcrx_packets.load(Ordering::Relaxed));
-        info.zcrx_bytes = saturating_u32(self.zcrx_bytes.load(Ordering::Relaxed));
+            js_counter(self.zero_copy_send_notifications.load(Ordering::Relaxed));
+        info.zero_copy_send_copied = js_counter(self.zero_copy_send_copied.load(Ordering::Relaxed));
+        info.zero_copy_send_errors = js_counter(self.zero_copy_send_errors.load(Ordering::Relaxed));
+        info.zcrx_packets = js_counter(self.zcrx_packets.load(Ordering::Relaxed));
+        info.zcrx_bytes = js_counter(self.zcrx_bytes.load(Ordering::Relaxed));
     }
 
     fn record_zero_copy_send_request(&self) {
@@ -1174,8 +1171,8 @@ impl TransportStats {
     }
 }
 
-fn saturating_u32(value: u64) -> u32 {
-    value.min(u32::MAX as u64) as u32
+fn js_counter(value: u64) -> f64 {
+    value.min(MAX_SAFE_JS_INTEGER) as f64
 }
 
 pub(crate) struct TcpSendCommand {
@@ -2685,54 +2682,54 @@ pub fn start_server(config: ServerConfig) -> Result<StartedServer, UringError> {
             buffer_count: config.buffer_count,
             buffer_size: config.buffer_size,
             max_connections: config.max_connections,
-            rejected_connections: 0,
+            rejected_connections: 0.0,
             idle_timeout_ms: config.idle_timeout_ms,
-            idle_timeouts: 0,
+            idle_timeouts: 0.0,
             tcp_no_delay: config.tcp_no_delay,
             reuse_port: config.reuse_port,
             tcp_defer_accept_seconds: config.tcp_defer_accept_seconds,
             socket_recv_buffer_size: config.socket_recv_buffer_size,
             socket_send_buffer_size: config.socket_send_buffer_size,
             command_queue_capacity: 0,
-            command_queue_drops: 0,
+            command_queue_drops: 0.0,
             event_queue_capacity: 0,
-            event_queue_drops: 0,
+            event_queue_drops: 0.0,
             event_batch_size: 0,
             send_queue_capacity: 0,
-            send_queue_drops: 0,
+            send_queue_drops: 0.0,
             send_buffer_count: 0,
             send_buffer_size: 0,
-            active_connections: 0,
-            accepted_connections: 0,
-            closed_connections: 0,
-            bytes_received: 0,
-            bytes_sent: 0,
+            active_connections: 0.0,
+            accepted_connections: 0.0,
+            closed_connections: 0.0,
+            bytes_received: 0.0,
+            bytes_sent: 0.0,
             multishot_accept: true,
             multishot_recv: true,
             provided_buffer_ring: worker_ready.provided_buffer_ring,
             recv_bundle: worker_ready.recv_bundle,
-            recv_bundle_completions: 0,
-            recv_bundle_buffers: 0,
-            recv_bundle_bytes: 0,
-            recv_buffer_starvations: 0,
-            recv_multishot_resubmits: 0,
-            recv_copy_events: 0,
-            recv_copy_bytes: 0,
+            recv_bundle_completions: 0.0,
+            recv_bundle_buffers: 0.0,
+            recv_bundle_bytes: 0.0,
+            recv_buffer_starvations: 0.0,
+            recv_multishot_resubmits: 0.0,
+            recv_copy_events: 0.0,
+            recv_copy_bytes: 0.0,
             registered_send_buffer: worker_ready.registered_send_buffer,
-            registered_send_requests: 0,
-            registered_send_errors: 0,
-            fixed_send_buffer_misses: 0,
-            fixed_send_buffer_miss_bytes: 0,
+            registered_send_requests: 0.0,
+            registered_send_errors: 0.0,
+            fixed_send_buffer_misses: 0.0,
+            fixed_send_buffer_miss_bytes: 0.0,
             zero_copy_send: worker_ready.zero_copy_send,
             zero_copy_receive: config.use_zero_copy_receive,
             zcrx_ready: worker_ready.zcrx_ready,
             zcrx_rx_buffer_size: worker_ready.zcrx_rx_buffer_size,
-            zcrx_packets: 0,
-            zcrx_bytes: 0,
-            zero_copy_send_requests: 0,
-            zero_copy_send_notifications: 0,
-            zero_copy_send_copied: 0,
-            zero_copy_send_errors: 0,
+            zcrx_packets: 0.0,
+            zcrx_bytes: 0.0,
+            zero_copy_send_requests: 0.0,
+            zero_copy_send_notifications: 0.0,
+            zero_copy_send_copied: 0.0,
+            zero_copy_send_errors: 0.0,
         },
         &stats,
     );
@@ -2819,54 +2816,54 @@ pub fn start_tcp_echo_server(config: TcpServerConfig) -> Result<StartedServer, U
             buffer_count: config.buffer_count,
             buffer_size: config.buffer_size,
             max_connections: config.max_connections,
-            rejected_connections: 0,
+            rejected_connections: 0.0,
             idle_timeout_ms: config.idle_timeout_ms,
-            idle_timeouts: 0,
+            idle_timeouts: 0.0,
             tcp_no_delay: config.tcp_no_delay,
             reuse_port: config.reuse_port,
             tcp_defer_accept_seconds: config.tcp_defer_accept_seconds,
             socket_recv_buffer_size: config.socket_recv_buffer_size,
             socket_send_buffer_size: config.socket_send_buffer_size,
             command_queue_capacity: 0,
-            command_queue_drops: 0,
+            command_queue_drops: 0.0,
             event_queue_capacity: 0,
-            event_queue_drops: 0,
+            event_queue_drops: 0.0,
             event_batch_size: 0,
             send_queue_capacity: config.send_queue_capacity,
-            send_queue_drops: 0,
+            send_queue_drops: 0.0,
             send_buffer_count: config.send_buffer_count,
             send_buffer_size: config.send_buffer_size,
-            active_connections: 0,
-            accepted_connections: 0,
-            closed_connections: 0,
-            bytes_received: 0,
-            bytes_sent: 0,
+            active_connections: 0.0,
+            accepted_connections: 0.0,
+            closed_connections: 0.0,
+            bytes_received: 0.0,
+            bytes_sent: 0.0,
             multishot_accept: true,
             multishot_recv: true,
             provided_buffer_ring: worker_ready.provided_buffer_ring,
             recv_bundle: worker_ready.recv_bundle,
-            recv_bundle_completions: 0,
-            recv_bundle_buffers: 0,
-            recv_bundle_bytes: 0,
-            recv_buffer_starvations: 0,
-            recv_multishot_resubmits: 0,
-            recv_copy_events: 0,
-            recv_copy_bytes: 0,
+            recv_bundle_completions: 0.0,
+            recv_bundle_buffers: 0.0,
+            recv_bundle_bytes: 0.0,
+            recv_buffer_starvations: 0.0,
+            recv_multishot_resubmits: 0.0,
+            recv_copy_events: 0.0,
+            recv_copy_bytes: 0.0,
             registered_send_buffer: worker_ready.registered_send_buffer,
-            registered_send_requests: 0,
-            registered_send_errors: 0,
-            fixed_send_buffer_misses: 0,
-            fixed_send_buffer_miss_bytes: 0,
+            registered_send_requests: 0.0,
+            registered_send_errors: 0.0,
+            fixed_send_buffer_misses: 0.0,
+            fixed_send_buffer_miss_bytes: 0.0,
             zero_copy_send: worker_ready.zero_copy_send,
             zero_copy_receive: config.use_zero_copy_receive,
             zcrx_ready: worker_ready.zcrx_ready,
             zcrx_rx_buffer_size: worker_ready.zcrx_rx_buffer_size,
-            zcrx_packets: 0,
-            zcrx_bytes: 0,
-            zero_copy_send_requests: 0,
-            zero_copy_send_notifications: 0,
-            zero_copy_send_copied: 0,
-            zero_copy_send_errors: 0,
+            zcrx_packets: 0.0,
+            zcrx_bytes: 0.0,
+            zero_copy_send_requests: 0.0,
+            zero_copy_send_notifications: 0.0,
+            zero_copy_send_copied: 0.0,
+            zero_copy_send_errors: 0.0,
         },
         &stats,
     );
@@ -2958,54 +2955,54 @@ pub fn start_tcp_server(
             buffer_count: config.buffer_count,
             buffer_size: config.buffer_size,
             max_connections: config.max_connections,
-            rejected_connections: 0,
+            rejected_connections: 0.0,
             idle_timeout_ms: config.idle_timeout_ms,
-            idle_timeouts: 0,
+            idle_timeouts: 0.0,
             tcp_no_delay: config.tcp_no_delay,
             reuse_port: config.reuse_port,
             tcp_defer_accept_seconds: config.tcp_defer_accept_seconds,
             socket_recv_buffer_size: config.socket_recv_buffer_size,
             socket_send_buffer_size: config.socket_send_buffer_size,
             command_queue_capacity: config.command_queue_capacity,
-            command_queue_drops: 0,
+            command_queue_drops: 0.0,
             event_queue_capacity: config.event_queue_capacity,
-            event_queue_drops: 0,
+            event_queue_drops: 0.0,
             event_batch_size: config.event_batch_size,
             send_queue_capacity: config.send_queue_capacity,
-            send_queue_drops: 0,
+            send_queue_drops: 0.0,
             send_buffer_count: config.send_buffer_count,
             send_buffer_size: config.send_buffer_size,
-            active_connections: 0,
-            accepted_connections: 0,
-            closed_connections: 0,
-            bytes_received: 0,
-            bytes_sent: 0,
+            active_connections: 0.0,
+            accepted_connections: 0.0,
+            closed_connections: 0.0,
+            bytes_received: 0.0,
+            bytes_sent: 0.0,
             multishot_accept: true,
             multishot_recv: true,
             provided_buffer_ring: worker_ready.provided_buffer_ring,
             recv_bundle: worker_ready.recv_bundle,
-            recv_bundle_completions: 0,
-            recv_bundle_buffers: 0,
-            recv_bundle_bytes: 0,
-            recv_buffer_starvations: 0,
-            recv_multishot_resubmits: 0,
-            recv_copy_events: 0,
-            recv_copy_bytes: 0,
+            recv_bundle_completions: 0.0,
+            recv_bundle_buffers: 0.0,
+            recv_bundle_bytes: 0.0,
+            recv_buffer_starvations: 0.0,
+            recv_multishot_resubmits: 0.0,
+            recv_copy_events: 0.0,
+            recv_copy_bytes: 0.0,
             registered_send_buffer: worker_ready.registered_send_buffer,
-            registered_send_requests: 0,
-            registered_send_errors: 0,
-            fixed_send_buffer_misses: 0,
-            fixed_send_buffer_miss_bytes: 0,
+            registered_send_requests: 0.0,
+            registered_send_errors: 0.0,
+            fixed_send_buffer_misses: 0.0,
+            fixed_send_buffer_miss_bytes: 0.0,
             zero_copy_send: worker_ready.zero_copy_send,
             zero_copy_receive: config.use_zero_copy_receive,
             zcrx_ready: worker_ready.zcrx_ready,
             zcrx_rx_buffer_size: worker_ready.zcrx_rx_buffer_size,
-            zcrx_packets: 0,
-            zcrx_bytes: 0,
-            zero_copy_send_requests: 0,
-            zero_copy_send_notifications: 0,
-            zero_copy_send_copied: 0,
-            zero_copy_send_errors: 0,
+            zcrx_packets: 0.0,
+            zcrx_bytes: 0.0,
+            zero_copy_send_requests: 0.0,
+            zero_copy_send_notifications: 0.0,
+            zero_copy_send_copied: 0.0,
+            zero_copy_send_errors: 0.0,
         },
         &stats,
     );
@@ -6751,6 +6748,67 @@ mod tests {
         unsafe { &*(entry as *const squeue::Entry).cast::<TestSqePrefix>() }
     }
 
+    fn test_server_info() -> ServerInfo {
+        ServerInfo {
+            host: "127.0.0.1".to_string(),
+            port: 0,
+            backend: "io_uring".to_string(),
+            backlog: DEFAULT_BACKLOG,
+            queue_depth: 8,
+            buffer_count: 8,
+            buffer_size: 512,
+            max_connections: 0,
+            rejected_connections: 0.0,
+            idle_timeout_ms: 0,
+            idle_timeouts: 0.0,
+            tcp_no_delay: true,
+            reuse_port: false,
+            tcp_defer_accept_seconds: 0,
+            socket_recv_buffer_size: 0,
+            socket_send_buffer_size: 0,
+            command_queue_capacity: 0,
+            command_queue_drops: 0.0,
+            event_queue_capacity: 0,
+            event_queue_drops: 0.0,
+            event_batch_size: 0,
+            send_queue_capacity: 0,
+            send_queue_drops: 0.0,
+            send_buffer_count: 0,
+            send_buffer_size: 0,
+            active_connections: 0.0,
+            accepted_connections: 0.0,
+            closed_connections: 0.0,
+            bytes_received: 0.0,
+            bytes_sent: 0.0,
+            multishot_accept: true,
+            multishot_recv: true,
+            provided_buffer_ring: true,
+            recv_bundle: true,
+            recv_bundle_completions: 0.0,
+            recv_bundle_buffers: 0.0,
+            recv_bundle_bytes: 0.0,
+            recv_buffer_starvations: 0.0,
+            recv_multishot_resubmits: 0.0,
+            recv_copy_events: 0.0,
+            recv_copy_bytes: 0.0,
+            registered_send_buffer: false,
+            registered_send_requests: 0.0,
+            registered_send_errors: 0.0,
+            fixed_send_buffer_misses: 0.0,
+            fixed_send_buffer_miss_bytes: 0.0,
+            zero_copy_send: false,
+            zero_copy_send_requests: 0.0,
+            zero_copy_send_notifications: 0.0,
+            zero_copy_send_copied: 0.0,
+            zero_copy_send_errors: 0.0,
+            zero_copy_receive: false,
+            zcrx_ready: false,
+            zcrx_rx_buffer_size: 0,
+            zcrx_packets: 0.0,
+            zcrx_bytes: 0.0,
+        }
+    }
+
     #[test]
     fn tcp_recv_multishot_uses_zero_len_with_provided_buffers() {
         let entry = build_tcp_recv_multi_entry(42, 99, false);
@@ -6879,79 +6937,100 @@ mod tests {
             buffer_count: 8,
             buffer_size: 512,
             max_connections: 0,
-            rejected_connections: 0,
+            rejected_connections: 0.0,
             idle_timeout_ms: 0,
-            idle_timeouts: 0,
+            idle_timeouts: 0.0,
             tcp_no_delay: true,
             reuse_port: false,
             tcp_defer_accept_seconds: 0,
             socket_recv_buffer_size: 0,
             socket_send_buffer_size: 0,
             command_queue_capacity: 0,
-            command_queue_drops: 0,
+            command_queue_drops: 0.0,
             event_queue_capacity: 0,
-            event_queue_drops: 0,
+            event_queue_drops: 0.0,
             event_batch_size: 0,
             send_queue_capacity: 0,
-            send_queue_drops: 0,
+            send_queue_drops: 0.0,
             send_buffer_count: 0,
             send_buffer_size: 0,
-            active_connections: 0,
-            accepted_connections: 0,
-            closed_connections: 0,
-            bytes_received: 0,
-            bytes_sent: 0,
+            active_connections: 0.0,
+            accepted_connections: 0.0,
+            closed_connections: 0.0,
+            bytes_received: 0.0,
+            bytes_sent: 0.0,
             multishot_accept: true,
             multishot_recv: true,
             provided_buffer_ring: true,
             recv_bundle: true,
-            recv_bundle_completions: 0,
-            recv_bundle_buffers: 0,
-            recv_bundle_bytes: 0,
-            recv_buffer_starvations: 0,
-            recv_multishot_resubmits: 0,
-            recv_copy_events: 0,
-            recv_copy_bytes: 0,
+            recv_bundle_completions: 0.0,
+            recv_bundle_buffers: 0.0,
+            recv_bundle_bytes: 0.0,
+            recv_buffer_starvations: 0.0,
+            recv_multishot_resubmits: 0.0,
+            recv_copy_events: 0.0,
+            recv_copy_bytes: 0.0,
             registered_send_buffer: false,
-            registered_send_requests: 0,
-            registered_send_errors: 0,
-            fixed_send_buffer_misses: 0,
-            fixed_send_buffer_miss_bytes: 0,
+            registered_send_requests: 0.0,
+            registered_send_errors: 0.0,
+            fixed_send_buffer_misses: 0.0,
+            fixed_send_buffer_miss_bytes: 0.0,
             zero_copy_send: false,
-            zero_copy_send_requests: 0,
-            zero_copy_send_notifications: 0,
-            zero_copy_send_copied: 0,
-            zero_copy_send_errors: 0,
+            zero_copy_send_requests: 0.0,
+            zero_copy_send_notifications: 0.0,
+            zero_copy_send_copied: 0.0,
+            zero_copy_send_errors: 0.0,
             zero_copy_receive: false,
             zcrx_ready: false,
             zcrx_rx_buffer_size: 0,
-            zcrx_packets: 0,
-            zcrx_bytes: 0,
+            zcrx_packets: 0.0,
+            zcrx_bytes: 0.0,
         };
 
         stats.apply_to_info(&mut info);
 
-        assert_eq!(info.recv_bundle_completions, 1);
-        assert_eq!(info.recv_bundle_buffers, 2);
-        assert_eq!(info.recv_bundle_bytes, 1024);
-        assert_eq!(info.recv_buffer_starvations, 1);
-        assert_eq!(info.recv_multishot_resubmits, 1);
-        assert_eq!(info.recv_copy_events, 1);
-        assert_eq!(info.recv_copy_bytes, 512);
-        assert_eq!(info.fixed_send_buffer_misses, 1);
-        assert_eq!(info.fixed_send_buffer_miss_bytes, 2048);
-        assert_eq!(info.command_queue_drops, 1);
-        assert_eq!(info.event_queue_drops, 3);
-        assert_eq!(info.send_queue_drops, 1);
-        assert_eq!(info.accepted_connections, 1);
-        assert_eq!(info.rejected_connections, 1);
-        assert_eq!(info.idle_timeouts, 1);
-        assert_eq!(info.zcrx_packets, 1);
-        assert_eq!(info.zcrx_bytes, 96);
-        assert_eq!(info.closed_connections, 1);
-        assert_eq!(info.active_connections, 0);
-        assert_eq!(info.bytes_received, 128);
-        assert_eq!(info.bytes_sent, 64);
+        assert_eq!(info.recv_bundle_completions, 1.0);
+        assert_eq!(info.recv_bundle_buffers, 2.0);
+        assert_eq!(info.recv_bundle_bytes, 1024.0);
+        assert_eq!(info.recv_buffer_starvations, 1.0);
+        assert_eq!(info.recv_multishot_resubmits, 1.0);
+        assert_eq!(info.recv_copy_events, 1.0);
+        assert_eq!(info.recv_copy_bytes, 512.0);
+        assert_eq!(info.fixed_send_buffer_misses, 1.0);
+        assert_eq!(info.fixed_send_buffer_miss_bytes, 2048.0);
+        assert_eq!(info.command_queue_drops, 1.0);
+        assert_eq!(info.event_queue_drops, 3.0);
+        assert_eq!(info.send_queue_drops, 1.0);
+        assert_eq!(info.accepted_connections, 1.0);
+        assert_eq!(info.rejected_connections, 1.0);
+        assert_eq!(info.idle_timeouts, 1.0);
+        assert_eq!(info.zcrx_packets, 1.0);
+        assert_eq!(info.zcrx_bytes, 96.0);
+        assert_eq!(info.closed_connections, 1.0);
+        assert_eq!(info.active_connections, 0.0);
+        assert_eq!(info.bytes_received, 128.0);
+        assert_eq!(info.bytes_sent, 64.0);
+    }
+
+    #[test]
+    fn transport_stats_counters_exceed_u32_without_saturating() {
+        let stats = TransportStats::default();
+        stats
+            .bytes_received
+            .store(u32::MAX as u64 + 17, Ordering::Relaxed);
+        stats
+            .accepted_connections
+            .store(u32::MAX as u64 + 3, Ordering::Relaxed);
+        stats
+            .zcrx_bytes
+            .store(MAX_SAFE_JS_INTEGER + 99, Ordering::Relaxed);
+
+        let mut info = test_server_info();
+        stats.apply_to_info(&mut info);
+
+        assert_eq!(info.bytes_received, u32::MAX as f64 + 17.0);
+        assert_eq!(info.accepted_connections, u32::MAX as f64 + 3.0);
+        assert_eq!(info.zcrx_bytes, MAX_SAFE_JS_INTEGER as f64);
     }
 
     #[test]
