@@ -107,15 +107,15 @@ try {
   assert.notEqual(stale.status, 0, 'metadata check should fail for a stale README benchmark version');
   assert.match(
     stale.stderr,
-    new RegExp(`README benchmark version ${staleVersion} must match package version ${rootPackage.version}`)
+    new RegExp(`README ferrings version mention ${staleVersion} must match package version ${rootPackage.version}`)
   );
 } finally {
   fs.writeFileSync(readmePath, originalReadme);
 }
 
 const experimentalReadme = originalReadme.replace(
-  'Linux `io_uring` TCP transport for production Node.js services that need lower socket overhead without leaving JavaScript.',
-  'Experimental Linux `io_uring` TCP transport for production Node.js services that need lower socket overhead without leaving JavaScript.'
+  '`ferrings` is a Linux `io_uring` TCP transport for Node.js services that need lower socket overhead while keeping application code in JavaScript.',
+  'Experimental `ferrings` is a Linux `io_uring` TCP transport for Node.js services that need lower socket overhead while keeping application code in JavaScript.'
 );
 assert.notEqual(experimentalReadme, originalReadme, 'README experimental framing mutation should apply');
 

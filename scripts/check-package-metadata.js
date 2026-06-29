@@ -84,6 +84,15 @@ assert.equal(
   rootPackage.version,
   `README benchmark version ${readmeBenchmarkVersion} must match package version ${rootPackage.version}`
 );
+const readmePackageVersions = [...readme.matchAll(/`ferrings@([^`]+)`/g)].map((match) => match[1]);
+assert.ok(readmePackageVersions.length > 0, 'README must include at least one ferrings@version package claim');
+for (const version of readmePackageVersions) {
+  assert.equal(
+    version,
+    rootPackage.version,
+    `README ferrings version mention ${version} must match package version ${rootPackage.version}`
+  );
+}
 assertReadmePositioning(readme);
 assertNoExperimentalPublicFraming(readme, 'README');
 assertNoExperimentalPublicFraming(changelog, 'CHANGELOG');

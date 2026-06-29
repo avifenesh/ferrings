@@ -6,13 +6,15 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-Linux `io_uring` TCP transport for production Node.js services that need lower socket overhead without leaving JavaScript.
+`ferrings` is a Linux `io_uring` TCP transport for Node.js services that need lower socket overhead while keeping application code in JavaScript.
+
+It ships as a napi-rs native addon with typed CommonJS and ESM APIs, four Linux native npm packages, runtime capability probes, examples, benchmark runners, and release checks. The default path works without special NIC hardware: multishot accept/recv plus provided buffers are the core transport. ZCRX is an optional receive path for hosts that pass the hardware and kernel probes.
 
 ## Benchmarks
 
-ferrings is useful when the Node service is already shaped correctly, but the Linux TCP path is spending too much time in socket syscalls, per-connection churn, or callback delivery overhead. It ships as a napi-rs native addon with platform-specific npm packages for Linux x64/arm64 glibc/musl.
+The benchmark result is the reason to reach for ferrings, so it is first. The current release package was measured against Node's built-in `http` and `net` transports on the same machine, with the same request counts, same concurrency, loopback traffic, and `strace -f -c` syscall capture.
 
-Current release-package benchmark snapshot: **2.16x** fixed-response HTTP throughput, **2.13x** native TCP echo throughput, **1.66x** Node-style TCP facade throughput, **2.04x** facade batch-send throughput, and **37-53% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
+Headline for `ferrings@0.2.31`: **2.16x** fixed-response HTTP throughput, **2.13x** native TCP echo throughput, **1.66x** Node-style TCP facade throughput, **2.04x** facade batch-send throughput, and **37-53% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
 
 | Workload | ferrings result vs Node built-in transport |
 | --- | --- |
@@ -21,7 +23,7 @@ Current release-package benchmark snapshot: **2.16x** fixed-response HTTP throug
 | Node-style TCP facade | **1.66x throughput**, **79% higher p99**, **38% fewer syscalls/conn** |
 | TCP facade with batch send | **2.04x throughput**, **5% higher p99**, **37% fewer syscalls/conn** |
 
-The full table compares Node's built-in `http` and `net` servers with ferrings on the same machine, request count, and concurrency.
+Read the TCP rows as API-surface tradeoffs. The native echo worker isolates the transport. The Node-style facade keeps familiar JavaScript connection callbacks. Batch send recovers much of the facade overhead while preserving the facade shape.
 
 | Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: |
@@ -43,7 +45,7 @@ Detailed results from the README run:
 | ferrings TCP facade | 11,662 | 3.722 | 21.809 | 26.307 | 6.908 | Node-style JS facade + batched native events |
 | ferrings TCP facade batch send | 14,326 | 3.763 | 13.800 | 15.467 | 6.966 | JS facade + batched native events/sends |
 
-Reproduce the table:
+Run the same benchmark:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
@@ -54,7 +56,28 @@ npm run bench:syscalls
 
 Watch both throughput and syscall count. Tail latency depends on API surface, payload size, kernel, NIC path, queue settings, and how much work your JavaScript callback performs.
 
-ferrings gets these numbers by moving accept/recv/send work to an `io_uring` native worker while application code stays in JavaScript callbacks. The default path uses multishot accept/recv and provided buffers. Optional fast paths cover recv-bundle, zero-copy send, registered send buffers, and host-gated ZCRX.
+ferrings gets these numbers by moving accept/recv/send work to an `io_uring` native worker while application code stays in JavaScript callbacks. Optional fast paths cover recv-bundle, zero-copy send, registered send buffers, and host-gated ZCRX.
+
+## Where Ferrings Fits
+
+- Use ferrings when a Linux Node service is limited by TCP syscall count, high connection churn, or socket-path overhead.
+- Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
+- Use raw or batched TCP events when callback overhead matters and your service can work with connection IDs directly.
+- Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework is unnecessary.
+- Use ZCRX only on hosts where the kernel, NIC, queue setup, permissions, and traffic route pass the readiness checks.
+
+## Mental Model
+
+The broadly useful ferrings path is the default one:
+
+- the listener is created with normal Linux sockets
+- accepts and receives run through `io_uring`
+- multishot accept and multishot recv reduce resubmission overhead
+- provided receive buffers keep buffer ownership explicit
+- JavaScript receives events through NAPI thread-safe callbacks
+- JavaScript writes go through a bounded native command queue
+
+ZCRX is not required to use ferrings. It is an extra receive path for capable hardware, and ferrings exposes probes and counters so you can gate it per host.
 
 ## Installation
 
@@ -152,27 +175,6 @@ node quickstart.js
 ```
 
 It prints `echo:hello`. Application code stays in normal JavaScript callbacks; ferrings handles accept, receive, send, shutdown, and buffer management on the native worker.
-
-## Use Cases
-
-- Use ferrings when Linux Node services are limited by TCP syscall count, high connection churn, or socket-path overhead.
-- Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
-- Use raw or batched TCP events when callback overhead matters and your service can work with connection IDs directly.
-- Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework is unnecessary.
-- Use ZCRX only on hosts where the kernel, NIC, queue setup, permissions, and traffic route pass the readiness checks.
-
-## Mental Model
-
-The default ferrings path is the broadly useful one:
-
-- the listener is created with normal Linux sockets
-- accepts and receives run through `io_uring`
-- multishot accept and multishot recv reduce resubmission overhead
-- provided receive buffers keep buffer ownership explicit
-- JavaScript receives events through NAPI thread-safe callbacks
-- JavaScript writes go through a bounded native command queue
-
-ZCRX is not required to use ferrings. It is an extra receive path for capable hardware, and ferrings exposes probes and counters so you can gate it per host.
 
 ## API Choices
 
@@ -348,9 +350,9 @@ The ZCRX gate also checks the running kernel release against known upstream ZCRX
 
 For real NIC receive validation, `ZCRX_CONNECT_HOST` must be a concrete non-loopback host routed through the selected NIC queue. Do not use `127.0.0.1`, `localhost`, `0.0.0.0`, or `::` for that check.
 
-## Benchmarking
+## Run Your Own Benchmarks
 
-Other benchmark entrypoints:
+Benchmark entrypoints:
 
 ```bash
 npm run bench
