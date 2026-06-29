@@ -8,6 +8,12 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.15 - 2026-06-29
+
+- Rewrote the README opening and benchmark section to present ferrings as a
+  usable Linux `io_uring` TCP transport first, with benchmarks as the primary
+  evidence and ZCRX framed as an optional hardware-gated path.
+
 ## 0.2.14 - 2026-06-29
 
 - Added release metadata guards that keep the README benchmark section first
