@@ -1,9 +1,37 @@
 {
   "name": "ferrings",
-  "version": "0.2.20",
+  "version": "0.2.21",
   "description": "Linux io_uring TCP transport for Node.js services",
   "main": "index.js",
   "types": "index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "require": "./index.js",
+      "default": "./index.js"
+    },
+    "./native": {
+      "types": "./native.d.ts",
+      "require": "./native.js",
+      "default": "./native.js"
+    },
+    "./native.js": {
+      "types": "./native.d.ts",
+      "require": "./native.js",
+      "default": "./native.js"
+    },
+    "./tcp-transport": "./tcp-transport.js",
+    "./tcp-transport.js": "./tcp-transport.js",
+    "./zcrx-smoke": "./zcrx-smoke.js",
+    "./zcrx-smoke.js": "./zcrx-smoke.js",
+    "./benchmark/*": "./benchmark/*.js",
+    "./benchmark/*.js": "./benchmark/*.js",
+    "./examples/*": "./examples/*.js",
+    "./examples/*.js": "./examples/*.js",
+    "./bin/ferrings": "./bin/ferrings.js",
+    "./bin/ferrings.js": "./bin/ferrings.js",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "ferrings": "bin/ferrings.js"
   },
@@ -86,10 +114,10 @@
     "typescript": "^6.0.3"
   },
   "optionalDependencies": {
-    "ferrings-linux-arm64-gnu": "0.2.20",
-    "ferrings-linux-arm64-musl": "0.2.20",
-    "ferrings-linux-x64-gnu": "0.2.20",
-    "ferrings-linux-x64-musl": "0.2.20"
+    "ferrings-linux-arm64-gnu": "0.2.21",
+    "ferrings-linux-arm64-musl": "0.2.21",
+    "ferrings-linux-x64-gnu": "0.2.21",
+    "ferrings-linux-x64-musl": "0.2.21"
   },
   "napi": {
     "binaryName": "ferrings",

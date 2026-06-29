@@ -8,6 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.21 - 2026-06-29
+
+- Added a package `exports` map that defines the supported public entrypoint
+  boundary while preserving shipped JavaScript subpaths.
+- Added metadata and installed-tarball smoke coverage for the export map so
+  package-boundary drift is caught before publish.
+
 ## 0.2.20 - 2026-06-29
 
 - Added a packaged production runbook covering install verification, operational

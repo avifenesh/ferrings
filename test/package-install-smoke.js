@@ -108,6 +108,7 @@ try {
     'aarch64-unknown-linux-musl'
   ]);
   assert.deepEqual(installedPackageJson.optionalDependencies, rootPackageJson.optionalDependencies);
+  assert.deepEqual(installedPackageJson.exports, rootPackageJson.exports);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.js')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.d.ts')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'docs', 'production.md')), true);
@@ -217,6 +218,38 @@ try {
     });
   `;
   run(process.execPath, ['-e', smokeScript], {
+    cwd: appDir
+  });
+
+  const exportsScript = `
+    const assert = require('node:assert/strict');
+    const path = require('node:path');
+    const installedPackageDir = ${JSON.stringify(installedPackageDir)};
+    const resolveInsidePackage = (specifier) => require.resolve(specifier);
+    assert.equal(resolveInsidePackage('ferrings'), path.join(installedPackageDir, 'index.js'));
+    assert.equal(resolveInsidePackage('ferrings/native'), path.join(installedPackageDir, 'native.js'));
+    assert.equal(resolveInsidePackage('ferrings/native.js'), path.join(installedPackageDir, 'native.js'));
+    assert.equal(resolveInsidePackage('ferrings/tcp-transport'), path.join(installedPackageDir, 'tcp-transport.js'));
+    assert.equal(resolveInsidePackage('ferrings/tcp-transport.js'), path.join(installedPackageDir, 'tcp-transport.js'));
+    assert.equal(resolveInsidePackage('ferrings/zcrx-smoke'), path.join(installedPackageDir, 'zcrx-smoke.js'));
+    assert.equal(resolveInsidePackage('ferrings/zcrx-smoke.js'), path.join(installedPackageDir, 'zcrx-smoke.js'));
+    assert.equal(resolveInsidePackage('ferrings/benchmark/quick-benchmark'), path.join(installedPackageDir, 'benchmark', 'quick-benchmark.js'));
+    assert.equal(resolveInsidePackage('ferrings/benchmark/quick-benchmark.js'), path.join(installedPackageDir, 'benchmark', 'quick-benchmark.js'));
+    assert.equal(resolveInsidePackage('ferrings/examples/tcp-echo'), path.join(installedPackageDir, 'examples', 'tcp-echo.js'));
+    assert.equal(resolveInsidePackage('ferrings/examples/tcp-echo.js'), path.join(installedPackageDir, 'examples', 'tcp-echo.js'));
+    assert.equal(resolveInsidePackage('ferrings/bin/ferrings'), path.join(installedPackageDir, 'bin', 'ferrings.js'));
+    assert.equal(resolveInsidePackage('ferrings/bin/ferrings.js'), path.join(installedPackageDir, 'bin', 'ferrings.js'));
+    assert.equal(require('ferrings/package.json').version, ${JSON.stringify(rootPackageJson.version)});
+    assert.throws(
+      () => resolveInsidePackage('ferrings/README.md'),
+      (error) => error && error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED'
+    );
+    assert.throws(
+      () => resolveInsidePackage('ferrings/docs/production.md'),
+      (error) => error && error.code === 'ERR_PACKAGE_PATH_NOT_EXPORTED'
+    );
+  `;
+  run(process.execPath, ['-e', exportsScript], {
     cwd: appDir
   });
 

@@ -32,6 +32,17 @@ try {
 
 try {
   const packageJson = JSON.parse(originalPackage);
+  delete packageJson.exports;
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail when package exports are removed');
+  assert.match(stale.stderr, /package exports must define the supported public entrypoint boundary/);
+} finally {
+  fs.writeFileSync(packagePath, originalPackage);
+}
+
+try {
+  const packageJson = JSON.parse(originalPackage);
   packageJson.scripts['bench:quick'] = 'node benchmark/quick-proof.js';
   fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
   const stale = runMetadataCheck();

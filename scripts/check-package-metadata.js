@@ -36,6 +36,7 @@ assert.equal(unsafeOpLint, 'deny', 'Cargo.toml must deny unsafe_op_in_unsafe_fn'
 assert.deepEqual(rootPackage.os, ['linux']);
 assert.deepEqual(rootPackage.cpu, ['x64', 'arm64'], 'root package cpu must match supported native package CPUs');
 assert.deepEqual(rootPackage.libc, ['glibc', 'musl'], 'root package libc must match supported native package libcs');
+assertExportsSurface(rootPackage);
 assert.equal(rootPackage.homepage, `${repositoryHttpUrl(rootPackage.repository.url)}#readme`);
 assert.equal(rootPackage.bugs.url, `${repositoryHttpUrl(rootPackage.repository.url)}/issues`);
 assert.equal(rootPackage.files.includes('CHANGELOG.md'), true);
@@ -174,5 +175,42 @@ function assertBenchmarkPublicSurface(packageJson) {
     fs.existsSync(path.join(repoRoot, 'benchmark', 'quick-proof.js')),
     false,
     'benchmark/quick-proof.js must not be restored'
+  );
+}
+
+function assertExportsSurface(packageJson) {
+  const expectedExports = {
+    '.': {
+      types: './index.d.ts',
+      require: './index.js',
+      default: './index.js'
+    },
+    './native': {
+      types: './native.d.ts',
+      require: './native.js',
+      default: './native.js'
+    },
+    './native.js': {
+      types: './native.d.ts',
+      require: './native.js',
+      default: './native.js'
+    },
+    './tcp-transport': './tcp-transport.js',
+    './tcp-transport.js': './tcp-transport.js',
+    './zcrx-smoke': './zcrx-smoke.js',
+    './zcrx-smoke.js': './zcrx-smoke.js',
+    './benchmark/*': './benchmark/*.js',
+    './benchmark/*.js': './benchmark/*.js',
+    './examples/*': './examples/*.js',
+    './examples/*.js': './examples/*.js',
+    './bin/ferrings': './bin/ferrings.js',
+    './bin/ferrings.js': './bin/ferrings.js',
+    './package.json': './package.json'
+  };
+
+  assert.deepEqual(
+    packageJson.exports,
+    expectedExports,
+    'package exports must define the supported public entrypoint boundary'
   );
 }
