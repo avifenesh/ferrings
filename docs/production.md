@@ -21,17 +21,21 @@ Run these on the target host after installation:
 ```bash
 npx ferrings --version
 node -e "console.log(require('ferrings').capabilities())"
-npx ferrings doctor --json
+npx ferrings doctor --require-ready --json
 npx ferrings capabilities --json
 ```
 
 A healthy normal deployment should show:
 
+- `ready: true` and `defaultReady: true` in `npx ferrings doctor --json`.
 - `backend: "io_uring"` in server info.
 - `ioUringAvailable: true`.
 - `acceptMulti: true` and `recvMulti: true` on recent kernels.
 - `providedBufferRing: true` when the host supports provided buffer rings.
 - No `FerringsNativeLoadError` at process startup.
+
+ZCRX is optional for the normal transport. `doctor` reports ZCRX blockers under
+`optionalBlockers` unless `--require-zcrx` is passed.
 
 If loading fails, reinstall with optional dependencies enabled and check that
 the matching native package exists under `node_modules/`.
@@ -127,6 +131,7 @@ Validation command:
 
 ```bash
 node bin/ferrings.js zcrx-probe --interface eth0 --rx-queue 0 --active --json
+npx ferrings doctor --interface eth0 --rx-queue 0 --active --require-zcrx --require-ready --json
 ZCRX_INTERFACE=eth0 ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx
 ```
 

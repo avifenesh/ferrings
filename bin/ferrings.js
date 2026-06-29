@@ -84,7 +84,7 @@ function runCapabilities(rawArgs) {
 
 function runDoctor(rawArgs) {
   const options = parseFlags(rawArgs, {
-    booleans: ['active', 'compact', 'help', 'json', 'require-ready'],
+    booleans: ['active', 'compact', 'help', 'json', 'require-ready', 'require-zcrx'],
     values: ['interface', 'rx-queue', 'rx-buffer-size']
   });
   if (options.help) {
@@ -216,6 +216,7 @@ function baseReport(mode) {
 
 function buildDoctorReport(options) {
   const report = baseReport('doctor');
+  const requireZcrx = Boolean(options['require-zcrx']);
   const probeOptions = {
     interfaceName: options.interface,
     rxQueue: numberOption(options['rx-queue'], 'rx-queue', 0, UINT32_MAX),
@@ -225,9 +226,15 @@ function buildDoctorReport(options) {
   report.capabilities = capabilities();
   report.transport = buildTransportVerdict(report.capabilities);
   report.zcrx = zcrxProbe(probeOptions);
-  report.ready = report.transport.ready && report.zcrx.ready;
+  report.zcrxRequired = requireZcrx;
+  report.defaultReady = report.transport.ready;
+  report.ready = report.transport.ready && (!requireZcrx || report.zcrx.ready);
   report.verdict = doctorVerdict(report);
-  report.blockers = [...report.transport.blockers, ...report.zcrx.blockers];
+  report.blockers = [
+    ...report.transport.blockers,
+    ...(requireZcrx ? report.zcrx.blockers : [])
+  ];
+  report.optionalBlockers = requireZcrx || report.zcrx.ready ? [] : report.zcrx.blockers;
   report.warnings = [
     ...report.transport.warnings,
     ...(report.zcrx.kernelSecurityWarnings || [])
@@ -271,9 +278,10 @@ function buildTransportVerdict(caps) {
 }
 
 function doctorVerdict(report) {
-  if (report.ready) return 'ready';
   if (!report.transport.ready) return 'transport-blocked';
-  return 'transport-ready-zcrx-blocked';
+  if (report.zcrx.ready) return 'ready';
+  if (report.zcrxRequired) return 'zcrx-blocked';
+  return 'ready-zcrx-optional-blocked';
 }
 
 function doctorNextCommand(report, probeOptions) {
@@ -284,23 +292,23 @@ function doctorNextCommand(report, probeOptions) {
   const rxQueue = report.zcrx.rxQueue;
   const rxBufferSize = report.zcrx.rxBufferSize;
   if (!report.zcrx.ready) {
-    if ((report.zcrx.kernelSecurityWarnings || []).length > 0) {
-      return 'upgrade to a ZCRX-fixed kernel or set FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK=1 only after verifying a vendor backport';
-    }
-    if (!interfaceName) {
-      return 'ferrings doctor --interface <nic> --active --json';
-    }
-    return commandLine([
+    const command = commandLine([
       'ferrings',
       'zcrx-probe',
-      '--interface',
-      interfaceName,
+      ...(interfaceName ? ['--interface', interfaceName] : ['--interface', '<nic>']),
       '--rx-queue',
       String(rxQueue),
       ...(rxBufferSize ? ['--rx-buffer-size', String(rxBufferSize)] : []),
       '--active',
       '--json'
     ]);
+    if (!report.zcrxRequired) {
+      return `default transport is ready; run ${command} only before enabling ZCRX`;
+    }
+    if ((report.zcrx.kernelSecurityWarnings || []).length > 0) {
+      return 'upgrade to a ZCRX-fixed kernel or set FERRINGS_ZCRX_ALLOW_KERNEL_SECURITY_RISK=1 only after verifying a vendor backport';
+    }
+    return command;
   }
   return commandLine([
     'ferrings',
@@ -449,6 +457,9 @@ function printDoctorReport(report) {
   printCapabilities(report.capabilities);
   console.log('');
   console.log(`doctor verdict: ${report.verdict}`);
+  console.log(`ready: ${report.ready ? 'yes' : 'no'}`);
+  console.log(`default transport ready: ${report.defaultReady ? 'yes' : 'no'}`);
+  console.log(`ZCRX required: ${report.zcrxRequired ? 'yes' : 'no'}`);
   console.log(`transport core: ${report.transport.ready ? 'ready' : 'blocked'}`);
   for (const blocker of report.transport.blockers) {
     console.log(`  blocker: ${blocker}`);
@@ -465,7 +476,7 @@ function printDoctorReport(report) {
     console.log(`  security warning: ${warning}`);
   }
   for (const blocker of report.zcrx.blockers) {
-    console.log(`  blocker: ${blocker}`);
+    console.log(`  ${report.zcrxRequired ? 'blocker' : 'optional blocker'}: ${blocker}`);
   }
   console.log(`next: ${report.nextCommand}`);
 }
@@ -514,7 +525,7 @@ function printHelp() {
   console.log(`Usage:
   ferrings --version
   ferrings capabilities [--json|--compact]
-  ferrings doctor [--interface <name>] [--rx-queue <n>] [--rx-buffer-size <n>] [--active] [--require-ready] [--json|--compact]
+  ferrings doctor [--interface <name>] [--rx-queue <n>] [--rx-buffer-size <n>] [--active] [--require-zcrx] [--require-ready] [--json|--compact]
   ferrings zcrx-probe [--interface <name>] [--rx-queue <n>] [--rx-buffer-size <n>] [--active] [--all] [--require-ready] [--json|--compact]
   ferrings zcrx-smoke [--interface <name>] [--connect-host <host>] [--bind-host <host>] [--rx-queue <n>] [--rx-buffer-size <n>] [--timeout-ms <n>] [--require-rx-queue-stats] [--report-path <path>] [--json|--compact]
 
@@ -534,7 +545,8 @@ Options:
   --rx-buffer-size   Try a specific ZCRX receive buffer size; 0 uses the kernel default.
   --active           Attempt short-lived active ZCRX IFQ registration.
   --all              Probe every interface under /sys/class/net.
-  --require-ready    Exit 2 when selected ZCRX probes are not ready.
+  --require-zcrx     Make ZCRX readiness part of the doctor ready verdict.
+  --require-ready    Exit 2 when the selected readiness verdict is not ready.
   --connect-host     Required when --interface is set; must be non-loopback traffic routed through the selected NIC path.
   --bind-host        Host used by zcrx-smoke servers; defaults to 0.0.0.0.
   --timeout-ms       Per-request zcrx-smoke timeout.

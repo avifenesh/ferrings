@@ -353,6 +353,10 @@ try {
   assert.equal(cliDoctorReport.package, 'ferrings');
   assert.equal(cliDoctorReport.mode, 'doctor');
   assert.equal(cliDoctorReport.zcrx.interfaceName, 'lo');
+  assert.equal(cliDoctorReport.zcrxRequired, false);
+  assert.equal(cliDoctorReport.defaultReady, cliDoctorReport.transport.ready);
+  assert.equal(cliDoctorReport.ready, cliDoctorReport.transport.ready);
+  assert.equal(Array.isArray(cliDoctorReport.optionalBlockers), true);
   assert.equal(typeof cliDoctorReport.transport.ready, 'boolean');
   assert.equal(typeof cliDoctorReport.nextCommand, 'string');
 

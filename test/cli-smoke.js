@@ -33,16 +33,26 @@ const doctor = JSON.parse(run(['doctor', '--json']).stdout);
 assert.equal(doctor.package, 'ferrings');
 assert.equal(doctor.mode, 'doctor');
 assert.equal(typeof doctor.ready, 'boolean');
+assert.equal(typeof doctor.defaultReady, 'boolean');
+assert.equal(typeof doctor.zcrxRequired, 'boolean');
 assert.equal(typeof doctor.transport.ready, 'boolean');
 assert.equal(typeof doctor.zcrx.ready, 'boolean');
+assert.equal(doctor.defaultReady, doctor.transport.ready);
+assert.equal(doctor.ready, doctor.transport.ready);
+assert.equal(doctor.zcrxRequired, false);
+assert.equal(Array.isArray(doctor.blockers), true);
+assert.equal(Array.isArray(doctor.optionalBlockers), true);
 assert.equal(Array.isArray(doctor.zcrx.kernelSecurityWarnings), true);
 assert.equal(Array.isArray(doctor.warnings), true);
 assert.equal(typeof doctor.nextCommand, 'string');
 
 const doctorLoopback = JSON.parse(run(['doctor', '-i', 'lo', '--json']).stdout);
 assert.equal(doctorLoopback.zcrx.interfaceName, 'lo');
-assert.equal(doctorLoopback.ready, false);
-assert.ok(doctorLoopback.blockers.some((blocker) => /loopback/i.test(blocker)));
+assert.equal(doctorLoopback.zcrxRequired, false);
+assert.equal(doctorLoopback.ready, doctorLoopback.transport.ready);
+assert.equal(doctorLoopback.zcrx.ready, false);
+assert.equal(doctorLoopback.blockers.some((blocker) => /loopback/i.test(blocker)), false);
+assert.ok(doctorLoopback.optionalBlockers.some((blocker) => /loopback/i.test(blocker)));
 
 const loopback = JSON.parse(run(['zcrx-probe', '--interface', 'lo', '--json']).stdout);
 assert.equal(loopback.package, 'ferrings');
@@ -101,6 +111,7 @@ assert.match(badProbeBuffer.stderr, /--rx-buffer-size must be an integer between
 
 const help = run(['-h']);
 assert.match(help.stdout, /Usage:/);
+assert.match(help.stdout, /--require-zcrx/);
 
 for (const args of [['--version'], ['-v'], ['version']]) {
   const version = run(args);
@@ -112,9 +123,16 @@ const requiredReport = JSON.parse(required.stdout);
 assert.equal(requiredReport.ready, false);
 assert.match(required.stderr, /ZCRX readiness requirements were not met/);
 
-const doctorRequired = run(['doctor', '-i', 'lo', '--require-ready', '--json'], 2);
+const doctorRequired = run(['doctor', '-i', 'lo', '--require-ready', '--json']);
 const doctorRequiredReport = JSON.parse(doctorRequired.stdout);
-assert.equal(doctorRequiredReport.ready, false);
-assert.match(doctorRequired.stderr, /doctor readiness requirements were not met/);
+assert.equal(doctorRequiredReport.ready, doctorRequiredReport.transport.ready);
+assert.equal(doctorRequiredReport.zcrxRequired, false);
+
+const doctorRequiredZcrx = run(['doctor', '-i', 'lo', '--require-zcrx', '--require-ready', '--json'], 2);
+const doctorRequiredZcrxReport = JSON.parse(doctorRequiredZcrx.stdout);
+assert.equal(doctorRequiredZcrxReport.ready, false);
+assert.equal(doctorRequiredZcrxReport.zcrxRequired, true);
+assert.ok(doctorRequiredZcrxReport.blockers.some((blocker) => /loopback/i.test(blocker)));
+assert.match(doctorRequiredZcrx.stderr, /doctor readiness requirements were not met/);
 
 console.log('cli smoke ok');

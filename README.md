@@ -295,10 +295,13 @@ The installed CLI exposes the same checks:
 npx ferrings --version
 npx ferrings capabilities --json
 npx ferrings doctor --interface eth0 --rx-queue 0 --active --json
+npx ferrings doctor --interface eth0 --rx-queue 0 --active --require-zcrx --require-ready --json
 npx ferrings zcrx-probe --interface eth0 --rx-queue 0 --active --json
 ```
 
 `capabilities()` reports kernel and `io_uring` fast-path availability, including multishot accept/recv, provided buffer rings, recv-bundle, zero-copy send, registered-buffer send, ZCRX opcode support, CQE32 ring setup, and fast poll.
+
+`doctor` treats the default multishot/provided-buffer transport as the normal production readiness path. Its top-level `ready` and `defaultReady` fields can be true while `zcrx.ready` is false; in that case ZCRX blockers are reported under `optionalBlockers`. Add `--require-zcrx --require-ready` when zero-copy receive must be a hard deployment gate.
 
 ## Configuration
 
@@ -427,6 +430,8 @@ npm run check:registry-install -- --version "$(node -p "require('./package.json'
 ```
 
 `check:release-ready -- --require-zcrx` requires `ZCRX_INTERFACE` and a non-loopback `ZCRX_CONNECT_HOST`, then runs `npm run test:zcrx`. Use this only on hardware where traffic can be routed through the selected NIC queue.
+
+For host-level deployment checks, use `npx ferrings doctor --require-ready --json` for the default transport and add `--require-zcrx` only on hosts where ZCRX receive is required.
 
 Tag pushes that match the package version build all native artifacts, run package checks, publish to npm with the repository `NPM_TOKEN` secret, verify the published root package, native packages, integrity metadata, provenance attestations, registry signatures, and dist-tag from the npm registry, and then create or update the GitHub release. Manual `workflow_dispatch` runs can also publish when `publish=true`.
 
