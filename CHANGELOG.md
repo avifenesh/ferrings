@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Hardened release workflow reruns so already-published versions skip native
+  rebuilds and go straight to registry verification and install smoke checks.
+
 ## 0.2.29 - 2026-06-29
 
 - Rewrote the README first screen so ferrings leads with release-package

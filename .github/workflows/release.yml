@@ -105,6 +105,7 @@ jobs:
   build-native:
     name: Build native / ${{ matrix.package }}
     needs: validate
+    if: ${{ needs.validate.outputs.publication_state != 'published' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -189,6 +190,12 @@ jobs:
     needs:
       - validate
       - build-native
+    if: >-
+      ${{ always() &&
+          needs.validate.result == 'success' &&
+          (needs.build-native.result == 'success' ||
+            (needs.build-native.result == 'skipped' &&
+              needs.validate.outputs.publication_state == 'published')) }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -209,6 +216,7 @@ jobs:
         run: npm ci --omit=optional
 
       - name: Download native artifacts
+        if: needs.build-native.result == 'success'
         uses: actions/download-artifact@v8
         with:
           pattern: bindings-*
@@ -216,6 +224,7 @@ jobs:
           merge-multiple: false
 
       - name: Prepare npm package directories
+        if: needs.build-native.result == 'success'
         run: |
           set -euo pipefail
           find artifacts -type f -name "*.node" -print | sort
@@ -223,16 +232,22 @@ jobs:
           find npm -maxdepth 2 -type f | sort
 
       - name: Validate native package metadata and contents
+        if: needs.build-native.result == 'success'
         run: npm run check:metadata && node scripts/check-native-packages.js --require-binary
 
       - name: Check napi prepublish dry-run
+        if: needs.build-native.result == 'success'
         run: npm run check:prepublish
 
       - name: Check npm publish dry-run
-        if: needs.validate.outputs.should_publish == 'true' && needs.validate.outputs.publication_state == 'available'
+        if: >-
+          needs.build-native.result == 'success' &&
+          needs.validate.outputs.should_publish == 'true' &&
+          needs.validate.outputs.publication_state == 'available'
         run: npm run check:publish
 
       - name: Upload prepared npm packages
+        if: needs.build-native.result == 'success'
         uses: actions/upload-artifact@v7
         with:
           name: npm-packages-${{ needs.validate.outputs.version }}
@@ -245,7 +260,10 @@ jobs:
           if-no-files-found: error
 
       - name: Publish to npm
-        if: needs.validate.outputs.should_publish == 'true' && needs.validate.outputs.publication_state == 'available'
+        if: >-
+          needs.build-native.result == 'success' &&
+          needs.validate.outputs.should_publish == 'true' &&
+          needs.validate.outputs.publication_state == 'available'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_ACCESS: public

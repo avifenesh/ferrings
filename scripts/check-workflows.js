@@ -87,9 +87,24 @@ function checkWorkflowPolicy(workflowFiles) {
     'release.yml build-native job must be read-only'
   );
   assert.match(
+    jobBlock(releaseWorkflow, 'build-native'),
+    /if:\s*\$\{\{\s*needs\.validate\.outputs\.publication_state != 'published'\s*\}\}/,
+    'release.yml build-native job must skip already-published verification reruns'
+  );
+  assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),
     /^    permissions:\n      contents: write\n      id-token: write\n/m,
     'release.yml package-and-publish job must be the only job with publish/release permissions'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'package-and-publish'),
+    /always\(\)[\s\S]*needs\.build-native\.result == 'skipped'[\s\S]*publication_state == 'published'/,
+    'release.yml package-and-publish job must still verify already-published reruns after build-native is skipped'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'package-and-publish'),
+    /name: Verify published npm packages[\s\S]*run: npm run check:published -- --tag/,
+    'release.yml package-and-publish job must verify published npm packages'
   );
 }
 
