@@ -43,6 +43,10 @@ assert.equal(rootPackage.files.includes('CHANGELOG.md'), true);
 assert.equal(rootPackage.files.includes('CONTRIBUTING.md'), true);
 assert.equal(rootPackage.files.includes('CODE_OF_CONDUCT.md'), true);
 assert.equal(rootPackage.files.includes('SECURITY.md'), true);
+assert.equal(rootPackage.files.includes('index.mjs'), true);
+assert.equal(rootPackage.files.includes('index.d.mts'), true);
+assert.equal(rootPackage.files.includes('native.mjs'), true);
+assert.equal(rootPackage.files.includes('native.d.mts'), true);
 assert.equal(rootPackage.files.includes('docs/'), true);
 assert.equal(
   fs.existsSync(path.join(repoRoot, 'docs', 'production.md')),
@@ -181,18 +185,36 @@ function assertBenchmarkPublicSurface(packageJson) {
 function assertExportsSurface(packageJson) {
   const expectedExports = {
     '.': {
-      types: './index.d.ts',
-      require: './index.js',
+      import: {
+        types: './index.d.mts',
+        default: './index.mjs'
+      },
+      require: {
+        types: './index.d.ts',
+        default: './index.js'
+      },
       default: './index.js'
     },
     './native': {
-      types: './native.d.ts',
-      require: './native.js',
+      import: {
+        types: './native.d.mts',
+        default: './native.mjs'
+      },
+      require: {
+        types: './native.d.ts',
+        default: './native.js'
+      },
       default: './native.js'
     },
     './native.js': {
-      types: './native.d.ts',
-      require: './native.js',
+      import: {
+        types: './native.d.mts',
+        default: './native.mjs'
+      },
+      require: {
+        types: './native.d.ts',
+        default: './native.js'
+      },
       default: './native.js'
     },
     './tcp-transport': './tcp-transport.js',

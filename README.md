@@ -12,36 +12,36 @@ ferrings gives Node applications a TCP server surface backed by an `io_uring` wo
 
 ## Benchmarks
 
-On the current README run, ferrings delivered **2.72x** fixed-response HTTP throughput, **2.18x** native TCP echo throughput, **1.84x** throughput through the Node-style TCP facade, and **38-56% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
+On the current README run, ferrings delivered **2.16x** fixed-response HTTP throughput, **1.77x** native TCP echo throughput, **1.74x** throughput through the Node-style TCP facade, and **39-54% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
 
 ferrings is benchmarked against Node's built-in `http` and `net` servers with the same request count and concurrency. The useful signal is the paired comparison: what changes when the socket path moves to `io_uring`.
 
 | Workload | Baseline | ferrings path | Throughput | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | **2.72x** | **51% lower** | **56% fewer** |
-| TCP echo | Node `net` | native echo worker | **2.18x** | **37% lower** | **54% fewer** |
-| TCP echo | Node `net` | Node-style TCP facade | **1.84x** | **29% lower** | **38% fewer** |
-| TCP echo | Node `net` | facade batch send | **1.59x** | 10% higher | **39% fewer** |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | **2.16x** | **39% lower** | **54% fewer** |
+| TCP echo | Node `net` | native echo worker | **1.77x** | 9% higher | **54% fewer** |
+| TCP echo | Node `net` | Node-style TCP facade | **1.74x** | **29% lower** | **39% fewer** |
+| TCP echo | Node `net` | facade batch send | **1.86x** | **43% lower** | **39% fewer** |
 
-Measured on 2026-06-29 with `ferrings@0.2.22`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
+Measured on 2026-06-29 with `ferrings@0.2.23`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
 
 Detailed results from the README run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 3,372 | 15.072 | 38.250 | 43.795 | 11.666 | libuv/epoll |
-| ferrings HTTP | 9,180 | 5.042 | 16.333 | 21.591 | 5.106 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 4,893 | 11.087 | 23.102 | 31.997 | 11.016 | libuv/epoll |
-| ferrings native TCP echo | 10,666 | 4.162 | 17.550 | 20.108 | 5.093 | native echo worker + provided buffers |
-| ferrings TCP facade | 9,000 | 4.602 | 20.256 | 22.724 | 6.835 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 7,756 | 6.157 | 32.632 | 35.182 | 6.774 | JS facade + batched native events/sends |
+| Node `http` | 3,481 | 13.302 | 38.741 | 59.288 | 11.664 | libuv/epoll |
+| ferrings HTTP | 7,509 | 6.430 | 27.872 | 35.971 | 5.350 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 5,122 | 10.650 | 21.479 | 24.501 | 10.960 | libuv/epoll |
+| ferrings native TCP echo | 9,042 | 4.521 | 21.077 | 26.591 | 5.088 | native echo worker + provided buffers |
+| ferrings TCP facade | 8,898 | 6.080 | 13.909 | 17.499 | 6.740 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 9,534 | 4.677 | 13.336 | 13.905 | 6.734 | JS facade + batched native events/sends |
 
 Reproduce the table:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.22.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.23.json \
 npm run bench:syscalls
 ```
 
@@ -51,6 +51,14 @@ Watch both throughput and syscall count. Tail latency depends on API surface, pa
 
 ```bash
 npm install ferrings
+```
+
+CommonJS and ESM named imports are both supported:
+
+```js
+const { createTcpServer } = require('ferrings');
+// or
+import { createTcpServer } from 'ferrings';
 ```
 
 Supported runtime targets:

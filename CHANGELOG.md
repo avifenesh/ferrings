@@ -8,6 +8,14 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.23 - 2026-06-29
+
+- Added ESM wrapper entrypoints for root and native imports so Node ESM
+  consumers can use named imports while CommonJS `require()` behavior stays
+  unchanged.
+- Added installed-package runtime and TypeScript NodeNext smoke coverage for
+  the ESM entrypoints.
+
 ## 0.2.22 - 2026-06-29
 
 - Rewrote the README opening to present ferrings as a usable Node transport

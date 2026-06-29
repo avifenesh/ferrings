@@ -70,9 +70,13 @@ try {
   assert.equal(packedFiles.has('LICENSE-APACHE'), true);
   assert.equal(packedFiles.has('LICENSE-MIT'), true);
   assert.equal(packedFiles.has('index.js'), true);
+  assert.equal(packedFiles.has('index.mjs'), true);
   assert.equal(packedFiles.has('index.d.ts'), true);
+  assert.equal(packedFiles.has('index.d.mts'), true);
   assert.equal(packedFiles.has('native.js'), true);
+  assert.equal(packedFiles.has('native.mjs'), true);
   assert.equal(packedFiles.has('native.d.ts'), true);
+  assert.equal(packedFiles.has('native.d.mts'), true);
   assert.equal(packedFiles.has('tcp-transport.js'), true);
   assert.equal(packedFiles.has('zcrx-smoke.js'), true);
   assert.equal(packedFiles.has('bin/ferrings.js'), true);
@@ -109,8 +113,12 @@ try {
   ]);
   assert.deepEqual(installedPackageJson.optionalDependencies, rootPackageJson.optionalDependencies);
   assert.deepEqual(installedPackageJson.exports, rootPackageJson.exports);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'index.mjs')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'index.d.mts')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.js')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.mjs')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.d.ts')), true);
+  assert.equal(fs.existsSync(path.join(installedPackageDir, 'native.d.mts')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'docs', 'production.md')), true);
   assert.equal(fs.existsSync(path.join(installedPackageDir, 'ferrings.linux-x64-gnu.node')), false);
   assert.equal(
@@ -252,6 +260,62 @@ try {
   run(process.execPath, ['-e', exportsScript], {
     cwd: appDir
   });
+
+  const esmSmokePath = path.join(appDir, 'esm-smoke.mjs');
+  fs.writeFileSync(
+    esmSmokePath,
+    `
+      import assert from 'node:assert/strict';
+      import net from 'node:net';
+      import ferrings, {
+        UringTcpServer,
+        capabilities,
+        createTcpServer,
+        IoUringTcpTransportServer
+      } from 'ferrings';
+      import native, {
+        UringHttpServer,
+        zcrxProbe
+      } from 'ferrings/native';
+      import nativeJs, {
+        UringTcpEchoServer
+      } from 'ferrings/native.js';
+
+      assert.equal(ferrings.createTcpServer, createTcpServer);
+      assert.equal(ferrings.UringTcpServer, UringTcpServer);
+      assert.equal(ferrings.IoUringTcpTransportServer, IoUringTcpTransportServer);
+      assert.equal(native.UringHttpServer, UringHttpServer);
+      assert.equal(native.zcrxProbe, zcrxProbe);
+      assert.equal(nativeJs.UringTcpEchoServer, UringTcpEchoServer);
+      assert.equal(typeof capabilities().ioUringAvailable, 'boolean');
+
+      const server = createTcpServer((connection) => {
+        connection.on('data', (data) => {
+          connection.end('esm:' + data.toString('utf8'));
+        });
+      });
+      assert.ok(server instanceof IoUringTcpTransportServer);
+      server.listen(0, '127.0.0.1');
+      const info = server.info();
+      const socket = net.createConnection({ host: '127.0.0.1', port: info.port }, () => {
+        socket.write('ok');
+      });
+      let body = Buffer.alloc(0);
+      socket.on('data', (chunk) => {
+        body = Buffer.concat([body, chunk]);
+      });
+      await new Promise((resolve, reject) => {
+        socket.on('end', resolve);
+        socket.on('error', reject);
+      });
+      assert.equal(body.toString('utf8'), 'esm:ok');
+      server.close();
+    `,
+    'utf8'
+  );
+  run(process.execPath, [esmSmokePath], {
+    cwd: appDir
+  });
   assertInstalledTypeSurface(appDir);
 
   const binPath = path.join(appDir, 'node_modules', '.bin', 'ferrings');
@@ -389,6 +453,8 @@ function packNativePackage(packDir, nativePackageDir) {
 function assertInstalledTypeSurface(appDir) {
   const consumerPath = path.join(appDir, 'consumer-types.ts');
   const tsconfigPath = path.join(appDir, 'tsconfig.consumer.json');
+  const esmConsumerPath = path.join(appDir, 'consumer-esm.mts');
+  const esmTsconfigPath = path.join(appDir, 'tsconfig.consumer-esm.json');
   fs.writeFileSync(
     consumerPath,
     `
@@ -474,6 +540,89 @@ function assertInstalledTypeSurface(appDir) {
   );
 
   run(path.join(repoRoot, 'node_modules', '.bin', 'tsc'), ['-p', tsconfigPath], {
+    cwd: appDir
+  });
+
+  fs.writeFileSync(
+    esmConsumerPath,
+    `
+      import ferrings, {
+        UringTcpServer,
+        createTcpServer,
+        capabilities,
+        type IoUringTcpConnection,
+        type ServerInfo,
+        type TcpEvent,
+        type TcpServerOptions
+      } from 'ferrings';
+      import native, {
+        UringHttpServer,
+        zcrxProbe,
+        type Capabilities,
+        type ServerOptions,
+        type ZcrxProbe
+      } from 'ferrings/native';
+      import nativeJs, { type TcpSend } from 'ferrings/native.js';
+
+      const tcpOptions: TcpServerOptions = { host: '127.0.0.1', port: 0 };
+      const facade = createTcpServer(tcpOptions, (connection: IoUringTcpConnection) => {
+        connection.write(Buffer.from('esm-types'));
+      });
+      const maybeInfo: ServerInfo | null = facade.info();
+      void maybeInfo;
+
+      const raw = new UringTcpServer(tcpOptions);
+      const rawInfo: ServerInfo = raw.start((event: TcpEvent) => {
+        if (event.data) {
+          const send: TcpSend = { connectionId: event.connectionId, data: event.data };
+          raw.sendBatch([send]);
+        }
+      });
+      void rawInfo;
+
+      const httpOptions: ServerOptions = { responseBody: 'ok' };
+      const http = new UringHttpServer(httpOptions);
+      const httpInfo: ServerInfo | null = http.info();
+      void httpInfo;
+
+      const caps: Capabilities = capabilities();
+      const nativeCaps: Capabilities = native.capabilities();
+      const ready: boolean = caps.ioUringAvailable && nativeCaps.ioUringAvailable;
+      const probe: ZcrxProbe = zcrxProbe({ interfaceName: 'lo' });
+      const defaultCreateTcpServer: typeof createTcpServer = ferrings.createTcpServer;
+      const defaultNativeProbe: typeof zcrxProbe = native.zcrxProbe;
+      const defaultNativeJsProbe: typeof zcrxProbe = nativeJs.zcrxProbe;
+      void ready;
+      void probe;
+      void defaultCreateTcpServer;
+      void defaultNativeProbe;
+      void defaultNativeJsProbe;
+    `,
+    'utf8'
+  );
+  fs.writeFileSync(
+    esmTsconfigPath,
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          target: 'ES2023',
+          module: 'NodeNext',
+          moduleResolution: 'NodeNext',
+          strict: true,
+          noEmit: true,
+          types: ['node'],
+          typeRoots: [path.join(repoRoot, 'node_modules', '@types')],
+          skipLibCheck: false,
+          forceConsistentCasingInFileNames: true
+        },
+        files: [esmConsumerPath]
+      },
+      null,
+      2
+    )}\n`
+  );
+
+  run(path.join(repoRoot, 'node_modules', '.bin', 'tsc'), ['-p', esmTsconfigPath], {
     cwd: appDir
   });
 }

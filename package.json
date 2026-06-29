@@ -1,23 +1,41 @@
 {
   "name": "ferrings",
-  "version": "0.2.22",
+  "version": "0.2.23",
   "description": "Linux io_uring TCP transport for Node.js services",
   "main": "index.js",
   "types": "index.d.ts",
   "exports": {
     ".": {
-      "types": "./index.d.ts",
-      "require": "./index.js",
+      "import": {
+        "types": "./index.d.mts",
+        "default": "./index.mjs"
+      },
+      "require": {
+        "types": "./index.d.ts",
+        "default": "./index.js"
+      },
       "default": "./index.js"
     },
     "./native": {
-      "types": "./native.d.ts",
-      "require": "./native.js",
+      "import": {
+        "types": "./native.d.mts",
+        "default": "./native.mjs"
+      },
+      "require": {
+        "types": "./native.d.ts",
+        "default": "./native.js"
+      },
       "default": "./native.js"
     },
     "./native.js": {
-      "types": "./native.d.ts",
-      "require": "./native.js",
+      "import": {
+        "types": "./native.d.mts",
+        "default": "./native.mjs"
+      },
+      "require": {
+        "types": "./native.d.ts",
+        "default": "./native.js"
+      },
       "default": "./native.js"
     },
     "./tcp-transport": "./tcp-transport.js",
@@ -60,9 +78,13 @@
     "LICENSE-APACHE",
     "LICENSE-MIT",
     "index.js",
+    "index.mjs",
     "index.d.ts",
+    "index.d.mts",
     "native.js",
+    "native.mjs",
     "native.d.ts",
+    "native.d.mts",
     "tcp-transport.js",
     "zcrx-smoke.js",
     "bin/",
@@ -114,10 +136,10 @@
     "typescript": "^6.0.3"
   },
   "optionalDependencies": {
-    "ferrings-linux-arm64-gnu": "0.2.22",
-    "ferrings-linux-arm64-musl": "0.2.22",
-    "ferrings-linux-x64-gnu": "0.2.22",
-    "ferrings-linux-x64-musl": "0.2.22"
+    "ferrings-linux-arm64-gnu": "0.2.23",
+    "ferrings-linux-arm64-musl": "0.2.23",
+    "ferrings-linux-x64-gnu": "0.2.23",
+    "ferrings-linux-x64-musl": "0.2.23"
   },
   "napi": {
     "binaryName": "ferrings",
