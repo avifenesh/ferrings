@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Added a tracked-file secret scan for npm, GitHub, AWS, npmrc, and private-key
+  patterns, wired it into `npm test` and the Security workflow.
+
 ## 0.2.37 - 2026-06-29
 
 - Rewrote the README opening so ferrings presents as a ready-to-use transport,

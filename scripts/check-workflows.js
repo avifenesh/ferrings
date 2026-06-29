@@ -55,13 +55,24 @@ function checkWorkflowPolicy(workflowFiles) {
     2,
     'security.yml path filters must include scripts/install-cargo-audit.js'
   );
+  assert.equal(
+    matchCount(securityWorkflow, /-\s+"scripts\/check-secrets\.js"/g),
+    2,
+    'security.yml path filters must include scripts/check-secrets.js'
+  );
   assert.match(
     securityWorkflow,
     /run:\s+npm run install:cargo-audit/,
     'security.yml must install cargo-audit through the pinned local helper'
   );
+  assert.match(
+    securityWorkflow,
+    /run:\s+npm run check:secrets/,
+    'security.yml must scan tracked files for secrets'
+  );
   assertJobTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 25);
   assertStepTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 'Install dependencies', 10);
+  assertStepTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 'Check tracked files for secrets', 5);
   assertStepTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 'Audit npm dependencies', 10);
   assertStepTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 'Install cargo-audit', 10);
   assertStepTimeout(securityWorkflow, 'security.yml', 'dependency-audit', 'Audit Rust dependencies', 10);
