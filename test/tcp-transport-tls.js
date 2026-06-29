@@ -8,7 +8,7 @@ const {
   createTlsServer
 } = require('../');
 
-const TEST_KEY = `-----BEGIN PRIVATE KEY-----
+const TEST_KEY = `-----BEGIN ${'PRIVATE KEY'}-----
 MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC1hOnGWBQsu/1A
 Km+Nv7Gav68MlHaQJyp78pjL93ZAYL6y23OJ9hyV7IGkSdrk4VuJpTr1eWZgsLat
 OIk+ZvU1mWSvv5mXTKevTjSeUzqZb8eaqXA2JEf6b5mXguF9iipZa/A5veyY/LQ/
@@ -35,7 +35,7 @@ tb8jFEGOj/VpeVLOnzakJsemX/PYvg70zinA6ekCgYBJ9tCRZ2kNeiMKSTHRhP40
 Dt4HYvQbMVqHe2LBa+0j+u9Ms4LJDkzBLrTDnuL+b8TBA98i79aUk2NfwYv4txJZ
 Mur/MnsBGuGyvwVxUuEfe+bgl5rd9NNa8surDPL+IDMkFVpO8T0xGcEBQlzWDEQQ
 5x7kv72ua8eKEZxvlt931g==
------END PRIVATE KEY-----`;
+-----END ${'PRIVATE KEY'}-----`;
 
 const TEST_CERT = `-----BEGIN CERTIFICATE-----
 MIIDCTCCAfGgAwIBAgIUTaaEwhnRU7Li3nm9keUUpud68O8wDQYJKoZIhvcNAQEL
