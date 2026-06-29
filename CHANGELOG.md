@@ -11,6 +11,9 @@ may adjust APIs, defaults, or packaging.
 - Added a post-publish `main-health` check that verifies the lockfile can
   install with optional native packages enabled, matching normal production
   installs after a version is published.
+- Expanded the registry install smoke so release verification checks the
+  published CJS/ESM entrypoints, subpath exports, CLI diagnostics, and TCP
+  roundtrip from the npm-installed package.
 
 ## 0.2.30 - 2026-06-29
 
