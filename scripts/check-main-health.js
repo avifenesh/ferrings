@@ -2,6 +2,7 @@
 
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
+const { runtimeSupport } = require('./node-runtime');
 
 const repoRoot = path.resolve(__dirname, '..');
 const rootPackage = require(path.join(repoRoot, 'package.json'));
@@ -28,6 +29,14 @@ addCommandCheck({
   command: process.execPath,
   args: ['scripts/check-package-metadata.js'],
   success: 'metadata versions and links ok'
+});
+
+checks.push({
+  name: 'supported Node.js runtime',
+  run: () => {
+    const support = runtimeSupport(rootPackage);
+    return support.ok ? pass(support.detail) : fail(support.detail);
+  }
 });
 
 addCommandCheck({

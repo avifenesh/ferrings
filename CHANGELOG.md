@@ -14,6 +14,9 @@ may adjust APIs, defaults, or packaging.
 - Expanded the registry install smoke so release verification checks the
   published CJS/ESM entrypoints, subpath exports, CLI diagnostics, and TCP
   roundtrip from the npm-installed package.
+- Added Node 26 version-manager pins and an early `main-health` runtime check
+  so unsupported Node lines fail with a clear message before install smoke
+  checks.
 
 ## 0.2.30 - 2026-06-29
 

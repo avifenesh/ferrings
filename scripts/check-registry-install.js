@@ -5,6 +5,7 @@ const { spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { runtimeSupport } = require('./node-runtime');
 
 const repoRoot = path.resolve(__dirname, '..');
 const rootPackage = require(path.join(repoRoot, 'package.json'));
@@ -366,28 +367,12 @@ function detectNativeTarget() {
 }
 
 function assertSupportedNodeRuntime() {
-  const engineRange = rootPackage.engines?.node;
-  const supportedMajors = supportedNodeMajors(engineRange);
-  if (supportedMajors.length === 0) return;
-  const currentMajor = Number.parseInt(process.versions.node.split('.')[0], 10);
-  if (supportedMajors.includes(currentMajor)) return;
+  const support = runtimeSupport(rootPackage);
+  if (support.ok) return;
   throw new Error(
-    `registry install smoke must run on a supported Node.js major (${engineRange}); ` +
-      `current runtime is ${process.version}. npm may skip optional native packages when engines do not match.`
+    `registry install smoke must run on a supported Node.js major. ${support.detail} ` +
+      'npm may skip optional native packages when engines do not match.'
   );
-}
-
-function supportedNodeMajors(engineRange) {
-  if (typeof engineRange !== 'string') return [];
-  const majors = [];
-  for (const match of engineRange.matchAll(/>=\s*(\d+)\s*<\s*(\d+)/g)) {
-    const min = Number.parseInt(match[1], 10);
-    const max = Number.parseInt(match[2], 10);
-    if (Number.isInteger(min) && max === min + 1) {
-      majors.push(min);
-    }
-  }
-  return [...new Set(majors)];
 }
 
 function run(command, commandArgs, options = {}) {

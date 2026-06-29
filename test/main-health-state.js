@@ -124,6 +124,7 @@ try {
   assert.equal(published.statusCode, 0);
   assert.equal(published.report.status, 'healthy-post-release');
   assert.equal(check(published.report, 'npm publication state').ok, true);
+  assert.equal(check(published.report, 'supported Node.js runtime').ok, true);
   assert.equal(
     check(published.report, 'published package verification or publish dry-run').ok,
     true

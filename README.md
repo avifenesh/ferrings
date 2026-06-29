@@ -79,6 +79,8 @@ Supported runtime targets:
 
 CI tests Node 22, 24, and 26 on Linux. Per the [Node.js release schedule](https://nodejs.org/en/about/previous-releases), Node 26 is Current, Node 24 and 22 are LTS, and Node 20 is EOL.
 
+For local development, the repository pins Node 26 through `.nvmrc` and `.node-version`.
+
 The root package installs the matching optional native package for the current Linux target:
 
 - `ferrings-linux-x64-gnu`

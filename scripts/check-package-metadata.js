@@ -13,7 +13,10 @@ const nativeLoader = fs.readFileSync(path.join(repoRoot, 'native.js'), 'utf8');
 const readme = fs.readFileSync(path.join(repoRoot, 'README.md'), 'utf8');
 const cliBin = fs.readFileSync(path.join(repoRoot, 'bin', 'ferrings.js'), 'utf8');
 const changelog = fs.readFileSync(path.join(repoRoot, 'CHANGELOG.md'), 'utf8');
+const nvmrc = fs.readFileSync(path.join(repoRoot, '.nvmrc'), 'utf8').trim();
+const nodeVersion = fs.readFileSync(path.join(repoRoot, '.node-version'), 'utf8').trim();
 const SUPPORTED_NODE_ENGINES = '>=22 <23 || >=24 <25 || >=26 <27';
+const DEVELOPMENT_NODE_MAJOR = '26';
 
 const cargoVersion = matchVersion(cargoToml, /^version = "([^"]+)"/m, 'Cargo.toml package version');
 const unsafeOpLint = matchVersion(
@@ -41,6 +44,12 @@ assert.deepEqual(
   rootPackage.engines,
   { node: SUPPORTED_NODE_ENGINES },
   'root package engines must match tested supported Node release lines'
+);
+assert.equal(nvmrc, DEVELOPMENT_NODE_MAJOR, '.nvmrc must pin the development Node major');
+assert.equal(
+  nodeVersion,
+  DEVELOPMENT_NODE_MAJOR,
+  '.node-version must pin the development Node major'
 );
 assertExportsSurface(rootPackage);
 assert.equal(rootPackage.homepage, `${repositoryHttpUrl(rootPackage.repository.url)}#readme`);
@@ -203,6 +212,11 @@ function assertReadmeNodeSupport(content) {
     content,
     /\bNode 20, 23, and 25 are EOL and not supported\b/,
     'README must not imply EOL odd-numbered Node releases are supported'
+  );
+  assert.match(
+    content,
+    /pins Node 26 through `\.nvmrc` and `\.node-version`/,
+    'README must document the local development Node pin'
   );
 }
 
