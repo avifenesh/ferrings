@@ -70,6 +70,7 @@ const server: IoUringTcpTransportServer = createTcpServer(
 server.on('connection', (connection) => connection.write('hello'));
 server.on('data', (connection, data) => {
   connection.write(data);
+  server.sendBatch([{ connection, data }]);
 });
 server.on('connectionClose', (connection) => {
   const destroyed: boolean = connection.destroyed;

@@ -6,12 +6,32 @@ function createTcpTransportExports(UringTcpServer) {
   class IoUringTcpConnection extends EventEmitter {
     constructor(server, event) {
       super();
-      this.id = event.connectionId;
-      this.remoteAddress = event.remoteAddress || event.remoteAddr;
-      this.remoteFamily = event.remoteFamily;
-      this.remotePort = event.remotePort;
-      this.destroyed = false;
-      this._server = server;
+      Object.defineProperties(this, {
+        id: {
+          value: event.connectionId,
+          enumerable: true
+        },
+        remoteAddress: {
+          value: event.remoteAddress || event.remoteAddr,
+          enumerable: true
+        },
+        remoteFamily: {
+          value: event.remoteFamily,
+          enumerable: true
+        },
+        remotePort: {
+          value: event.remotePort,
+          enumerable: true
+        },
+        destroyed: {
+          value: false,
+          writable: true,
+          enumerable: true
+        },
+        _server: {
+          value: server
+        }
+      });
     }
 
     write(data) {
@@ -46,6 +66,16 @@ function createTcpTransportExports(UringTcpServer) {
         connectionListener = options;
         options = undefined;
       }
+      if (options !== undefined && options !== null && !isPlainObject(options)) {
+        throw new TypeError('options must be an object');
+      }
+      if (
+        connectionListener !== undefined &&
+        connectionListener !== null &&
+        typeof connectionListener !== 'function'
+      ) {
+        throw new TypeError('connectionListener must be a function');
+      }
       this._baseOptions = options ? { ...options } : {};
       this._native = null;
       this._connections = new Map();
@@ -62,45 +92,109 @@ function createTcpTransportExports(UringTcpServer) {
       if (this._info) {
         throw new Error('server is already running');
       }
-      const { options, callback } = parseListenArgs(this._baseOptions, args);
-      this._native = new UringTcpServer(options);
-      const info = this._native.startBatch((events) => {
-        for (const event of events) {
-          this._handleEvent(event);
-        }
-      });
-      this._info = info;
-      this._closed = false;
-      this._ensureKeepAlive();
-      if (callback) callback(info);
-      this.emit('listening', info);
-      return info;
+      const { options, callback } = parseStartArgs(this._baseOptions, args);
+      return this._startWithOptions(options, callback);
     }
 
     listen(...args) {
-      this.start(...args);
+      if (this._info) {
+        throw new Error('server is already running');
+      }
+      const { options, callback } = parseListenArgs(this._baseOptions, args);
+      this._startWithOptions(options, callback);
       return this;
     }
 
+    _startWithOptions(options, callback) {
+      if (this._info) {
+        throw new Error('server is already running');
+      }
+      this._native = new UringTcpServer(options);
+      let info;
+      try {
+        info = this._native.startBatch((events) => {
+          this._handleNativeEvents(events);
+        });
+      } catch (error) {
+        const native = this._native;
+        this._native = null;
+        this._info = null;
+        this._closed = true;
+        this._clearKeepAlive();
+        if (native && typeof native.stop === 'function') {
+          try {
+            native.stop();
+          } catch {}
+        }
+        throw error;
+      }
+      this._info = info;
+      this._closed = false;
+      this._ensureKeepAlive();
+      try {
+        if (callback) callback(info);
+        this.emit('listening', info);
+      } catch (error) {
+        try {
+          this.close();
+        } catch (closeError) {
+          attachCause(error, closeError);
+        }
+        throw error;
+      }
+      return info;
+    }
+
     close(callback) {
+      if (callback !== undefined && callback !== null && typeof callback !== 'function') {
+        throw new TypeError('callback must be a function');
+      }
       if (this._closed) {
         if (callback) callback();
         return this;
       }
       this._closed = true;
-      for (const connection of this._connections.values()) {
-        connection.destroyed = true;
-        connection.emit('close');
-      }
+      const connections = [...this._connections.values()];
       this._connections.clear();
-      if (this._native) {
-        this._native.stop();
-      }
+      const native = this._native;
       this._native = null;
-      this._clearKeepAlive();
       this._info = null;
-      if (callback) callback();
-      this.emit('close');
+      this._clearKeepAlive();
+
+      let stopError;
+      if (native) {
+        try {
+          native.stop();
+        } catch (error) {
+          stopError = error;
+        }
+      }
+
+      let closeError = stopError;
+      for (const connection of connections) {
+        connection.destroyed = true;
+        try {
+          connection.emit('close');
+        } catch (error) {
+          if (!closeError) closeError = error;
+        }
+      }
+
+      if (callback) {
+        try {
+          callback();
+        } catch (error) {
+          if (!closeError) closeError = error;
+        }
+      }
+      try {
+        this.emit('close');
+      } catch (error) {
+        if (!closeError) closeError = error;
+      }
+      if (closeError) {
+        throw closeError;
+      }
       return this;
     }
 
@@ -137,12 +231,14 @@ function createTcpTransportExports(UringTcpServer) {
     }
 
     sendBatch(sends) {
-      const batch = normalizeBatchSends(sends);
+      const batch = normalizeBatchSends(sends, this);
+      if (batch.hasDestroyedConnection) return false;
       return this._native ? this._native.sendBatch(batch.sends) : false;
     }
 
     sendBatchAndClose(sends) {
-      const batch = normalizeBatchSends(sends);
+      const batch = normalizeBatchSends(sends, this);
+      if (batch.hasDestroyedConnection) return false;
       if (!this._native) return false;
       const accepted = this._native.sendBatchAndClose(batch.sends);
       if (accepted) {
@@ -170,33 +266,59 @@ function createTcpTransportExports(UringTcpServer) {
     }
 
     _handleEvent(event) {
+      if (this._closed) return;
+      const errors = [];
+
       if (event.eventType === 'connect') {
+        const existingConnection = this._connections.get(event.connectionId);
+        if (existingConnection) {
+          this._connections.delete(existingConnection.id);
+          existingConnection.destroyed = true;
+          emitCapturing(errors, existingConnection, 'close');
+          emitCapturing(errors, this, 'connectionClose', existingConnection);
+        }
         const connection = new IoUringTcpConnection(this, event);
         this._connections.set(connection.id, connection);
-        this.emit('connection', connection);
+        emitCapturing(errors, this, 'connection', connection);
+        throwCaptured(errors);
         return;
       }
 
-      const connection = this._connectionFor(event);
+      const connection = this._connectionFor(event, errors);
       if (!connection) return;
 
       if (event.eventType === 'data') {
-        connection.emit('data', event.data);
-        this.emit('data', connection, event.data);
+        emitCapturing(errors, connection, 'data', event.data);
+        emitCapturing(errors, this, 'data', connection, event.data);
       } else if (event.eventType === 'close') {
         this._connections.delete(connection.id);
         connection.destroyed = true;
-        connection.emit('close');
-        this.emit('connectionClose', connection);
+        emitCapturing(errors, connection, 'close');
+        emitCapturing(errors, this, 'connectionClose', connection);
+      }
+      throwCaptured(errors);
+    }
+
+    _handleNativeEvents(events) {
+      let firstError;
+      for (const event of events) {
+        try {
+          this._handleEvent(event);
+        } catch (error) {
+          if (!firstError) firstError = error;
+        }
+      }
+      if (firstError) {
+        throw firstError;
       }
     }
 
-    _connectionFor(event) {
+    _connectionFor(event, errors) {
       let connection = this._connections.get(event.connectionId);
       if (!connection && event.eventType === 'data') {
         connection = new IoUringTcpConnection(this, event);
         this._connections.set(connection.id, connection);
-        this.emit('connection', connection);
+        emitCapturing(errors, this, 'connection', connection);
       }
       return connection;
     }
@@ -242,6 +364,33 @@ function createTcpTransportExports(UringTcpServer) {
   };
 }
 
+function parseStartArgs(baseOptions, args) {
+  const options = { ...baseOptions };
+  const values = [...args];
+  let callback;
+
+  if (values.length > 2) {
+    throw new TypeError('start accepts at most options and callback arguments');
+  }
+  if (values.length > 1) {
+    callback = values.pop();
+    if (callback !== undefined && callback !== null && typeof callback !== 'function') {
+      throw new TypeError('callback must be a function');
+    }
+  } else if (typeof values[0] === 'function') {
+    callback = values.pop();
+  }
+
+  if (values.length === 0 || values[0] === undefined || values[0] === null) {
+    return { options: normalizeListenOptions(options), callback };
+  }
+  if (!isPlainObject(values[0])) {
+    throw new TypeError('start options must be an object');
+  }
+  Object.assign(options, values[0]);
+  return { options: normalizeListenOptions(options), callback };
+}
+
 function parseListenArgs(baseOptions, args) {
   const options = { ...baseOptions };
   let callback;
@@ -249,8 +398,16 @@ function parseListenArgs(baseOptions, args) {
   if (typeof values[values.length - 1] === 'function') {
     callback = values.pop();
   }
-
-  if (values.length === 1 && isPlainObject(values[0])) {
+  if (values.length > 3) {
+    throw new TypeError('listen accepts at most port, host, and backlog arguments');
+  }
+  if (values.length > 0 && values[0] !== null && typeof values[0] === 'object') {
+    if (!isPlainObject(values[0])) {
+      throw new TypeError('listen options must be an object');
+    }
+    if (values.length > 1) {
+      throw new TypeError('listen options object cannot be combined with positional arguments');
+    }
     Object.assign(options, values[0]);
     return { options: normalizeListenOptions(options), callback };
   }
@@ -275,7 +432,32 @@ function parseListenArgs(baseOptions, args) {
 }
 
 function isPlainObject(value) {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function attachCause(error, cause) {
+  if (!error || typeof error !== 'object' || error.cause !== undefined) return;
+  try {
+    error.cause = cause;
+  } catch {}
+}
+
+function emitCapturing(errors, emitter, eventName, ...args) {
+  try {
+    emitter.emit(eventName, ...args);
+  } catch (error) {
+    errors.push(error);
+  }
+}
+
+function throwCaptured(errors) {
+  if (errors.length > 0) {
+    throw errors[0];
+  }
 }
 
 function normalizeListenOptions(options) {
@@ -322,18 +504,30 @@ function numberOption(name, value) {
   throw new TypeError(`${name} must be a number`);
 }
 
-function normalizeBatchSends(sends) {
+function normalizeBatchSends(sends, server) {
   if (!Array.isArray(sends)) {
     throw new TypeError('sends must be an array');
   }
 
   const connections = [];
-  const normalized = sends.map((send) => {
+  let hasDestroyedConnection = false;
+  const entries = sends.map((send) => {
     if (!isPlainObject(send)) {
       throw new TypeError('each send must be an object');
     }
 
     const connection = send.connection;
+    if (connection !== undefined && connection !== null) {
+      if (send.connectionId !== undefined && send.connectionId !== null) {
+        throw new TypeError('send must include either connection or connectionId, not both');
+      }
+      if (typeof connection !== 'object' || connection._server !== server) {
+        throw new TypeError('send connection must belong to this server');
+      }
+      if (connection.destroyed) {
+        hasDestroyedConnection = true;
+      }
+    }
     const connectionId =
       send.connectionId !== undefined && send.connectionId !== null
         ? send.connectionId
@@ -341,9 +535,28 @@ function normalizeBatchSends(sends) {
     if (!Number.isInteger(connectionId) || connectionId < 0 || connectionId > 0xffffffff) {
       throw new RangeError('send connectionId must be a uint32');
     }
-    if (connection && typeof connection === 'object') {
-      connections.push(connection);
+    const trackedConnection = connection || server._connections.get(connectionId);
+    if (trackedConnection && trackedConnection.destroyed) {
+      hasDestroyedConnection = true;
     }
+    if (trackedConnection) {
+      connections.push(trackedConnection);
+    }
+    return {
+      send,
+      connectionId
+    };
+  });
+
+  if (hasDestroyedConnection) {
+    return {
+      sends: [],
+      connections,
+      hasDestroyedConnection
+    };
+  }
+
+  const normalized = entries.map(({ send, connectionId }) => {
     return {
       connectionId,
       data: toBuffer(send.data)
@@ -352,7 +565,8 @@ function normalizeBatchSends(sends) {
 
   return {
     sends: normalized,
-    connections
+    connections,
+    hasDestroyedConnection
   };
 }
 

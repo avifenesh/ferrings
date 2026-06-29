@@ -8,6 +8,48 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.44 - 2026-06-29
+
+- Rewrote the README opening to present ferrings as a usable Linux Node
+  transport, keep benchmark results in the first screen and as the first
+  top-level section, and describe ZCRX as an optional receive fast path rather
+  than the default story.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.44` results on
+  Node 26 using 5,000 completed requests per case.
+- Hardened TCP facade native event delivery so throwing connection/data/close
+  listeners do not prevent server-level event emission, connection cleanup, or
+  later events already delivered in the same native batch; the first listener
+  error is still rethrown to preserve visible failure semantics.
+- Closed and emitted close events for any tracked facade connection replaced by
+  a duplicate native connect event before installing the new connection object.
+- Hardened TCP facade lifecycle cleanup by ignoring late native event batches
+  after `server.close()` and keeping internal state clean across native startup
+  failures, throwing startup callbacks/listeners, native stop failures, and
+  throwing connection-close listeners while still completing server close
+  callbacks/events.
+- Rejected invalid `server.close()` callbacks before stopping the native server
+  so caller argument errors do not partially close a running facade.
+- Aligned the facade `start()` runtime contract with its TypeScript overloads:
+  `start()` now accepts only options and callback arguments, while Node-style
+  port/host/backlog overloads remain on `listen()`.
+- Guarded facade batch sends so connection objects must belong to the target
+  server and destroyed connection objects cannot bypass `connection.write()`
+  liveness checks or force payload conversion, with runtime validation matching
+  the typed connection-or-connectionId union.
+- Made facade batch sends by `connectionId` respect known local connection
+  liveness and mark tracked connections destroyed when
+  `sendBatchAndClose([{ connectionId }])` is accepted.
+- Made facade connection identity fields immutable at runtime and kept the
+  internal server owner reference non-enumerable and non-writable.
+- Rejected unsupported extra `listen()` arguments instead of silently ignoring
+  values outside the documented overloads, and rejected object-options calls
+  combined with positional host/backlog arguments.
+- Rejected invalid `createTcpServer()` constructor options and non-function
+  connection listeners before they can be treated as empty defaults.
+- Rejected non-record facade option and batch-send objects such as buffers,
+  dates, arrays, and class instances while continuing to accept plain and
+  `Object.create(null)` option records.
+
 ## 0.2.43 - 2026-06-29
 
 - Widened live `ServerInfo` runtime counters from 32-bit reported values to

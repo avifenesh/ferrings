@@ -6,39 +6,39 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services: a typed CommonJS/ESM package with Linux `x64`/`arm64` native binaries and a familiar TCP facade over a Rust/NAPI worker.
+`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services: a typed CommonJS/ESM npm package with Linux `x64`/`arm64` native binaries, a Node-style TCP facade, and lower-level raw/batched event APIs over a Rust/NAPI worker.
 
-**Benchmark snapshot (`ferrings@0.2.43`, Node `v26.4.0`):** **2.33x** Node `http` throughput, **2.39x** Node `net` throughput on the native TCP path, **1.96x** through the Node-style facade, **2.01x** with facade batch sends, and **37-59% fewer server syscalls per completed connection** on the same host.
+Use ferrings in Linux Node services where the socket path is hot: accept, receive, send, shutdown, buffer ownership, and event batching run on a native `io_uring` worker while your application keeps ordinary JavaScript callbacks when you want them.
+
+**Benchmark snapshot (`ferrings@0.2.44`, Node `v26.4.0`):** **2.64x** Node `http` throughput, **2.29x** Node `net` throughput on the native TCP path, **1.91x** through the Node-style facade, **1.93x** with facade batch sends, and **37-62% fewer server syscalls per completed connection** on the same host.
 
 Install: `npm install ferrings`
 
-Use it as a real TCP transport today: npm installs the matching native package for Linux `x64`/`arm64`, the public API supports CommonJS and ESM, the Node-style facade keeps application code familiar, and the CLI reports whether the host can run the default `io_uring` path. ZCRX is available as a separately gated receive fast path; it is not required for the benchmarked default path.
-
 ## Benchmarks
 
-`ferrings@0.2.43` on Node `v26.4.0` reached **2.33x** Node `http` throughput, **2.39x** Node `net` throughput on the native TCP path, **1.96x** throughput through the Node-style TCP facade, **2.01x** with facade batch sends, and **37-59% fewer server syscalls per completed connection** on the same host.
+`ferrings@0.2.44` on Node `v26.4.0` reached **2.64x** Node `http` throughput, **2.29x** Node `net` throughput on the native TCP path, **1.91x** throughput through the Node-style TCP facade, **1.93x** with facade batch sends, and **37-62% fewer server syscalls per completed connection** on the same host.
 
-These are default-transport results: multishot accept/recv plus provided buffer rings, with ZCRX disabled. They do not require specialized NIC receive support.
+Benchmarks are first because this package exists to remove measurable overhead from high-concurrency Node networking. These are default-transport results: multishot accept/recv plus provided buffer rings, with ZCRX disabled. They do not require specialized NIC receive support.
 
-Measured on 2026-06-29 with `ferrings@0.2.43`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, 5,000 completed requests per case, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; rerun this on the machine class you plan to deploy.
+Measured on 2026-06-29 with `ferrings@0.2.44`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, 5,000 completed requests per case, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; rerun this on the machine class you plan to deploy.
 
 | Workload | Baseline | ferrings path | Baseline req/s | ferrings req/s | Result |
 | --- | --- | --- | ---: | ---: | --- |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | 7,094 | 16,563 | **2.33x throughput**, **64% lower p50**, **48% lower p99**, **59% fewer syscalls/conn** |
-| TCP echo | Node `net` | native echo worker | 8,458 | 20,208 | **2.39x throughput**, **60% lower p50**, **64% lower p95**, **54% fewer syscalls/conn** |
-| TCP echo | Node `net` | Node-style TCP facade | 8,458 | 16,569 | **1.96x throughput**, **52% lower p50**, **54% lower p95**, **37% fewer syscalls/conn** |
-| TCP echo | Node `net` | facade batch send | 8,458 | 17,016 | **2.01x throughput**, **54% lower p50**, **57% lower p95**, **37% fewer syscalls/conn** |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | 7,863 | 20,768 | **2.64x throughput**, **67% lower p50**, **52% lower p99**, **62% fewer syscalls/conn** |
+| TCP echo | Node `net` | native echo worker | 9,586 | 21,959 | **2.29x throughput**, **58% lower p50**, **63% lower p95**, **55% fewer syscalls/conn** |
+| TCP echo | Node `net` | Node-style TCP facade | 9,586 | 18,338 | **1.91x throughput**, **50% lower p50**, **46% lower p95**, **37% fewer syscalls/conn** |
+| TCP echo | Node `net` | facade batch send | 9,586 | 18,495 | **1.93x throughput**, **52% lower p50**, **50% lower p95**, **37% fewer syscalls/conn** |
 
 Detailed latency and syscall data from the same run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 7,094 | 7.895 | 13.175 | 35.560 | 9.715 | libuv/epoll |
-| ferrings HTTP | 16,563 | 2.805 | 7.273 | 18.531 | 3.942 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 8,458 | 7.032 | 12.044 | 14.240 | 9.486 | libuv/epoll |
-| ferrings native TCP echo | 20,208 | 2.825 | 4.281 | 14.653 | 4.321 | native echo worker + provided buffers |
-| ferrings TCP facade | 16,569 | 3.350 | 5.587 | 18.181 | 5.973 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 17,016 | 3.265 | 5.205 | 16.245 | 5.984 | JS facade + batched native events/sends |
+| Node `http` | 7,863 | 7.269 | 12.250 | 37.608 | 9.700 | libuv/epoll |
+| ferrings HTTP | 20,768 | 2.422 | 5.207 | 18.075 | 3.711 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 9,586 | 6.269 | 9.522 | 12.591 | 9.508 | libuv/epoll |
+| ferrings native TCP echo | 21,959 | 2.639 | 3.515 | 14.943 | 4.323 | native echo worker + provided buffers |
+| ferrings TCP facade | 18,338 | 3.110 | 5.156 | 14.792 | 6.009 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 18,495 | 3.028 | 4.770 | 17.087 | 6.010 | JS facade + batched native events/sends |
 
 The ferrings server info for this run reported `multishotAccept: true`, `multishotRecv: true`, `providedBufferRing: true`, and `zeroCopyReceive: false`.
 
@@ -47,11 +47,11 @@ Reproduce the README run:
 ```bash
 REQUESTS=5000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.43-5000.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.44-5000.json \
 npm run bench:syscalls
 ```
 
-Watch throughput, server syscalls per completed connection, and tail latency together. In this loopback run ferrings improved TCP p50/p95 across the listed TCP paths while TCP p99 was higher than the Node `net` baseline. Payload size, kernel, NIC path, CPU governor, queue settings, and JavaScript callback work can change that balance.
+Watch throughput, server syscalls per completed connection, and tail latency together. In this one-host loopback run ferrings improved TCP p50/p95 across the listed TCP paths while TCP p99 was higher than the Node `net` baseline. Payload size, kernel, NIC path, CPU governor, queue settings, and JavaScript callback work can change that balance.
 
 ## Where It Fits
 
@@ -59,7 +59,7 @@ Watch throughput, server syscalls per completed connection, and tail latency tog
 - Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
 - Use raw or batched TCP events when the hot path can work with connection IDs and fewer JavaScript objects.
 - Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework would be unnecessary weight.
-- Keep ZCRX behind the built-in readiness checks on hosts where the kernel, NIC, queue setup, permissions, and traffic route support it.
+- Keep ZCRX as an optional receive fast path on hosts where the kernel, NIC, queue setup, permissions, and traffic route support it.
 
 ## Installation
 
