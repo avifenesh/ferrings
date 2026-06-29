@@ -852,7 +852,7 @@ fn validate_nonzero_u32_option(
         Some(raw) if !raw.is_finite() || raw.fract() != 0.0 || raw < 0.0 => {
             Err(format!("{name} must be an integer between 1 and {}", u32::MAX).into())
         }
-        Some(raw) if raw == 0.0 => Err(zero_message.to_string().into()),
+        Some(0.0) => Err(zero_message.to_string().into()),
         Some(raw) if raw > u32::MAX as f64 => {
             Err(format!("{name} must be an integer between 1 and {}", u32::MAX).into())
         }
