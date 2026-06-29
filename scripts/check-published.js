@@ -117,8 +117,9 @@ function runChecks() {
     verifyRootPackage(root, errors);
     verified.push(rootPackage.name);
     if (verifyTarballs) {
-      verifyRootTarball(errors);
-      verifiedTarballs.push(rootPackage.name);
+      if (verifyRootTarball(root, errors)) {
+        verifiedTarballs.push(rootPackage.name);
+      }
     }
   }
 
@@ -140,8 +141,9 @@ function runChecks() {
     verifyNativePackage(published, target, errors);
     verified.push(target.package);
     if (verifyTarballs) {
-      verifyNativeTarball(target, errors);
-      verifiedTarballs.push(target.package);
+      if (verifyNativeTarball(published, target, errors)) {
+        verifiedTarballs.push(target.package);
+      }
     }
   }
 
@@ -204,13 +206,13 @@ function verifyNativePackage(published, target, errors) {
   }
 }
 
-function verifyRootTarball(errors) {
-  const pack = npmPackPackage(rootPackage.name, errors);
-  if (!pack) return;
+function verifyRootTarball(published, errors) {
+  const pack = npmPackPackage(rootPackage.name, published, errors);
+  if (!pack) return false;
   expectEqual(pack, 'name', rootPackage.name, errors);
   expectEqual(pack, 'version', version, errors);
   const files = packFileSet(pack, rootPackage.name, errors);
-  if (!files) return;
+  if (!files) return false;
 
   for (const filePath of [
     'package.json',
@@ -252,21 +254,23 @@ function verifyRootTarball(errors) {
   for (const filePath of ['src/lib.rs', 'src/uring.rs', 'test/smoke.js']) {
     expectNoFile(files, rootPackage.name, filePath, errors);
   }
+  return true;
 }
 
-function verifyNativeTarball(target, errors) {
-  const pack = npmPackPackage(target.package, errors);
-  if (!pack) return;
+function verifyNativeTarball(published, target, errors) {
+  const pack = npmPackPackage(target.package, published, errors);
+  if (!pack) return false;
   expectEqual(pack, 'name', target.package, errors);
   expectEqual(pack, 'version', version, errors);
   const files = packFileSet(pack, target.package, errors);
-  if (!files) return;
+  if (!files) return false;
 
   for (const filePath of ['package.json', target.main, 'LICENSE-APACHE', 'LICENSE-MIT']) {
     expectFile(files, target.package, filePath, errors);
   }
   expectNoFile(files, target.package, 'README.md', errors);
   expectNoFile(files, target.package, 'src/uring.rs', errors);
+  return true;
 }
 
 function nativePackageExports(target) {
@@ -302,12 +306,17 @@ function npmView(viewArgs) {
   });
 }
 
-function npmPackPackage(name, errors) {
+function npmPackPackage(name, published, errors) {
+  const tarballUrl = fieldValue(published, 'dist.tarball');
+  if (typeof tarballUrl !== 'string' || tarballUrl.length === 0) {
+    errors.push(`${name}@${version} dist.tarball is missing`);
+    return null;
+  }
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ferrings-published-pack-'));
   try {
     const result = spawnSync(
       'npm',
-      ['pack', `${name}@${version}`, '--json', '--pack-destination', tmpDir],
+      ['pack', tarballUrl, '--json', '--pack-destination', tmpDir],
       {
         cwd: repoRoot,
         encoding: 'utf8',
@@ -315,7 +324,9 @@ function npmPackPackage(name, errors) {
       }
     );
     if (result.status !== 0) {
-      errors.push(`${name}@${version} tarball could not be packed: ${npmFailure(result)}`);
+      errors.push(
+        `${name}@${version} tarball ${tarballUrl} could not be packed: ${npmFailure(result)}`
+      );
       return null;
     }
     const packs = parseJson(result.stdout, `${name}@${version} npm pack output`, errors);

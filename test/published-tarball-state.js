@@ -86,7 +86,12 @@ fs.writeFileSync(
     }
 
     function npmPack(args) {
-      const [name] = String(args[0]).split('@').filter(Boolean);
+      const spec = String(args[0]);
+      if (!spec.startsWith('https://registry.npmjs.org/')) {
+        return done(1, '', 'name-based npm pack should not be used for published tarball verification\\n');
+      }
+      const filename = spec.split('/').pop() || '';
+      const name = filename.replace(/-\\d+\\.\\d+\\.\\d+.*$/, '');
       if (name === rootPackage.name) {
         return done(0, JSON.stringify([rootPack()]) + '\\n');
       }
@@ -117,7 +122,7 @@ fs.writeFileSync(
         repository: rootPackage.repository,
         homepage: rootPackage.homepage,
         bugs: rootPackage.bugs,
-        dist: dist()
+        dist: dist(rootPackage.name)
       };
     }
 
@@ -140,14 +145,14 @@ fs.writeFileSync(
         repository: rootPackage.repository,
         homepage: rootPackage.homepage,
         bugs: rootPackage.bugs,
-        dist: dist()
+        dist: dist(target.package)
       };
     }
 
-    function dist() {
+    function dist(packageName) {
       return {
         integrity: 'sha512-test',
-        tarball: 'https://registry.npmjs.org/ferrings/-/ferrings.tgz',
+        tarball: 'https://registry.npmjs.org/' + packageName + '/-/' + packageName + '-' + rootPackage.version + '.tgz',
         attestations: {
           url: 'https://registry.npmjs.org/-/npm/v1/attestations/ferrings',
           provenance: { predicateType: 'https://slsa.dev/provenance/v1' }
