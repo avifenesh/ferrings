@@ -155,10 +155,10 @@ try {
   assert.match(check(conflict, 'npm publish dry-run').detail, /skipped because/);
 
   const missingZcrxInterface = runScenario('available', { args: ['--require-zcrx'] });
-  assert.equal(check(missingZcrxInterface, 'ZCRX hardware receive proof').ok, false);
-  assert.equal(check(missingZcrxInterface, 'ZCRX hardware receive proof').hardFail, true);
+  assert.equal(check(missingZcrxInterface, 'ZCRX hardware receive validation').ok, false);
+  assert.equal(check(missingZcrxInterface, 'ZCRX hardware receive validation').hardFail, true);
   assert.match(
-    check(missingZcrxInterface, 'ZCRX hardware receive proof').detail,
+    check(missingZcrxInterface, 'ZCRX hardware receive validation').detail,
     /ZCRX_INTERFACE is not set/
   );
 
@@ -166,9 +166,9 @@ try {
     args: ['--require-zcrx'],
     env: { ZCRX_INTERFACE: 'eth0' }
   });
-  assert.equal(check(missingZcrxConnectHost, 'ZCRX hardware receive proof').ok, false);
+  assert.equal(check(missingZcrxConnectHost, 'ZCRX hardware receive validation').ok, false);
   assert.match(
-    check(missingZcrxConnectHost, 'ZCRX hardware receive proof').detail,
+    check(missingZcrxConnectHost, 'ZCRX hardware receive validation').detail,
     /ZCRX_CONNECT_HOST is not set/
   );
 
@@ -176,9 +176,9 @@ try {
     args: ['--require-zcrx'],
     env: { ZCRX_INTERFACE: 'eth0', ZCRX_CONNECT_HOST: '127.0.0.1' }
   });
-  assert.equal(check(loopbackZcrxConnectHost, 'ZCRX hardware receive proof').ok, false);
+  assert.equal(check(loopbackZcrxConnectHost, 'ZCRX hardware receive validation').ok, false);
   assert.match(
-    check(loopbackZcrxConnectHost, 'ZCRX hardware receive proof').detail,
+    check(loopbackZcrxConnectHost, 'ZCRX hardware receive validation').detail,
     /loopback/
   );
 
@@ -190,9 +190,9 @@ try {
       FERRINGS_TEST_ZCRX_SMOKE_STATUS: 'fail'
     }
   });
-  assert.equal(check(failedZcrxSmoke, 'ZCRX hardware receive proof').ok, false);
+  assert.equal(check(failedZcrxSmoke, 'ZCRX hardware receive validation').ok, false);
   assert.match(
-    check(failedZcrxSmoke, 'ZCRX hardware receive proof').detail,
+    check(failedZcrxSmoke, 'ZCRX hardware receive validation').detail,
     /mock zcrx hardware smoke failed/
   );
 
@@ -200,9 +200,9 @@ try {
     args: ['--require-zcrx'],
     env: { ZCRX_INTERFACE: 'eth0', ZCRX_CONNECT_HOST: '192.0.2.10' }
   });
-  assert.equal(check(passedZcrxSmoke, 'ZCRX hardware receive proof').ok, true);
+  assert.equal(check(passedZcrxSmoke, 'ZCRX hardware receive validation').ok, true);
   assert.match(
-    check(passedZcrxSmoke, 'ZCRX hardware receive proof').detail,
+    check(passedZcrxSmoke, 'ZCRX hardware receive validation').detail,
     /zcrx hardware smoke ok/
   );
 

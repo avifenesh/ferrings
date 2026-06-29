@@ -56,9 +56,12 @@ assert.equal(
 );
 assertReadmePositioning(readme);
 assertNoExperimentalPublicFraming(readme, 'README');
+assertNoExperimentalPublicFraming(changelog, 'CHANGELOG');
 assertNoExperimentalPublicFraming(rootPackage.description || '', 'package description');
 assertNoExperimentalPublicFraming(cliBin, 'CLI help');
 assertNoProofyCliFraming(cliBin);
+assertNoLegacyQuickBenchmarkFraming(readme, changelog, rootPackage);
+assertBenchmarkPublicSurface(rootPackage);
 
 for (const [name, version] of Object.entries(rootPackage.optionalDependencies)) {
   assert.equal(version, rootPackage.version, `${name} must match root package version`);
@@ -137,5 +140,33 @@ function assertNoProofyCliFraming(content) {
     forbidden.test(content),
     false,
     'CLI help must describe validation or benchmarks, not proof-oriented framing'
+  );
+}
+
+function assertNoLegacyQuickBenchmarkFraming(readmeContent, changelogContent, packageJson) {
+  const joinedScripts = Object.values(packageJson.scripts || {}).join('\n');
+  const forbidden = /\bquick-proof\b/i;
+  assert.equal(
+    forbidden.test(`${readmeContent}\n${changelogContent}\n${joinedScripts}`),
+    false,
+    'public docs and package scripts must not use quick-proof naming'
+  );
+}
+
+function assertBenchmarkPublicSurface(packageJson) {
+  assert.equal(
+    packageJson.scripts?.['bench:quick'],
+    'node benchmark/quick-benchmark.js',
+    'bench:quick must run the benchmark-oriented public runner'
+  );
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, 'benchmark', 'quick-benchmark.js')),
+    true,
+    'benchmark/quick-benchmark.js must be shipped'
+  );
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, 'benchmark', 'quick-proof.js')),
+    false,
+    'benchmark/quick-proof.js must not be restored'
   );
 }

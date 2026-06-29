@@ -9,11 +9,11 @@ const path = require('node:path');
 const repoRoot = path.resolve(__dirname, '..');
 const reportPath = path.join(
   os.tmpdir(),
-  `ferrings-quick-proof-test-${process.pid}.json`
+  `ferrings-quick-benchmark-test-${process.pid}.json`
 );
 
 try {
-  const result = spawnSync(process.execPath, ['benchmark/quick-proof.js'], {
+  const result = spawnSync(process.execPath, ['benchmark/quick-benchmark.js'], {
     cwd: repoRoot,
     encoding: 'utf8',
     maxBuffer: 20 * 1024 * 1024,
@@ -35,11 +35,11 @@ try {
   assert.equal(
     result.status,
     0,
-    `quick-proof benchmark failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
+    `quick-benchmark benchmark failed\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`
   );
   assert.equal(fs.existsSync(reportPath), true);
   const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-  assert.equal(report.mode, 'quick-proof');
+  assert.equal(report.mode, 'quick-benchmark');
   assert.equal(report.status, 'passed');
   assert.equal(typeof report.capabilities.ioUringAvailable, 'boolean');
   assert.equal(report.results.length, 3);
@@ -82,7 +82,7 @@ try {
   assert.equal(report.summary.tcpNativeLatency.metric, 'p99Ms');
   assert.equal(report.summary.tcpFacadeLatency.metric, 'p99Ms');
   assert.equal(report.summary.tcpFacadeBatchLatency, null);
-  console.log('quick-proof benchmark smoke ok');
+  console.log('quick-benchmark benchmark smoke ok');
 } finally {
   fs.rmSync(reportPath, { force: true });
 }

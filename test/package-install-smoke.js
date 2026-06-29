@@ -73,7 +73,7 @@ try {
   assert.equal(packedFiles.has('tcp-transport.js'), true);
   assert.equal(packedFiles.has('zcrx-smoke.js'), true);
   assert.equal(packedFiles.has('bin/ferrings.js'), true);
-  assert.equal(packedFiles.has('benchmark/quick-proof.js'), true);
+  assert.equal(packedFiles.has('benchmark/quick-benchmark.js'), true);
   assert.equal(packedFiles.has('src/uring.rs'), false);
   assert.equal(packedFiles.has('test/smoke.js'), false);
 
@@ -243,8 +243,8 @@ try {
   assert.equal(cliSmokeReport.status, 'skipped');
   assert.match(cliSmokeReport.skippedReason, /ZCRX_INTERFACE|--interface/);
 
-  const installedBenchmarkReportPath = path.join(tmpRoot, 'installed-quick-proof.json');
-  run(process.execPath, [path.join(installedPackageDir, 'benchmark', 'quick-proof.js')], {
+  const installedBenchmarkReportPath = path.join(tmpRoot, 'installed-quick-benchmark.json');
+  run(process.execPath, [path.join(installedPackageDir, 'benchmark', 'quick-benchmark.js')], {
     cwd: appDir,
     env: {
       ...process.env,
@@ -263,7 +263,7 @@ try {
   const installedBenchmarkReport = JSON.parse(
     fs.readFileSync(installedBenchmarkReportPath, 'utf8')
   );
-  assert.equal(installedBenchmarkReport.mode, 'quick-proof');
+  assert.equal(installedBenchmarkReport.mode, 'quick-benchmark');
   assert.equal(installedBenchmarkReport.status, 'passed');
   assert.equal(typeof installedBenchmarkReport.capabilities.ioUringAvailable, 'boolean');
   assert.equal(installedBenchmarkReport.results.length, 3);

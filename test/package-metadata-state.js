@@ -12,6 +12,7 @@ const cargoTomlPath = path.join(repoRoot, 'Cargo.toml');
 const nativeLoaderPath = path.join(repoRoot, 'native.js');
 const readmePath = path.join(repoRoot, 'README.md');
 const cliPath = path.join(repoRoot, 'bin', 'ferrings.js');
+const changelogPath = path.join(repoRoot, 'CHANGELOG.md');
 
 const clean = runMetadataCheck();
 assert.equal(clean.status, 0, `expected clean metadata\nstdout:\n${clean.stdout}\nstderr:\n${clean.stderr}`);
@@ -28,6 +29,18 @@ try {
 } finally {
   fs.writeFileSync(packagePath, originalPackage);
 }
+
+try {
+  const packageJson = JSON.parse(originalPackage);
+  packageJson.scripts['bench:quick'] = 'node benchmark/quick-proof.js';
+  fs.writeFileSync(packagePath, `${JSON.stringify(packageJson, null, 2)}\n`);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail for legacy quick benchmark naming');
+  assert.match(stale.stderr, /public docs and package scripts must not use quick-proof naming/);
+} finally {
+  fs.writeFileSync(packagePath, originalPackage);
+}
+
 
 const original = fs.readFileSync(nativeLoaderPath, 'utf8');
 const staleVersion = rootPackage.version === '0.0.0' ? '0.0.1' : '0.0.0';
@@ -92,6 +105,23 @@ try {
   fs.writeFileSync(readmePath, originalReadme);
 }
 
+const originalChangelog = fs.readFileSync(changelogPath, 'utf8');
+const legacyBenchmarkChangelog = originalChangelog.replace('quick-benchmark', 'quick-proof');
+assert.notEqual(
+  legacyBenchmarkChangelog,
+  originalChangelog,
+  'CHANGELOG legacy quick benchmark mutation should apply'
+);
+
+try {
+  fs.writeFileSync(changelogPath, legacyBenchmarkChangelog);
+  const stale = runMetadataCheck();
+  assert.notEqual(stale.status, 0, 'metadata check should fail when public docs use quick-proof naming');
+  assert.match(stale.stderr, /public docs and package scripts must not use quick-proof naming/);
+} finally {
+  fs.writeFileSync(changelogPath, originalChangelog);
+}
+
 const originalCargoToml = fs.readFileSync(cargoTomlPath, 'utf8');
 const weakenedUnsafeLintCargoToml = originalCargoToml.replace(
   'unsafe_op_in_unsafe_fn = "deny"',
@@ -143,6 +173,16 @@ function assertNoLegacyFirstSlicePublicSurface() {
     fs.existsSync(path.join(repoRoot, 'test', 'first-slice-benchmark.js')),
     false,
     'test/first-slice-benchmark.js must not be restored'
+  );
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, 'benchmark', 'quick-proof.js')),
+    false,
+    'benchmark/quick-proof.js must not be restored'
+  );
+  assert.equal(
+    fs.existsSync(path.join(repoRoot, 'test', 'quick-proof-benchmark.js')),
+    false,
+    'test/quick-proof-benchmark.js must not be restored'
   );
 }
 

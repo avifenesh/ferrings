@@ -8,6 +8,11 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.17 - 2026-06-29
+
+- Renamed the packaged quick benchmark runner to `quick-benchmark`, and
+  extended metadata checks so public benchmark naming stays benchmark-oriented.
+
 ## 0.2.16 - 2026-06-29
 
 - Reworded the installed CLI help so ZCRX smoke is described as traffic
@@ -22,27 +27,27 @@ may adjust APIs, defaults, or packaging.
 ## 0.2.14 - 2026-06-29
 
 - Added release metadata guards that keep the README benchmark section first
-  and prevent public experiment/prototype framing from returning.
+  and prevent public preview framing from returning.
 - Added a Rust lint policy that denies `unsafe_op_in_unsafe_fn`, with metadata
   regression coverage and a safety rationale on the native buffer-ring `Send`
   contract.
 - Hardened `check:release-ready -- --require-zcrx` so it requires a
   non-loopback hardware route and runs the ZCRX hardware smoke test instead of
-  accepting environment configuration as proof.
+  accepting environment configuration as validation.
 - Refreshed the README benchmark snapshot with `ferrings@0.2.14` results on
   Node 26.
 
 ## 0.2.13 - 2026-06-29
 
-- Renamed the packaged quick benchmark bundle to `quick-proof` and exposed it
-  as `npm run bench:quick`, removing early-experiment wording from the public
+- Renamed the packaged quick benchmark bundle to `quick-benchmark` and exposed it
+  as `npm run bench:quick`, removing early-stage wording from the public
   package surface.
 - Refreshed the README benchmark snapshot with `ferrings@0.2.13` results on
   Node 26.
 
 ## 0.2.12 - 2026-06-29
 
-- Rewrote the README to lead with the benchmark proof and present ferrings as a
+- Rewrote the README to lead with the benchmark evidence and present ferrings as a
   usable Linux `io_uring` transport, with ZCRX described as a gated fast path
   rather than the baseline product story.
 - Refreshed the README benchmark snapshot with `ferrings@0.2.12` results on

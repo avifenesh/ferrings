@@ -226,7 +226,7 @@ function verifyRootTarball(errors) {
     'zcrx-smoke.js',
     'bin/ferrings.js',
     'benchmark/compare.js',
-    'benchmark/quick-proof.js',
+    'benchmark/quick-benchmark.js',
     'benchmark/high-concurrency.js',
     'benchmark/syscalls.js',
     'benchmark/tcp-echo.js',

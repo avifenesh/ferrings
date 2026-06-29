@@ -224,14 +224,14 @@ addCommandCheck({
 });
 
 checks.push({
-  name: 'ZCRX hardware receive proof',
+  name: 'ZCRX hardware receive validation',
   scope: 'external',
   optional: !requireZcrx,
   hardFail: requireZcrx,
   next: 'ZCRX_INTERFACE=<ifname> ZCRX_CONNECT_HOST=<nic-routed-host> npm run test:zcrx',
   run: () => {
     if (!requireZcrx) {
-      return fail('ZCRX hardware receive proof was not required or executed');
+      return fail('ZCRX hardware receive validation was not required or executed');
     }
     const environmentBlocker = zcrxEnvironmentBlocker();
     if (environmentBlocker) {
@@ -245,7 +245,7 @@ checks.push({
           `ZCRX hardware smoke exited ${result.status}`
       );
     }
-    return pass(trimForDetail(result.stdout) || 'ZCRX hardware receive proof passed');
+    return pass(trimForDetail(result.stdout) || 'ZCRX hardware receive validation passed');
   }
 });
 
@@ -307,7 +307,7 @@ if (json) {
     console.log('external blockers remain; rerun with --strict when required remote and repository metadata exist');
   }
   if (optionalFailures.length > 0) {
-    console.log('optional blockers remain; rerun with --require-zcrx when ZCRX hardware proof should gate this release');
+    console.log('optional blockers remain; rerun with --require-zcrx when ZCRX hardware validation should gate this release');
   }
   const actionable = results.filter((result) => !result.ok && result.next);
   for (const result of actionable) {
@@ -391,10 +391,10 @@ function releaseVersionBlockedDetail() {
 
 function zcrxEnvironmentBlocker() {
   if (!process.env.ZCRX_INTERFACE) {
-    return 'ZCRX_INTERFACE is not set; hardware receive proof cannot run';
+    return 'ZCRX_INTERFACE is not set; hardware receive validation cannot run';
   }
   if (!process.env.ZCRX_CONNECT_HOST) {
-    return 'ZCRX_CONNECT_HOST is not set; hardware receive proof must route traffic through the selected NIC path';
+    return 'ZCRX_CONNECT_HOST is not set; hardware receive validation must route traffic through the selected NIC path';
   }
   if (isLoopbackHost(process.env.ZCRX_CONNECT_HOST)) {
     return `ZCRX_CONNECT_HOST=${process.env.ZCRX_CONNECT_HOST} is loopback; use a host routed through the selected NIC path`;
