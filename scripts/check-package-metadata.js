@@ -164,6 +164,12 @@ function escapeRegExp(value) {
 }
 
 function assertReadmePositioning(content) {
+  assert.match(
+    content,
+    /`ferrings` is a ready-to-use Linux `io_uring` TCP transport/,
+    'README opening must present ferrings as a ready-to-use transport'
+  );
+
   const h2Sections = [...content.matchAll(/^## .+$/gm)].map((match) => match[0]);
   assert.equal(
     h2Sections[0],

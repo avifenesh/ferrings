@@ -6,78 +6,57 @@
 ![Node.js 22/24/26](https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-339933)
 ![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)
 
-`ferrings` is a Linux `io_uring` TCP transport for Node.js services that need lower socket overhead while keeping application code in JavaScript.
+`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services that need lower socket overhead without moving application code out of JavaScript.
 
-It ships as a napi-rs native addon with typed CommonJS and ESM APIs, four Linux native npm packages, runtime capability probes, examples, benchmark runners, and release checks. The default path works without special NIC hardware: multishot accept/recv plus provided buffers are the core transport. ZCRX is an optional receive path for hosts that pass the hardware and kernel probes.
+Install it from npm, import it from CommonJS or ESM, and run TCP or fixed-response HTTP servers backed by a napi-rs native worker. The normal path uses multishot accept/recv and provided receive buffers on ordinary supported Linux hosts. ZCRX is an optional hardware-gated receive path, not a prerequisite.
 
 ## Benchmarks
 
-The benchmark result is the reason to reach for ferrings, so it is first. The current release package was measured against Node's built-in `http` and `net` transports on the same machine, with the same request counts, same concurrency, loopback traffic, and `strace -f -c` syscall capture.
+**Current benchmark snapshot:** `ferrings@0.2.35`, Node `v26.4.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, same request counts, same concurrency, and `strace -f -c` syscall capture.
 
-Headline for `ferrings@0.2.34`: **2.16x** fixed-response HTTP throughput, **1.93x** native TCP echo throughput, **2.39x** Node-style TCP facade throughput, **2.30x** facade batch-send throughput, and **37-52% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
+The short version: **2.05x** fixed-response HTTP throughput, **2.45x** native TCP echo throughput, **1.71x** Node-style TCP facade throughput, **1.79x** facade batch-send throughput, and **38-54% fewer server syscalls per completed connection** than Node's built-in transports on the same host.
 
-| Workload | ferrings result vs Node built-in transport |
-| --- | --- |
-| Fixed-response HTTP | **2.16x throughput**, **53% lower p50**, **41% lower p99**, **52% fewer syscalls/conn** |
-| Native TCP echo worker | **1.93x throughput**, **66% lower p50**, **2% higher p99**, **52% fewer syscalls/conn** |
-| Node-style TCP facade | **2.39x throughput**, **67% lower p50**, **5% higher p99**, **37% fewer syscalls/conn** |
-| TCP facade with batch send | **2.30x throughput**, **66% lower p50**, **9% higher p99**, **37% fewer syscalls/conn** |
+| Workload | Why it matters | ferrings result vs Node built-in |
+| --- | --- | --- |
+| Fixed-response HTTP | Health, readiness, and simple edge responses | **2.05x throughput**, **53% lower p50**, **42% lower p99**, **50% fewer syscalls/conn** |
+| Native TCP echo worker | Isolates the native transport path | **2.45x throughput**, **65% lower p50**, **10% lower p99**, **54% fewer syscalls/conn** |
+| Node-style TCP facade | Keeps familiar JavaScript connection callbacks | **1.71x throughput**, **55% lower p50**, **83% higher p99**, **38% fewer syscalls/conn** |
+| TCP facade with batch send | Keeps the facade while batching JS/native work | **1.79x throughput**, **52% lower p50**, **36% higher p99**, **38% fewer syscalls/conn** |
 
 Read the TCP rows as API-surface tradeoffs. The native echo worker isolates the transport. The Node-style facade keeps familiar JavaScript connection callbacks. Batch send recovers much of the facade overhead while preserving the facade shape.
 
 | Workload | Baseline | ferrings path | Throughput | p50 latency | p99 latency | Server syscalls/conn |
 | --- | --- | --- | ---: | ---: | ---: | ---: |
-| Fixed-response HTTP | Node `http` | `UringHttpServer` | **2.16x** | **53% lower** | **41% lower** | **52% fewer** |
-| TCP echo | Node `net` | native echo worker | **1.93x** | **66% lower** | **2% higher** | **52% fewer** |
-| TCP echo | Node `net` | Node-style TCP facade | **2.39x** | **67% lower** | **5% higher** | **37% fewer** |
-| TCP echo | Node `net` | facade batch send | **2.30x** | **66% lower** | **9% higher** | **37% fewer** |
+| Fixed-response HTTP | Node `http` | `UringHttpServer` | **2.05x** | **53% lower** | **42% lower** | **50% fewer** |
+| TCP echo | Node `net` | native echo worker | **2.45x** | **65% lower** | **10% lower** | **54% fewer** |
+| TCP echo | Node `net` | Node-style TCP facade | **1.71x** | **55% lower** | **83% higher** | **38% fewer** |
+| TCP echo | Node `net` | facade batch send | **1.79x** | **52% lower** | **36% higher** | **38% fewer** |
 
-Measured on 2026-06-29 with `ferrings@0.2.34`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
+Measured on 2026-06-29 with `ferrings@0.2.35`, Intel Core Ultra 9 275HX, Linux `7.0.0-27-generic`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, loopback traffic, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are host-specific; rerun the benchmark on the machine class you plan to deploy.
 
 Detailed results from the README run:
 
 | Case | req/s | p50 ms | p95 ms | p99 ms | server syscalls/conn | Transport path |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
-| Node `http` | 4,640 | 11.205 | 40.901 | 46.421 | 11.795 | libuv/epoll |
-| ferrings HTTP | 10,001 | 5.226 | 22.930 | 27.181 | 5.713 | `io_uring` accept/recv + provided buffers |
-| Node `net` TCP echo | 6,389 | 9.167 | 14.404 | 19.142 | 11.073 | libuv/epoll |
-| ferrings native TCP echo | 12,308 | 3.154 | 19.057 | 19.535 | 5.351 | native echo worker + provided buffers |
-| ferrings TCP facade | 15,299 | 3.023 | 18.399 | 20.049 | 6.978 | Node-style JS facade + batched native events |
-| ferrings TCP facade batch send | 14,682 | 3.125 | 19.504 | 20.888 | 6.927 | JS facade + batched native events/sends |
+| Node `http` | 4,387 | 11.960 | 33.982 | 46.490 | 11.721 | libuv/epoll |
+| ferrings HTTP | 8,982 | 5.573 | 23.182 | 26.983 | 5.832 | `io_uring` accept/recv + provided buffers |
+| Node `net` TCP echo | 6,717 | 8.551 | 14.482 | 15.959 | 11.083 | libuv/epoll |
+| ferrings native TCP echo | 16,486 | 2.970 | 12.455 | 14.345 | 5.130 | native echo worker + provided buffers |
+| ferrings TCP facade | 11,454 | 3.835 | 26.888 | 29.241 | 6.817 | Node-style JS facade + batched native events |
+| ferrings TCP facade batch send | 11,998 | 4.111 | 19.277 | 21.716 | 6.823 | JS facade + batched native events/sends |
 
 Run the same benchmark:
 
 ```bash
 REQUESTS=1000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.34.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.35.json \
 npm run bench:syscalls
 ```
 
 Watch both throughput and syscall count. Tail latency depends on API surface, payload size, kernel, NIC path, queue settings, and how much work your JavaScript callback performs.
 
 ferrings gets these numbers by moving accept/recv/send work to an `io_uring` native worker while application code stays in JavaScript callbacks. Optional fast paths cover recv-bundle, zero-copy send, registered send buffers, and host-gated ZCRX.
-
-## Where Ferrings Fits
-
-- Use ferrings when a Linux Node service is limited by TCP syscall count, high connection churn, or socket-path overhead.
-- Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
-- Use raw or batched TCP events when callback overhead matters and your service can work with connection IDs directly.
-- Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework is unnecessary.
-- Use ZCRX only on hosts where the kernel, NIC, queue setup, permissions, and traffic route pass the readiness checks.
-
-## Mental Model
-
-The broadly useful ferrings path is the default one:
-
-- the listener is created with normal Linux sockets
-- accepts and receives run through `io_uring`
-- multishot accept and multishot recv reduce resubmission overhead
-- provided receive buffers keep buffer ownership explicit
-- JavaScript receives events through NAPI thread-safe callbacks
-- JavaScript writes go through a bounded native command queue
-
-ZCRX is not required to use ferrings. It is an extra receive path for capable hardware, and ferrings exposes probes and counters so you can gate it per host.
 
 ## Installation
 
@@ -91,45 +70,6 @@ CommonJS and ESM named imports are both supported:
 const { createTcpServer } = require('ferrings');
 // or
 import { createTcpServer } from 'ferrings';
-```
-
-Supported runtime targets:
-
-- Linux
-- Node.js 22, 24, or 26
-- `x64` or `arm64`
-- glibc or musl
-
-CI tests Node 22, 24, and 26 on Linux. Per the [Node.js release schedule](https://nodejs.org/en/about/previous-releases), Node 26 is Current, Node 24 and 22 are LTS, and Node 20 is EOL.
-
-For local development, the repository pins Node 26 through `.nvmrc` and `.node-version`.
-
-The root package installs the matching optional native package for the current Linux target:
-
-- `ferrings-linux-x64-gnu`
-- `ferrings-linux-x64-musl`
-- `ferrings-linux-arm64-gnu`
-- `ferrings-linux-arm64-musl`
-
-The root package ships JavaScript, TypeScript declarations, docs, examples, and benchmarks. Native binaries live in the platform packages above, so the loader path is the same on every supported target.
-
-If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, supported native package names, and the original loader error.
-
-The CLI keeps version/help diagnostics available without a native binding. When
-optional native dependencies are missing, `ferrings doctor --json` reports
-`verdict: "native-load-blocked"` with a `nativeLoadError` object instead of
-failing before it can explain the install problem.
-
-Minimal server:
-
-```js
-import { createTcpServer } from 'ferrings';
-
-const server = createTcpServer((connection) => {
-  connection.on('data', (data) => connection.end(data));
-});
-
-server.listen(8080, '127.0.0.1');
 ```
 
 ## Quick Start
@@ -180,6 +120,56 @@ node quickstart.js
 ```
 
 It prints `echo:hello`. Application code stays in normal JavaScript callbacks; ferrings handles accept, receive, send, shutdown, and buffer management on the native worker.
+
+## Where Ferrings Fits
+
+- Use ferrings when a Linux Node service is limited by TCP syscall count, high connection churn, or socket-path overhead.
+- Use the Node-style TCP facade when you want familiar `connection` and `data` callbacks over a native `io_uring` transport.
+- Use raw or batched TCP events when callback overhead matters and your service can work with connection IDs directly.
+- Use `UringHttpServer` for fixed health, readiness, or simple edge responses where an HTTP framework is unnecessary.
+- Use ZCRX only on hosts where the kernel, NIC, queue setup, permissions, and traffic route pass the readiness checks.
+
+## Supported Targets
+
+Supported runtime targets:
+
+- Linux
+- Node.js 22, 24, or 26
+- `x64` or `arm64`
+- glibc or musl
+
+CI tests Node 22, 24, and 26 on Linux. Per the [Node.js release schedule](https://nodejs.org/en/about/previous-releases), Node 26 is Current, Node 24 and 22 are LTS, and Node 20 is EOL.
+
+For local development, the repository pins Node 26 through `.nvmrc` and `.node-version`.
+
+The root package installs the matching optional native package for the current Linux target:
+
+- `ferrings-linux-x64-gnu`
+- `ferrings-linux-x64-musl`
+- `ferrings-linux-arm64-gnu`
+- `ferrings-linux-arm64-musl`
+
+The root package ships JavaScript, TypeScript declarations, docs, examples, and benchmarks. Native binaries live in the platform packages above, so the loader path is the same on every supported target.
+
+If the native binding cannot be loaded, ferrings throws `FerringsNativeLoadError` with code `FERRINGS_NATIVE_LOAD_FAILED`, the detected platform target, supported native package names, and the original loader error.
+
+The CLI keeps version/help diagnostics available without a native binding. When
+optional native dependencies are missing, `ferrings doctor --json` reports
+`verdict: "native-load-blocked"` with a `nativeLoadError` object instead of
+failing before it can explain the install problem.
+
+## Mental Model
+
+The broadly useful ferrings path is the default one:
+
+- the listener is created with normal Linux sockets
+- accepts and receives run through `io_uring`
+- multishot accept and multishot recv reduce resubmission overhead
+- provided receive buffers keep buffer ownership explicit
+- JavaScript receives events through NAPI thread-safe callbacks
+- JavaScript writes go through a bounded native command queue
+
+ZCRX is not required to use ferrings. It is an extra receive path for capable hardware, and ferrings exposes probes and counters so you can gate it per host.
 
 ## API Choices
 

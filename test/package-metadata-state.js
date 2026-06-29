@@ -114,8 +114,8 @@ try {
 }
 
 const experimentalReadme = originalReadme.replace(
-  '`ferrings` is a Linux `io_uring` TCP transport for Node.js services that need lower socket overhead while keeping application code in JavaScript.',
-  'Experimental `ferrings` is a Linux `io_uring` TCP transport for Node.js services that need lower socket overhead while keeping application code in JavaScript.'
+  '`ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services that need lower socket overhead without moving application code out of JavaScript.',
+  'Experimental `ferrings` is a ready-to-use Linux `io_uring` TCP transport for Node.js services that need lower socket overhead without moving application code out of JavaScript.'
 );
 assert.notEqual(experimentalReadme, originalReadme, 'README experimental framing mutation should apply');
 

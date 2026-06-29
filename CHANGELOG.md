@@ -8,6 +8,13 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.35 - 2026-06-29
+
+- Rewrote the README first screen to present ferrings as a ready-to-use Node
+  transport and put benchmark proof directly under the opening.
+- Added a release-local quality gate so npm publication waits for format,
+  clippy, test, and dependency-audit checks in the Release workflow itself.
+
 ## 0.2.34 - 2026-06-29
 
 - Added retry support to the registry install smoke and wired the release

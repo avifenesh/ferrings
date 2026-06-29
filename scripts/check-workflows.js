@@ -92,9 +92,44 @@ function checkWorkflowPolicy(workflowFiles) {
     'release.yml build-native job must skip already-published verification reruns'
   );
   assert.match(
+    jobBlock(releaseWorkflow, 'quality-gate'),
+    /^    permissions:\n      contents: read\n/m,
+    'release.yml quality-gate job must be read-only'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'quality-gate'),
+    /run:\s+cargo fmt -- --check/,
+    'release.yml quality-gate job must run Rust format checks'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'quality-gate'),
+    /run:\s+cargo clippy --all-targets -- -D warnings/,
+    'release.yml quality-gate job must run Rust lints'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'quality-gate'),
+    /run:\s+npm test/,
+    'release.yml quality-gate job must run the full test suite'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'quality-gate'),
+    /run:\s+npm run audit:deps/,
+    'release.yml quality-gate job must run dependency audits'
+  );
+  assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),
     /^    permissions:\n      contents: write\n      id-token: write\n/m,
     'release.yml package-and-publish job must be the only job with publish/release permissions'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'package-and-publish'),
+    /needs:\n      - validate\n      - quality-gate\n      - build-native/m,
+    'release.yml package-and-publish job must depend on the release quality gate'
+  );
+  assert.match(
+    jobBlock(releaseWorkflow, 'package-and-publish'),
+    /needs\.quality-gate\.result == 'success'[\s\S]*needs\.quality-gate\.result == 'skipped'[\s\S]*publication_state == 'published'/,
+    'release.yml package-and-publish job must wait for quality-gate except already-published reruns'
   );
   assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),

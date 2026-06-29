@@ -185,14 +185,63 @@ jobs:
           path: dist/${{ matrix.package }}/
           if-no-files-found: error
 
+  quality-gate:
+    name: Release quality gate
+    needs: validate
+    if: ${{ needs.validate.outputs.publication_state != 'published' }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      CARGO_TERM_COLOR: always
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 26
+          package-manager-cache: false
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Install Linux tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends strace
+
+      - name: Install dependencies
+        run: npm ci --omit=optional
+
+      - name: Check Rust format
+        run: cargo fmt -- --check
+
+      - name: Check Rust lints
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run test suite
+        run: npm test
+
+      - name: Audit dependencies
+        run: npm run audit:deps
+
   package-and-publish:
     name: Package and publish
     needs:
       - validate
+      - quality-gate
       - build-native
     if: >-
       ${{ always() &&
           needs.validate.result == 'success' &&
+          (needs.quality-gate.result == 'success' ||
+            (needs.quality-gate.result == 'skipped' &&
+              needs.validate.outputs.publication_state == 'published')) &&
           (needs.build-native.result == 'success' ||
             (needs.build-native.result == 'skipped' &&
               needs.validate.outputs.publication_state == 'published')) }}
