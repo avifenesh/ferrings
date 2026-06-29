@@ -252,6 +252,7 @@ try {
   run(process.execPath, ['-e', exportsScript], {
     cwd: appDir
   });
+  assertInstalledTypeSurface(appDir);
 
   const binPath = path.join(appDir, 'node_modules', '.bin', 'ferrings');
   const cliCaps = run(binPath, ['capabilities', '--json'], {
@@ -383,4 +384,96 @@ function packNativePackage(packDir, nativePackageDir) {
   assert.equal(packedFiles.has('LICENSE-APACHE'), true);
   assert.equal(packedFiles.has('LICENSE-MIT'), true);
   return path.join(packDir, packed.filename);
+}
+
+function assertInstalledTypeSurface(appDir) {
+  const consumerPath = path.join(appDir, 'consumer-types.ts');
+  const tsconfigPath = path.join(appDir, 'tsconfig.consumer.json');
+  fs.writeFileSync(
+    consumerPath,
+    `
+      import {
+        UringTcpServer,
+        createTcpServer,
+        capabilities,
+        type IoUringTcpConnection,
+        type ServerInfo,
+        type TcpEvent,
+        type TcpServerOptions
+      } from 'ferrings';
+      import {
+        UringHttpServer,
+        zcrxProbe,
+        type Capabilities,
+        type ServerOptions,
+        type ZcrxProbe
+      } from 'ferrings/native';
+      import type { TcpSend } from 'ferrings/native.js';
+
+      const tcpOptions: TcpServerOptions = {
+        host: '127.0.0.1',
+        port: 0,
+        queueDepth: 64,
+        bufferCount: 512,
+        bufferSize: 2048,
+        useRecvBundle: true,
+        useZeroCopySend: true
+      };
+
+      const facade = createTcpServer(tcpOptions, (connection: IoUringTcpConnection) => {
+        const wrote: boolean = connection.write(Buffer.from('typed'));
+        void wrote;
+      });
+      facade.listen((info: ServerInfo) => {
+        const backend: string = info.backend;
+        void backend;
+      });
+
+      const raw = new UringTcpServer(tcpOptions);
+      const rawInfo: ServerInfo = raw.start((event: TcpEvent) => {
+        if (event.data) {
+          const send: TcpSend = { connectionId: event.connectionId, data: event.data };
+          raw.sendBatch([send]);
+        }
+      });
+      void rawInfo;
+
+      const httpOptions: ServerOptions = { responseBody: 'ok' };
+      const http = new UringHttpServer(httpOptions);
+      const httpInfo: ServerInfo | null = http.info();
+      void httpInfo;
+
+      const caps: Capabilities = capabilities();
+      const ready: boolean = caps.ioUringAvailable;
+      const probe: ZcrxProbe = zcrxProbe({ interfaceName: 'lo' });
+      void ready;
+      void probe;
+    `,
+    'utf8'
+  );
+  fs.writeFileSync(
+    tsconfigPath,
+    `${JSON.stringify(
+      {
+        compilerOptions: {
+          target: 'ES2023',
+          module: 'Node16',
+          moduleResolution: 'Node16',
+          strict: true,
+          noEmit: true,
+          types: ['node'],
+          typeRoots: [path.join(repoRoot, 'node_modules', '@types')],
+          skipLibCheck: false,
+          forceConsistentCasingInFileNames: true
+        },
+        files: [consumerPath]
+      },
+      null,
+      2
+    )}\n`
+  );
+
+  run(path.join(repoRoot, 'node_modules', '.bin', 'tsc'), ['-p', tsconfigPath], {
+    cwd: appDir
+  });
 }
