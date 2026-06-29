@@ -81,21 +81,26 @@ function checkWorkflowPolicy(workflowFiles) {
     /^    permissions:\n      contents: read\n/m,
     'release.yml validate job must be read-only'
   );
+  assertJobTimeout(releaseWorkflow, 'validate', 10);
   assert.match(
     jobBlock(releaseWorkflow, 'build-native'),
     /^    permissions:\n      contents: read\n/m,
     'release.yml build-native job must be read-only'
   );
+  assertJobTimeout(releaseWorkflow, 'build-native', 45);
   assert.match(
     jobBlock(releaseWorkflow, 'build-native'),
     /if:\s*\$\{\{\s*needs\.validate\.outputs\.publication_state != 'published'\s*\}\}/,
     'release.yml build-native job must skip already-published verification reruns'
   );
+  assertStepTimeout(releaseWorkflow, 'build-native', 'Install Zig for cross builds', 5);
+  assertStepTimeout(releaseWorkflow, 'build-native', 'Install cargo-zigbuild', 10);
   assert.match(
     jobBlock(releaseWorkflow, 'quality-gate'),
     /^    permissions:\n      contents: read\n/m,
     'release.yml quality-gate job must be read-only'
   );
+  assertJobTimeout(releaseWorkflow, 'quality-gate', 30);
   assert.match(
     jobBlock(releaseWorkflow, 'quality-gate'),
     /run:\s+cargo fmt -- --check/,
@@ -111,16 +116,19 @@ function checkWorkflowPolicy(workflowFiles) {
     /run:\s+npm test/,
     'release.yml quality-gate job must run the full test suite'
   );
+  assertStepTimeout(releaseWorkflow, 'quality-gate', 'Run test suite', 15);
   assert.match(
     jobBlock(releaseWorkflow, 'quality-gate'),
     /run:\s+npm run audit:deps/,
     'release.yml quality-gate job must run dependency audits'
   );
+  assertStepTimeout(releaseWorkflow, 'quality-gate', 'Audit dependencies', 15);
   assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),
     /^    permissions:\n      contents: write\n      id-token: write\n/m,
     'release.yml package-and-publish job must be the only job with publish/release permissions'
   );
+  assertJobTimeout(releaseWorkflow, 'package-and-publish', 30);
   assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),
     /needs:\n      - validate\n      - quality-gate\n      - build-native/m,
@@ -141,11 +149,15 @@ function checkWorkflowPolicy(workflowFiles) {
     /name: Publish npm packages[\s\S]*run: node scripts\/publish-npm-packages\.js --tag/,
     'release.yml package-and-publish job must publish through the explicit package-set publisher'
   );
+  assertStepTimeout(releaseWorkflow, 'package-and-publish', 'Publish npm packages', 15);
   assert.match(
     jobBlock(releaseWorkflow, 'package-and-publish'),
     /name: Verify published npm packages[\s\S]*run: npm run check:published -- --tag/,
     'release.yml package-and-publish job must verify published npm packages'
   );
+  assertStepTimeout(releaseWorkflow, 'package-and-publish', 'Verify published npm packages', 15);
+  assertStepTimeout(releaseWorkflow, 'package-and-publish', 'Smoke test registry install', 15);
+  assertStepTimeout(releaseWorkflow, 'package-and-publish', 'Create or update GitHub release', 5);
 }
 
 function readWorkflow(workflowFiles, name) {
@@ -169,6 +181,36 @@ function jobBlock(workflow, jobName) {
     return workflow.slice(start);
   }
   return workflow.slice(start, bodyStart + nextJob);
+}
+
+function stepBlock(workflow, jobName, stepName) {
+  const job = jobBlock(workflow, jobName);
+  const startPattern = new RegExp(`^      - name: ${escapeRegex(stepName)}\\n`, 'm');
+  const match = startPattern.exec(job);
+  assert.ok(match, `${jobName} step ${stepName} missing`);
+  const start = match.index;
+  const bodyStart = start + match[0].length;
+  const nextStep = job.slice(bodyStart).search(/^      - name: /m);
+  if (nextStep === -1) {
+    return job.slice(start);
+  }
+  return job.slice(start, bodyStart + nextStep);
+}
+
+function assertJobTimeout(workflow, jobName, minutes) {
+  assert.match(
+    jobBlock(workflow, jobName),
+    new RegExp(`^    timeout-minutes:\\s*${minutes}\\s*$`, 'm'),
+    `release.yml ${jobName} job must have timeout-minutes: ${minutes}`
+  );
+}
+
+function assertStepTimeout(workflow, jobName, stepName, minutes) {
+  assert.match(
+    stepBlock(workflow, jobName, stepName),
+    new RegExp(`^        timeout-minutes:\\s*${minutes}\\s*$`, 'm'),
+    `release.yml ${jobName} step ${stepName} must have timeout-minutes: ${minutes}`
+  );
 }
 
 function escapeRegex(value) {

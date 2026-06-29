@@ -13,6 +13,9 @@ may adjust APIs, defaults, or packaging.
   usage directly next to the benchmark proof.
 - Updated the README metadata regression test so the ready-use framing guard
   covers the new opening sentence.
+- Added explicit Release workflow timeouts for quality, publish, registry
+  verification, and GitHub release steps, with workflow-policy checks to keep
+  those bounds in place.
 
 ## 0.2.36 - 2026-06-29
 
