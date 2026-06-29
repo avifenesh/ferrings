@@ -81,6 +81,27 @@ checks.push({
 });
 
 checks.push({
+  name: 'npm optional lockfile install plan',
+  run: () => {
+    if (!publicationState) {
+      return fail('publication state was not resolved');
+    }
+    if (publicationState.state !== 'published') {
+      return pass('skipped because current version is not published');
+    }
+    const result = run('npm', ['ci', '--dry-run', '--ignore-scripts', '--no-audit', '--no-fund']);
+    if (result.status === 0) {
+      return pass('lockfile can install with optional native packages enabled');
+    }
+    return fail(
+      trimForDetail(result.stderr) ||
+        trimForDetail(result.stdout) ||
+        `npm ci exited ${result.status}`
+    );
+  }
+});
+
+checks.push({
   name: 'published package verification or publish dry-run',
   run: () => {
     if (!publicationState) {

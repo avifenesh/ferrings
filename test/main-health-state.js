@@ -26,6 +26,7 @@ fs.writeFileSync(
 
     const state = process.env.FERRINGS_TEST_PUBLICATION_STATE || 'published';
     const dirty = process.env.FERRINGS_TEST_DIRTY === '1';
+    const optionalLockfileFail = process.env.FERRINGS_TEST_OPTIONAL_LOCKFILE_FAIL === '1';
     const tagExists = process.env.FERRINGS_TEST_TAG_EXISTS !== '0';
     const tagAtHead = process.env.FERRINGS_TEST_TAG_AT_HEAD === '1';
     const headSha = process.env.FERRINGS_TEST_HEAD_SHA || '${headSha}';
@@ -90,6 +91,10 @@ fs.writeFileSync(
 
     function npm(args) {
       if (args[0] === 'ci') {
+        const omitsOptional = args.includes('--omit=optional');
+        if (optionalLockfileFail && !omitsOptional) {
+          return done(1, '', 'optional lockfile install failed\\n');
+        }
         return done(0, 'lockfile ok\\n');
       }
       if (args[0] === 'publish') {
@@ -123,6 +128,10 @@ try {
     check(published.report, 'published package verification or publish dry-run').ok,
     true
   );
+  assert.match(
+    check(published.report, 'npm optional lockfile install plan').detail,
+    /optional native packages enabled/
+  );
   assert.equal(
     check(published.report, `release tag v${rootPackage.version} relation`).warning,
     true
@@ -140,9 +149,32 @@ try {
   assert.equal(available.statusCode, 0);
   assert.equal(available.report.status, 'healthy-unreleased');
   assert.match(
+    check(available.report, 'npm optional lockfile install plan').detail,
+    /skipped because current version is not published/
+  );
+  assert.match(
     check(available.report, 'published package verification or publish dry-run').detail,
     /publish tarball dry-run ok/
   );
+
+  const publishedOptionalLockfileFailure = runScenario({
+    state: 'published',
+    optionalLockfileFail: true
+  });
+  assert.equal(publishedOptionalLockfileFailure.statusCode, 1);
+  assert.equal(publishedOptionalLockfileFailure.report.status, 'failed');
+  assert.match(
+    check(publishedOptionalLockfileFailure.report, 'npm optional lockfile install plan').detail,
+    /optional lockfile install failed/
+  );
+
+  const availableOptionalLockfileFailure = runScenario({
+    state: 'available',
+    tagExists: false,
+    optionalLockfileFail: true
+  });
+  assert.equal(availableOptionalLockfileFailure.statusCode, 0);
+  assert.equal(availableOptionalLockfileFailure.report.status, 'healthy-unreleased');
 
   const conflict = runScenario({ state: 'conflict' });
   assert.equal(conflict.statusCode, 1);
@@ -168,7 +200,8 @@ function runScenario({
   dirty = false,
   tagExists = true,
   tagAtHead = false,
-  allowDirty = false
+  allowDirty = false,
+  optionalLockfileFail = false
 }) {
   const scriptArgs = ['--require', preload, script, '--json'];
   if (allowDirty) {
@@ -184,7 +217,8 @@ function runScenario({
       FERRINGS_TEST_TAG_EXISTS: tagExists ? '1' : '0',
       FERRINGS_TEST_TAG_AT_HEAD: tagAtHead ? '1' : '0',
       FERRINGS_TEST_HEAD_SHA: headSha,
-      FERRINGS_TEST_TAG_SHA: tagSha
+      FERRINGS_TEST_TAG_SHA: tagSha,
+      FERRINGS_TEST_OPTIONAL_LOCKFILE_FAIL: optionalLockfileFail ? '1' : '0'
     },
     maxBuffer: 5 * 1024 * 1024
   });
