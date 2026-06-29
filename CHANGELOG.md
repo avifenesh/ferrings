@@ -8,6 +8,8 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.49 - 2026-06-29
+
 - Added optional TLS server support through `createTlsServer`, using Node's
   `tls.TLSSocket` over the ferrings TCP facade while preserving ferrings TCP
   tuning options and exposing TLS handshake/client errors.

@@ -14,11 +14,11 @@ The broadly deployable path is multishot accept/recv plus provided buffer rings.
 
 ## Benchmarks
 
-`ferrings@0.2.48` on Node `v26.4.0` reached **2.51x** Node `http` throughput, **2.34x** Node `net` throughput on the native TCP path, **2.00x** throughput through the Node-style TCP facade, **2.02x** with facade batch sends, and **37-57% fewer server syscalls per completed connection** on the same host.
+`ferrings@0.2.49` on Node `v26.4.0` reached **2.51x** Node `http` throughput, **2.34x** Node `net` throughput on the native TCP path, **2.00x** throughput through the Node-style TCP facade, **2.02x** with facade batch sends, and **37-57% fewer server syscalls per completed connection** on the same host.
 
 Benchmarks are first because this package exists to remove measurable overhead from high-concurrency Node networking. These are default-transport results: multishot accept/recv plus provided buffer rings, with ZCRX disabled. They do not require specialized NIC receive support.
 
-Measured on 2026-06-29 with `ferrings@0.2.48`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, 5,000 completed requests per case, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; rerun this on the machine class you plan to deploy.
+Measured on 2026-06-29 with `ferrings@0.2.49`, Node `v26.4.0`, npm `11.17.0`, Rust `1.96.0`, Linux `7.0.0-27-generic`, Intel Core Ultra 9 275HX, loopback traffic, 5,000 completed requests per case, `strace -f -c`, and an 8 MiB locked-memory limit. Absolute numbers are machine-specific; rerun this on the machine class you plan to deploy.
 
 | Workload | Baseline | ferrings path | Baseline req/s | ferrings req/s | Result |
 | --- | --- | --- | ---: | ---: | --- |
@@ -45,7 +45,7 @@ Reproduce the README run:
 ```bash
 REQUESTS=5000 CONCURRENCY=64 QUEUE_DEPTH=64 BUFFER_COUNT=512 BUFFER_SIZE=2048 \
 CASES=node-http,ferrings-http,node-tcp,ferrings-native-tcp,ferrings-tcp-facade,ferrings-tcp-facade-batch \
-REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.48-5000.json \
+REPORT_PATH=artifacts/benchmark-readme-node26-2026-06-29-0.2.49-5000.json \
 npm run bench:syscalls
 ```
 
