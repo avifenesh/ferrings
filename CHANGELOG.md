@@ -8,6 +8,17 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+## 0.2.47 - 2026-06-29
+
+- Rewrote the README opening to present ferrings as a usable Linux Node
+  transport, with benchmark results as the first top-level section and ZCRX
+  framed as an optional fast path rather than the core deployment requirement.
+- Hardened CLI option parsing so empty inline value flags such as `--rx-queue=`
+  and ambiguous boolean values such as `--json=yes` fail with clear usage
+  errors instead of coercing silently.
+- Refreshed the README benchmark snapshot with `ferrings@0.2.47` results on
+  Node 26 using 5,000 completed requests per case.
+
 ## 0.2.46 - 2026-06-29
 
 - Hardened package metadata checks so release gates fail when package `files`,

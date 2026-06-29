@@ -109,6 +109,18 @@ assert.match(badSmokeQueue.stderr, /--rx-queue must be an integer between 0 and 
 const badProbeBuffer = run(['zcrx-probe', '--rx-buffer-size', '1.5'], 64);
 assert.match(badProbeBuffer.stderr, /--rx-buffer-size must be an integer between 0 and 4294967295/);
 
+const missingProbeQueue = run(['zcrx-probe', '--rx-queue='], 64);
+assert.match(missingProbeQueue.stderr, /--rx-queue requires a value/);
+
+const missingProbeInterface = run(['zcrx-probe', '--interface='], 64);
+assert.match(missingProbeInterface.stderr, /--interface requires a value/);
+
+const compactFalse = JSON.parse(run(['capabilities', '--json', '--compact=false']).stdout);
+assert.equal(compactFalse.package, 'ferrings');
+
+const badBoolean = run(['capabilities', '--json=yes'], 64);
+assert.match(badBoolean.stderr, /--json must be true or false/);
+
 const help = run(['-h']);
 assert.match(help.stdout, /Usage:/);
 assert.match(help.stdout, /--require-zcrx/);

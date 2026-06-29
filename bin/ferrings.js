@@ -420,10 +420,10 @@ function parseFlags(rawArgs, schema) {
     const inlineValue = flag.inlineValue;
     const name = normalizeFlagName(rawName);
     if (booleans.has(name)) {
-      options[name] = inlineValue === undefined ? true : inlineValue !== 'false';
+      options[name] = parseBooleanFlag(flag);
     } else if (values.has(name)) {
       const value = inlineValue === undefined ? rawArgs[++index] : inlineValue;
-      if (value === undefined || value.startsWith('-')) {
+      if (value === undefined || value === '' || value.startsWith('-')) {
         throw new CliError(`${flag.displayName} requires a value`, 64);
       }
       options[name] = value;
@@ -432,6 +432,13 @@ function parseFlags(rawArgs, schema) {
     }
   }
   return options;
+}
+
+function parseBooleanFlag(flag) {
+  if (flag.inlineValue === undefined) return true;
+  if (flag.inlineValue === 'true' || flag.inlineValue === '1') return true;
+  if (flag.inlineValue === 'false' || flag.inlineValue === '0') return false;
+  throw new CliError(`${flag.displayName} must be true or false`, 64);
 }
 
 function parseFlagToken(arg) {
