@@ -178,7 +178,7 @@
   "devDependencies": {
     "@napi-rs/cli": "^3.7.2",
     "@types/node": "^26.0.1",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "optionalDependencies": {
     "ferrings-linux-arm64-gnu": "0.2.49",
