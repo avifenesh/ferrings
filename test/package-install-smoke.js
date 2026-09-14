@@ -190,7 +190,7 @@ try {
       assert.ok(
         missingDoctor.nativeLoadError.loadErrors.some(
           (attempt) =>
-            attempt.code === 'MODULE_NOT_FOUND' &&
+            /Cannot find module/.test(attempt.message) &&
             /ferrings-linux-x64-gnu|ferrings\.linux-x64-gnu\.node/.test(attempt.message)
         ),
         'doctor nativeLoadError must include the missing platform binding attempt'
@@ -230,7 +230,7 @@ try {
           assert.ok(
             error.loadErrors.some(
               (attempt) =>
-                attempt.code === 'MODULE_NOT_FOUND' &&
+                /Cannot find module/.test(attempt.message) &&
                 /ferrings-linux-x64-gnu|ferrings\\.linux-x64-gnu\\.node/.test(attempt.message)
             )
           );

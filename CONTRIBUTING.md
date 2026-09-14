@@ -65,6 +65,11 @@ node test/package-install-smoke.js
 node test/platform-package-install-smoke.js
 ```
 
+`npm run artifacts` collects a complete release: all four targets in
+`package.json` must be present under `artifacts/`. A single-target CI build
+stages its exact `.node` file directly into the matching `npm/` directory and
+runs `check-native-packages.js --package <platform> --require-binary`.
+
 For release readiness on a tagged commit:
 
 ```bash

@@ -230,9 +230,8 @@ jobs:
         timeout-minutes: 10
         run: |
           set -euo pipefail
-          mkdir -p "artifacts/${{ matrix.package }}"
-          cp ferrings.*.node "artifacts/${{ matrix.package }}/"
-          npm run artifacts
+          cp "ferrings.${{ matrix.package }}.node" "npm/${{ matrix.package }}/"
+          node scripts/copy-native-package-assets.js
           node scripts/check-native-packages.js --package "${{ matrix.package }}" --require-binary
           mkdir -p "dist/${{ matrix.package }}"
           cp -r "npm/${{ matrix.package }}/"* "dist/${{ matrix.package }}/"
