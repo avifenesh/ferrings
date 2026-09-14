@@ -90,13 +90,17 @@ fs.writeFileSync(
               loadErrors: [
                 {
                   name: 'Error',
-                  code: 'MODULE_NOT_FOUND',
-                  message: 'Cannot find module ' + target.packageName
+                  ...(process.env.FERRINGS_TEST_DIAGNOSTIC === 'message-only' ? {} : { code: 'MODULE_NOT_FOUND' }),
+                  message: process.env.FERRINGS_TEST_DIAGNOSTIC === 'generic'
+                    ? 'Loading failed for ' + target.packageName
+                    : 'Cannot find module ' + target.packageName
                 },
                 {
                   name: 'Error',
-                  code: 'MODULE_NOT_FOUND',
-                  message: 'Cannot find module ' + target.nativeFile
+                  ...(process.env.FERRINGS_TEST_DIAGNOSTIC === 'message-only' ? {} : { code: 'MODULE_NOT_FOUND' }),
+                  message: process.env.FERRINGS_TEST_DIAGNOSTIC === 'generic'
+                    ? 'Loading failed for ' + target.nativeFile
+                    : 'Cannot find module ' + target.nativeFile
                 }
               ]
             }
@@ -210,12 +214,20 @@ try {
   assert.equal(firstAttemptSuccess.report.attempt, 1);
   assert.equal(firstAttemptSuccess.report.previousErrors.length, 0);
 
+  const messageOnly = runScenario({ retries: 1, failInstallAttempts: 0, diagnostic: 'message-only' });
+  assert.equal(messageOnly.statusCode, 0);
+  assert.equal(messageOnly.report.status, 'passed');
+
+  const generic = runScenario({ retries: 1, failInstallAttempts: 0, diagnostic: 'generic' });
+  assert.equal(generic.statusCode, 1);
+  assert.match(generic.report.error.message, /must include the missing platform binding attempt/);
+
   console.log('registry install state ok');
 } finally {
   fs.rmSync(tmpDir, { recursive: true, force: true });
 }
 
-function runScenario({ retries, failInstallAttempts }) {
+function runScenario({ retries, failInstallAttempts, diagnostic = 'coded' }) {
   const result = spawnSync(
     process.execPath,
     [
@@ -235,7 +247,8 @@ function runScenario({ retries, failInstallAttempts }) {
       encoding: 'utf8',
       env: {
         ...process.env,
-        FERRINGS_TEST_FAIL_INSTALL_ATTEMPTS: String(failInstallAttempts)
+        FERRINGS_TEST_FAIL_INSTALL_ATTEMPTS: String(failInstallAttempts),
+        FERRINGS_TEST_DIAGNOSTIC: diagnostic
       }
     }
   );

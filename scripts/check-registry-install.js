@@ -432,7 +432,7 @@ function runCliSmoke(cwd) {
           assert.ok(
             missingDoctor.nativeLoadError.loadErrors.some(
               (attempt) =>
-                attempt.code === 'MODULE_NOT_FOUND' &&
+                /Cannot find module/.test(attempt.message) &&
                 new RegExp(`${target.packageName}|${escapeRegExp(target.nativeFile)}`).test(
                   attempt.message
                 )
