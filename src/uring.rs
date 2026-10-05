@@ -1050,11 +1050,11 @@ impl TransportStats {
 
     fn record_connection_close(&self) {
         self.closed_connections.fetch_add(1, Ordering::Relaxed);
-        let _ =
-            self.active_connections
-                .fetch_update(Ordering::AcqRel, Ordering::Acquire, |active| {
-                    active.checked_sub(1)
-                });
+        let _ = self
+            .active_connections
+            .try_update(Ordering::AcqRel, Ordering::Acquire, |active| {
+                active.checked_sub(1)
+            });
     }
 
     fn record_bytes_received(&self, bytes: usize) {

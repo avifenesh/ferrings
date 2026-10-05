@@ -8,6 +8,9 @@ may adjust APIs, defaults, or packaging.
 
 ## Unreleased
 
+- Updated N-API build dependencies and switched the connection counter to
+  `AtomicU64::try_update` so current stable Rust passes the strict Clippy gate.
+
 ## 0.2.49 - 2026-06-29
 
 - Added optional TLS server support through `createTlsServer`, using Node's
