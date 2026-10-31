@@ -176,7 +176,7 @@
     "example:tcp": "node examples/tcp-echo.js"
   },
   "devDependencies": {
-    "@napi-rs/cli": "^3.10.4",
+    "@napi-rs/cli": "^3.10.9",
     "@types/node": "^26.6.1",
     "typescript": "^6.0.3"
   },
