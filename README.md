@@ -132,7 +132,7 @@ Supported runtime targets:
 - `x64` or `arm64`
 - glibc or musl
 
-CI tests Node 22, 24, and 26 on Linux. Per the [Node.js release schedule](https://nodejs.org/en/about/previous-releases), Node 26 is Current, Node 24 and 22 are LTS, and Node 20 is EOL. Node 20, 23, and 25 are EOL and not supported.
+CI tests Node 22, 24, and 26 on Linux. Per the [Node.js release schedule](https://nodejs.org/en/about/previous-releases), Node 26, 24, and 22 are LTS, and Node 20 is EOL. Node 20, 23, and 25 are EOL and not supported.
 
 For local development, the repository pins Node 26 through `.nvmrc` and `.node-version`.
 
@@ -312,7 +312,7 @@ Common server options:
 | `tcpDeferAcceptSeconds` | `0` | all servers | Applies `TCP_DEFER_ACCEPT` when positive. |
 | `socketRecvBufferSize` | `0` | all servers | `SO_RCVBUF`; `0` keeps kernel defaults. |
 | `socketSendBufferSize` | `0` | all servers | `SO_SNDBUF`; `0` keeps kernel defaults. |
-| `useRecvBundle` | `false` | TCP servers | Requests recv-bundle mode when supported. |
+| `useRecvBundle` | `false` | all servers | Requests recv-bundle mode when supported. |
 | `useZeroCopySend` | `false` | all servers | Requests `IORING_OP_SEND_ZC`. |
 | `useRegisteredSendBuffer` | `false` | all servers | Requests fixed-buffer send mode. |
 | `useZeroCopyReceive` | `false` | all servers | Requests ZCRX; requires capable hardware and permissions. |
