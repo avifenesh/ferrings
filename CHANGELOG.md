@@ -10,6 +10,8 @@ may adjust APIs, defaults, or packaging.
 
 - Updated N-API build dependencies and switched the connection counter to
   `AtomicU64::try_update` so current stable Rust passes the strict Clippy gate.
+- Moved the type smoke test to TypeScript 7.0, the native compiler. CI installs
+  its platform package after `npm ci --omit=optional`, which skips it.
 
 ## 0.2.49 - 2026-06-29
 

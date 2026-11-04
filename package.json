@@ -162,6 +162,7 @@
     "check:release-ready": "node scripts/check-release-ready.js",
     "install:cargo-audit": "node scripts/install-cargo-audit.js",
     "install:cargo-zigbuild": "node scripts/install-cargo-zigbuild.js",
+    "install:typescript-native": "npm install --no-save --omit=optional --ignore-scripts --no-audit --no-fund @typescript/typescript-linux-$(node -p process.arch)@$(node -p \"require('typescript/package.json').version\")",
     "configure:release-repository": "node scripts/configure-release-repository.js",
     "check:platform-install": "node test/platform-package-install-smoke.js",
     "check:pack": "npm pack --dry-run --json",
@@ -178,7 +179,7 @@
   "devDependencies": {
     "@napi-rs/cli": "^3.10.9",
     "@types/node": "^26.6.1",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "optionalDependencies": {
     "ferrings-linux-arm64-gnu": "0.2.49",

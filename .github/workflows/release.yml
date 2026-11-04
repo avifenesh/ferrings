@@ -221,6 +221,11 @@ jobs:
       - name: Install dependencies
         run: npm ci --omit=optional
 
+      # --omit=optional also skips TypeScript 7's native compiler package.
+      - name: Install TypeScript native compiler
+        timeout-minutes: 5
+        run: npm run install:typescript-native
+
       - name: Check Rust format
         run: cargo fmt -- --check
 
