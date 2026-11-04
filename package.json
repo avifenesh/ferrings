@@ -162,7 +162,7 @@
     "check:release-ready": "node scripts/check-release-ready.js",
     "install:cargo-audit": "node scripts/install-cargo-audit.js",
     "install:cargo-zigbuild": "node scripts/install-cargo-zigbuild.js",
-    "install:typescript-native": "npm install --no-save --omit=optional --ignore-scripts --no-audit --no-fund @typescript/typescript-linux-$(node -p process.arch)@$(node -p \"require('typescript/package.json').version\")",
+    "install:typescript-native": "node -e \"const n='@typescript/typescript-'+process.platform+'-'+process.arch+'/package.json';require.resolve(n,{paths:[require('path').dirname(require.resolve('typescript/package.json'))]})\" 2>/dev/null || npm install --no-save --omit=optional --ignore-scripts --no-audit --no-fund @typescript/typescript-$(node -p \"process.platform+'-'+process.arch\")@$(node -p \"require('typescript/package.json').version\")",
     "configure:release-repository": "node scripts/configure-release-repository.js",
     "check:platform-install": "node test/platform-package-install-smoke.js",
     "check:pack": "npm pack --dry-run --json",
