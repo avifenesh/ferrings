@@ -5327,10 +5327,7 @@ fn finish_tcp_send_completion<C: cqueue::EntryMarker>(
         return Ok(false);
     }
 
-    if connection.close_after_send {
-        return Ok(true);
-    }
-    Ok(false)
+    Ok(connection.close_after_send)
 }
 
 fn queue_tcp_send<C: cqueue::EntryMarker>(
